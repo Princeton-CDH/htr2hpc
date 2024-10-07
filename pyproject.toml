@@ -24,7 +24,11 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = []
+dependencies = [
+# "git+https://github.com/projectmesa/mesa.git@main",
+"pucas @ git+https://github.com/Princeton-CDH/django-pucas.git@release/0.9"
+# "pucas<0.9",  # after next release
+]
 
 [project.urls]
 Documentation = "https://github.com/Princeton-CDH/htr2hpc#readme"
@@ -33,6 +37,9 @@ Source = "https://github.com/Princeton-CDH/htr2hpc"
 
 [tool.hatch.version]
 path = "src/htr2hpc/__init__.py"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.envs.types]
 extra-dependencies = [

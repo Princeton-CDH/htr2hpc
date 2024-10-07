@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{# copy of escriptorium registration/login.html with pucas style and include added #}
+{% load i18n static %}
+
+{% block extrastyle %}
+  <link type="text/css" rel="stylesheet" href="{% static 'pucas/pu-login.css' %}"/>
+{% endblock %}
+
+
+{% block menu %}
+{% endblock %}
+
+{% block body %}
+<h1>{% trans "Please Sign In" %}</h1>
+<div class="container">
+  <div class="row">
+    <div class="col-md-4 col-md-offset-4">
+
+      <div class="login-panel panel panel-default">
+        <div class="panel-body">
+          {% include 'pucas/pu-cas-login.html' %}
+        </div>
+      </div>
+
+      <div class="login-panel panel panel-default">
+        <div class="panel-body">
+
+
+
+
+
+          {% if form.errors %}
+          <p>{% trans "Your username and password didn't match. Please try again." %}</p>
+          {% endif %}
+
+          {% if next %}
+          {% if user.is_authenticated %}
+          <p>{% trans "Your account doesn't have access to this page. To proceed,
+            please login with an account that has access." %}</p>
+          {% else %}
+          <p>{% trans "Please login to see this page." %}</p>
+          {% endif %}
+          {% endif %}
+
+          <form method="POST">
+            {% csrf_token %}
+            <fieldset>
+              <div class="form-group">
+                <input class="form-control" placeholder="{% trans "Username" %}" name="username" autofocus="" type="text">
+              </div>
+              <div class="form-group">
+                <input class="form-control" placeholder="{% trans "Password" %}" name="password" value="" type="password">
+              </div>
+              <input type="submit" value="Sign In" class="btn btn-lg btn-success btn-block"/>
+              <input type="hidden" name="next" value="{{ next }}" />
+            </fieldset>
+          </form>
+
+          {# Assumes you setup the password_reset view in your URLconf #}
+          <p><a href="{% url 'password_reset' %}">{% trans "Lost password?" %}</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

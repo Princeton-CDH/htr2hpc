@@ -1,0 +1,28 @@
+
+<div class="row">
+    <div class="col-12">
+        <hr/>
+        <h4>VM status ({{ hostname }})</h4>
+    </div>
+    <div class="col-4">
+        <ul class="list-unstyled">
+            <li><b>CPUs:</b> {{ cpu_count }}</li>
+        </ul>
+    </div>
+    <div class="col-4">
+        <h5>Average load</h5>
+        <ul class="list-unstyled">
+            {% for minutes, average in load_average.items %}
+                <li>{{ average|floatformat:3 }} ({{ minutes }} minute{{ minutes|pluralize }})</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="col-4">
+        <h5>Memory</h5>
+        <ul class="list-unstyled">
+            <li><b>total:</b> {{ system_memory.total|filesizeformat }}</li>
+            <li><b>available:</b> {{ system_memory.available|filesizeformat }}</li>
+            <li><b>percent used:</b> {{ system_memory.percent }}%</li>
+    </ul>
+    </div>
+</div>

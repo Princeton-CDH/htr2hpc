@@ -25,9 +25,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-# "git+https://github.com/projectmesa/mesa.git@main",
 "pucas @ git+https://github.com/Princeton-CDH/django-pucas.git@release/0.9"
-# "pucas<0.9",  # after next release
+# "pucas>=0.9",  # after next release
 ]
 
 [project.urls]

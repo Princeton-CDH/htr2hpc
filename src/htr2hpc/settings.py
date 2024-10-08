@@ -28,6 +28,12 @@ PUCAS_LDAP = {
     },
 }
 
+# default django-cas behavior is to redirect back to the referrer,
+# which puts you at the login page; redirect instead to escriptorium default,
+# which is currently configured as the projects list page
+CAS_REDIRECT_URL = LOGIN_REDIRECT_URL
+CAS_IGNORE_REFERER = True
+
 # use local url config
 ROOT_URLCONF = "htr2hpc.urls"
 
@@ -37,9 +43,3 @@ TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "templates")
 # in which case custom templates would be picked up via app dirs;
 # But to override escriptorium templates, we need to treat it as a
 # template directory and put it first in the list.
-
-# default django-cas behavior is to redirect back to the referrer,
-# which puts you at the login page; redirect instead to escriptorium default,
-# which is currently configured as the projects list page
-CAS_REDIRECT_URL = LOGIN_REDIRECT_URL
-CAS_IGNORE_REFERER = True

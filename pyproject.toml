@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "htr2hpc"
+dynamic = ["version"]
+description = ''
+readme = "README.md"
+requires-python = ">=3.8"
+license = "Apache-2"
+keywords = []
+authors = [
+  { name = "rlskoeser", email = "rebecca.s.koeser@princeton.edu" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+"pucas @ git+https://github.com/Princeton-CDH/django-pucas.git@release/0.9"
+# "pucas>=0.9",  # after next release
+]
+
+[project.urls]
+Documentation = "https://github.com/Princeton-CDH/htr2hpc#readme"
+Issues = "https://github.com/Princeton-CDH/htr2hpc/issues"
+Source = "https://github.com/Princeton-CDH/htr2hpc"
+
+[tool.hatch.version]
+path = "src/htr2hpc/__init__.py"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/htr2hpc tests}"
+
+[tool.coverage.run]
+source_pkgs = ["htr2hpc", "tests"]
+branch = true
+parallel = true
+omit = []
+
+[tool.coverage.paths]
+htr2hpc = ["src/htr2hpc"]
+tests = ["tests", "*/htr2hpc/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]

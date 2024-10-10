@@ -2,6 +2,7 @@ from os import cpu_count, getloadavg
 from socket import gethostname
 
 import psutil
+from django.template.defaultfilters import filesizeformat
 
 
 # Get host and CPU count once on load, since changing these requires a reboot
@@ -20,15 +21,22 @@ def vm_status(request):
 
     # load average returns average load over last 1, 5, and 15 minutes
     load_average = getloadavg()
+    # system memory usage: total, available, percent, etc
+    system_memory = psutil.virtual_memory()
+
     return {
-        "cpu_count": CPU_COUNT,
-        "load_average": {
-            "1": load_average[0],
-            "5": load_average[1],
-            "15": load_average[2],
+        "vm_status": {
+            # use to track if we're switching between VMs or if nginx+ is sticky
+            "hostname": HOSTNAME,
+            "cpu_count": CPU_COUNT,
+            "load_average": {
+                "1": load_average[0],
+                "5": load_average[1],
+                "15": load_average[2],
+            },
+            "total_memory": filesizeformat(system_memory.total),
+            "available_memory": filesizeformat(system_memory.available),
+            "used_memory": system_memory.percent,
         },
-        # use to track if we're switching between VMs or if nginx+ is sticky
-        "hostname": HOSTNAME,
-        # system memory usage: total, available, percent, etc
-        "system_memory": psutil.virtual_memory(),
+        "system_memory": system_memory,
     }

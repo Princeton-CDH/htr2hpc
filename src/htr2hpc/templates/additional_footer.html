@@ -2,28 +2,18 @@
 <div class="row">
     <div class="col-12">
         <hr/>
-         <div hidden="" id="internal_stats">{
-         "hostname": "{{ hostname }}", 
-         "cpus": "{{ cpu_count }}", 
-         "load_average": {
-         {% for minutes, average in load_average.items %}
-                "{{ minutes }}": "{{ average }}"
-         {% endfor %}
-         },
-         "total_memory": "{{ system_memory.total|filesizeformat }}",
-         "available_memory": "{{ system_memory.available|filesizeformat }}",
-         "used_memory": "{{ system_memory.percent }}" }</div>
-        <h4>VM status ({{ hostname }})</h4>
+        {{ vm_status|json_script:"vm-stats" }}
+        <h4>VM status ({{ vm_status.hostname }})</h4>
     </div>
     <div class="col-4">
         <ul class="list-unstyled">
-            <li><b>CPUs:</b> {{ cpu_count }}</li>
+            <li><b>CPUs:</b> {{ vm_status.cpu_count }}</li>
         </ul>
     </div>
     <div class="col-4">
         <h5>Average load</h5>
         <ul class="list-unstyled">
-            {% for minutes, average in load_average.items %}
+            {% for minutes, average in vm_status.load_average.items %}
                 <li>{{ average|floatformat:3 }} ({{ minutes }} minute{{ minutes|pluralize }})</li>
             {% endfor %}
         </ul>

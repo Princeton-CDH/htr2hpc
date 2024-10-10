@@ -43,3 +43,11 @@ TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "templates")
 # in which case custom templates would be picked up via app dirs;
 # But to override escriptorium templates, we need to treat it as a
 # template directory and put it first in the list.
+
+# add custom context processor to display VM status
+TEMPLATES[0]["OPTIONS"]["context_processors"].append(
+    "htr2hpc.context_processors.vm_status"
+)
+
+
+CUSTOM_HOME = True

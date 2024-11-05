@@ -27,7 +27,10 @@ classifiers = [
 dependencies = [
   "pucas>=0.9",    # TODO: move to an optional group for webapp integration only?
   "psutil",
-  "requests"
+  "requests",
+  "kraken",
+  "humanize",
+  "parsl",
 ]
 
 [project.urls]

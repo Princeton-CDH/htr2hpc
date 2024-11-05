@@ -3,6 +3,7 @@ import logging
 from collections import namedtuple
 from dataclasses import dataclass
 from time import sleep
+import pathlib
 
 import requests
 from django.utils.text import slugify  # is django a reasonable dependency?
@@ -98,7 +99,7 @@ def to_namedtuple(name: str, data: any):
 
 
 class eScriptoriumAPIClient:
-    def __init__(self, base_url, api_token):
+    def __init__(self, base_url: str, api_token: str):
         # ensure no trailing slash before combining with other urls
         self.base_url = base_url.rstrip("/")
         self.api_root = f"{self.base_url}/api"
@@ -112,7 +113,14 @@ class eScriptoriumAPIClient:
         }
         self.session.headers.update(headers)
 
-    def _make_request(self, url, params=None, data=None, method="GET"):
+    def _make_request(
+        self,
+        url: str,
+        params: dict = None,
+        data: dict = None,
+        files: dict = None,
+        method: str = "GET",
+    ):
         """
         Make a GET request with the configured session. Takes a url
         relative to :attr:`api_root` and optional dictionary of parameters for the request.
@@ -124,13 +132,15 @@ class eScriptoriumAPIClient:
 
         if method == "GET":
             session_request = self.session.get
-        elif method == "POST":
-            session_request = self.session.post
-            # add post data to the request if there is any
+        elif method in ["POST", "PUT"]:
+            session_request = getattr(self.session, method.lower())
+            # add post data and files to the request if any are specified
             if data:
                 rqst_opts["data"] = data
+            if files:
+                rqst_opts["files"] = files
         else:
-            raise ValueErorr(f"unsupported http method: {method}")
+            raise ValueError(f"unsupported http method: {method}")
 
         resp = session_request(rqst_url, **rqst_opts)
         logger.debug(
@@ -147,11 +157,30 @@ class eScriptoriumAPIClient:
         if resp.status_code == requests.codes.unauthorized:
             print("Error: not authorized")
 
+        # TODO: error handling / logging for other cases?
+        # (useful for dev if nothing else...)
+
     def models(self):
         """paginated list of models"""
         api_url = "models/"
         resp = self._make_request(api_url)
         return ResultsList(result_type="model", **resp.json())
+
+    def update_model(self, model_id: int, model_file: pathlib.Path):
+        """Update an existing model record with a new model file."""
+        api_url = f"models/{model_id}/"
+        with open(model_file, "rb") as mfile:
+            files = {"file": mfile}
+            data = {
+                "name": "updated model",
+                "job": "Segment",  # required; get from existing record?
+                # file_size (int)
+                # versions ?
+                # accuracy_percent
+            }
+            resp = self._make_request(api_url, method="PUT", files=files, data=data)
+        # on successful update, returns the model object
+        return to_namedtuple("model", resp.json())
 
     def documents(self):
         """paginated list of documents"""
@@ -159,13 +188,15 @@ class eScriptoriumAPIClient:
         resp = self._make_request(api_url)
         return ResultsList(result_type="document", **resp.json())
 
-    def document(self, document_id):
+    def document(self, document_id: int):
         """details for a single document"""
         api_url = f"documents/{document_id}/"
         resp = self._make_request(api_url)
         return to_namedtuple("document", resp.json())
 
-    def document_export(self, document_id, transcription_id):
+    def document_export(
+        self, document_id: int, transcription_id: int, include_images: bool = False
+    ):
         """request a document export be compiled for download"""
         api_url = f"documents/{document_id}/export/"
         # export form requires a region_types list, which
@@ -178,7 +209,7 @@ class eScriptoriumAPIClient:
         data = {
             "transcription": transcription_id,
             "file_format": "alto",
-            "include_images": False,
+            "include_images": True,
             "region_types": block_types,
         }
 
@@ -186,8 +217,13 @@ class eScriptoriumAPIClient:
         return to_namedtuple("status", resp.json())
 
     def export_file_url(
-        self, user_id, document_id, document_name, file_format, creation_time
-    ):
+        self,
+        user_id: int,
+        document_id: int,
+        document_name: str,
+        file_format: str,
+        creation_time: datetime.datetime,
+    ) -> str:
         # is it possible to get user id from api based purely on token?
         # if not, consider using users api endpoint to get numeric id from username
 
@@ -210,7 +246,7 @@ class eScriptoriumAPIClient:
         resp = self._make_request(api_url)
         return ResultsList(result_type="task", **resp.json())
 
-    def task(self, task_id):
+    def task(self, task_id: int):
         """details for a single task"""
         api_url = f"tasks/{task_id}/"
         resp = self._make_request(api_url)

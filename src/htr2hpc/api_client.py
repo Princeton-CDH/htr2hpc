@@ -1,3 +1,4 @@
+import datetime
 import logging
 from collections import namedtuple
 from dataclasses import dataclass
@@ -30,9 +31,40 @@ class ResultsList:
         self.results = [to_namedtuple(self.result_type, d) for d in self.results]
 
 
-# keep a registry of namedtuple objects generated for API results
+@dataclass
+class Task:
+    """API response for a task result."""
+
+    pk: int
+    document: int
+    document_part: int
+    workflow_state: int
+    label: str
+    messages: str
+    queued_at: datetime.datetime
+    started_at: datetime.datetime
+    done_at: datetime.datetime
+    method: str
+    user: int
+
+    def __post_init__(self):
+        # convert dates from string to datetime
+        for date_field in ["queued_at", "started_at", "done_at"]:
+            value = getattr(self, date_field)
+            if value:
+                setattr(self, date_field, datetime.datetime.fromisoformat(value))
+
+    def duration(self) -> datetime.timedelta | None:
+        "how long the task took to complete"
+        if self.done_at is not None:
+            return self.done_at - self.started_at
+
+
+# keep a registry of result classes for API result objects,
 # so they can be reused once they are defined
-NAMEDTUPLE_REGISTRY = {}
+RESULTCLASS_REGISTRY = {
+    "task": Task,
+}
 
 
 def to_namedtuple(name: str, data: any):
@@ -42,11 +74,11 @@ def to_namedtuple(name: str, data: any):
     # when data is a dictionary, convert to a namedtuple with the specified name
     if isinstance(data, dict):
         # if a namedtuple already exists for this name, use it
-        nt_class = NAMEDTUPLE_REGISTRY.get(name)
+        nt_class = RESULTCLASS_REGISTRY.get(name)
         # otherwise, create it and add it to the registry
         if nt_class is None:
             nt_class = namedtuple(name, data)
-            NAMEDTUPLE_REGISTRY[name] = nt_class
+            RESULTCLASS_REGISTRY[name] = nt_class
         # once we have the class, initialize an instance with the given data
         return nt_class(
             # convert any nested objects to namedtuple classes

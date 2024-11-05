@@ -184,7 +184,7 @@ class eScriptoriumAPIClient:
             data = {
                 "name": "updated model",
                 "job": "Segment",  # required; get from existing record?
-                # file_size (int)
+                # file_size (int)  - set from pathlib object using .stat().st_size
                 # versions ?
                 # accuracy_percent
             }
@@ -217,7 +217,7 @@ class eScriptoriumAPIClient:
         block_types.extend(["Undefined", "Orphan"])
 
         data = {
-            "transcription": transcription_id,
+            "transcription": transcription_id,  # could be multiple(?)
             "file_format": "alto",
             "include_images": True,
             "region_types": block_types,

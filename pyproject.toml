@@ -25,8 +25,9 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pucas>=0.9",  
-  "psutil"
+  "pucas>=0.9",    # TODO: move to an optional group for webapp integration only?
+  "psutil",
+  "requests"
 ]
 
 [project.urls]

@@ -45,9 +45,16 @@ if __name__ == "__main__":
         args.document_id,
         args.transcription,
     )
+
     # NOTE: print currently displays stdout with training progress
     # TODO: need to pass in an output file for the bash app to return best model (?)
-    print(segtrain(inputs=[training_data]).result())
+    try:
+        print(segtrain(inputs=[training_data]).result())
+    except parsl.dataflow.errors.DependencyError as err:
+        # if there is an error getting the training data, we get a
+        # parsl.dataflow.errors.DependencyError
+        print(f"Error exporting and prepping training data")
 
-    # example run on my local dev:
-    # ./src/htr2hpc/train.py http://localhost:8000/ -u 2 -d 1 -n "test doc" -t 1
+    # example to run against local dev instance:
+    # setenv ESCRIPTORIUM_API_TOKEN "####"
+    # ./src/htr2hpc/train.py http://localhost:8000/ -d 1 -t 1

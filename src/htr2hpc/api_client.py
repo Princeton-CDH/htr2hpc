@@ -161,14 +161,21 @@ class eScriptoriumAPIClient:
         )
         if resp.status_code == requests.codes.ok:
             return resp
-        if resp.status_code == requests.codes.not_found:
-            print("Error: not found")
-
-        if resp.status_code == requests.codes.unauthorized:
-            print("Error: not authorized")
-
-        # TODO: error handling / logging for other cases?
-        # (useful for dev if nothing else...)
+        elif resp.status_code == requests.codes.bad_request:
+            info = to_namedtuple(resp.json())
+            details = ""
+            if info.status == "error":
+                details = info.error
+            logger.error(f"Bad request {details}")
+        elif resp.status_code == requests.codes.not_found:
+            logger.error("Error: not found")
+        elif resp.status_code == requests.codes.unauthorized:
+            logger.error("Error: not authorized")
+        else:
+            # TODO: error handling / logging for other cases?
+            # (useful for dev if nothing else...)
+            logger.error(resp.status_code)
+            logger.error(resp.content)
 
     def current_user(self):
         """Get information about the current user account"""

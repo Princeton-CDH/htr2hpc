@@ -170,6 +170,11 @@ class eScriptoriumAPIClient:
         # TODO: error handling / logging for other cases?
         # (useful for dev if nothing else...)
 
+    def current_user(self):
+        """Get information about the current user account"""
+        api_url = "users/current/"
+        return to_namedtuple("user", self._make_request(api_url).json())
+
     def models(self):
         """paginated list of models"""
         api_url = "models/"

@@ -9,14 +9,16 @@ from htr2hpc.api_client import eScriptoriumAPIClient
 
 
 @python_app
-def prep_training_data(
-    es_base_url, es_api_token, user_id, document_id, document_name, transcription_id
-):
+def prep_training_data(es_base_url, es_api_token, document_id, transcription_id):
     from htr2hpc.api_client import eScriptoriumAPIClient
 
     api = eScriptoriumAPIClient(es_base_url, api_token=es_api_token)
+    # get current user info, since id is needed to determine export filename
+    user = api.current_user()
+    # get document details so we don't have to specify both document id and name
+    document = api.document(document_id)
     export_zipfile = api.download_document_export(
-        user_id, document_id, document_name, transcription_id
+        user.pk, document_id, document.name, transcription_id
     )
     # run in current working directory for now
     data_dir = pathlib.Path("training_data")

@@ -31,11 +31,7 @@ if __name__ == "__main__":
         type=str,
     )
     parser.add_argument(
-        "-u", "--user-id", help="escriptorium user id (numeric)", type=int
-    )
-    parser.add_argument("-d", "--document", help="Document id to export", type=int)
-    parser.add_argument(
-        "-n", "--docname", help="Name of the document being exported", type=str
+        "-d", "--document", help="Document id to export", type=int, dest="document_id"
     )
     parser.add_argument(
         "-t", "--transcription", help="Transcription id to export", type=int
@@ -43,18 +39,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     parsl.load(config)
-    # es_base_url, es_api_token, user_id, document_id, document_name, transcription_id
     training_data = prep_training_data(
         args.base_url,
         api_token,
-        args.user_id,
-        args.document,
-        args.docname,
+        args.document_id,
         args.transcription,
     )
-    # , 1, "test_doc", 1).result()
-    # # NOTE: print currently displays stdout with training progress
-    # # TODO: need to pass in an output file for the bash app to return best model (?)
+    # NOTE: print currently displays stdout with training progress
+    # TODO: need to pass in an output file for the bash app to return best model (?)
     print(segtrain(inputs=[training_data]).result())
 
     # example run on my local dev:

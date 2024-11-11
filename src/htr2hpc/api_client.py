@@ -4,6 +4,7 @@ from collections import namedtuple
 from dataclasses import dataclass
 from time import sleep
 import pathlib
+from typing import Optional
 
 import humanize
 import requests
@@ -126,9 +127,9 @@ class eScriptoriumAPIClient:
     def _make_request(
         self,
         url: str,
-        params: dict = None,
-        data: dict = None,
-        files: dict = None,
+        params: Optional[dict] = None,
+        data: Optional[dict] = None,
+        files: Optional[dict] = None,
         method: str = "GET",
     ):
         """
@@ -158,12 +159,17 @@ class eScriptoriumAPIClient:
         )
         if resp.status_code == requests.codes.ok:
             return resp
-        elif resp.status_code == requests.codes.bad_request:
-            info = to_namedtuple(resp.json())
-            details = ""
-            if info.status == "error":
-                details = info.error
-            logger.error(f"Bad request {details}")
+
+        # disable for now, this does not work in all cases
+        # elif resp.status_code == requests.codes.bad_request:
+        #     try:
+        #         info = to_namedtuple("bad_request", resp.json())
+        #         details = ""
+        #         if info.status == "error":
+        #             details = info.error
+        #         logger.error(f"Bad request {details}")
+        #     except AttributeError:
+        #         print(resp.content)
         elif resp.status_code == requests.codes.not_found:
             logger.error("Error: not found")
         elif resp.status_code == requests.codes.unauthorized:
@@ -173,6 +179,7 @@ class eScriptoriumAPIClient:
             # (useful for dev if nothing else...)
             logger.error(resp.status_code)
             logger.error(resp.content)
+            resp.raise_for_status()
 
     def current_user(self):
         """Get information about the current user account"""
@@ -233,6 +240,9 @@ class eScriptoriumAPIClient:
         }
 
         resp = self._make_request(api_url, method="POST", data=data)
+
+        # NOTE: specifying a valid document id and invalid transription id
+        # returns a 400 bad request
         return to_namedtuple("status", resp.json())
 
     def export_file_url(
@@ -257,7 +267,8 @@ class eScriptoriumAPIClient:
             document_id,
             slugify(document_name).replace("-", "_")[:32],
             file_format,
-            creation_time.strftime("%Y%m%d%H%M%S"),
+            creation_time.strftime("%Y%m%d%H%M"),
+            # creation_time.strftime("%Y%m%d%H%M%S"),
         )
 
         return f"{self.base_url}/media/users/{user_id}/{base_filename}.zip"
@@ -293,7 +304,12 @@ class eScriptoriumAPIClient:
 
         logger.info(f"Export XML completed after {export_task.duration()}")
         export_file_url = self.export_file_url(
-            user_id, document_id, document_name, "alto", export_task.done_at
+            user_id,
+            document_id,
+            document_name,
+            "alto",
+            export_task.done_at
+            # user_id, document_id, document_name, "alto", export_task.created_at
         )
         logger.info(f"Downloading export from {export_file_url}")
 

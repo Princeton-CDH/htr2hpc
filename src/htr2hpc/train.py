@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+import logging
 
 import parsl
 from parsl.configs.local_threads import config
@@ -47,6 +48,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # logging.basicConfig(filename=sys.stdout, encoding="utf-8", level=logging.DEBUG)
+    logging.basicConfig(encoding="utf-8", level=logging.DEBUG)
+
     parsl.load(config)
     training_data = prep_training_data(
         args.base_url,
@@ -62,7 +66,7 @@ if __name__ == "__main__":
     except parsl.dataflow.errors.DependencyError as err:
         # if there is an error getting the training data, we get a
         # parsl.dataflow.errors.DependencyError
-        print(f"Error exporting and prepping training data")
+        print(f"Error exporting and prepping training data: {err}")
 
     # example to run against local dev instance:
     # setenv ESCRIPTORIUM_API_TOKEN "####"

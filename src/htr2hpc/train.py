@@ -36,6 +36,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "-t", "--transcription", help="Transcription id to export", type=int
     )
+    parser.add_argument(
+	"-j", "--job", help="Job type (segmentation or transcription)", type=str
+    )
+    parser.add_argument(
+	"-m", "--model", help="Optional model id to export (if fine-tuning)", type=int
+    )
+    parser.add_argument(
+	"-p", "--parts", help="Optional list of parts to export (if not entire document)"
+    )
     args = parser.parse_args()
 
     parsl.load(config)

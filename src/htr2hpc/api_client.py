@@ -154,10 +154,7 @@ class eScriptoriumAPIClient:
 
         resp = session_request(rqst_url, **rqst_opts)
         logger.debug(
-            "get %s %s: %f sec",
-            rqst_url,
-            resp.status_code,
-            resp.elapsed.total_seconds(),
+            f"get {rqst_url} {resp.status_code}: {resp.elapsed.total_seconds()} sec"
         )
         if resp.status_code == requests.codes.ok:
             return resp

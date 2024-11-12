@@ -24,7 +24,7 @@ def prep_training_data(es_base_url, es_api_token, document_id, transcription_id)
     data_dir = pathlib.Path("training_data")
     data_dir.mkdir(exist_ok=True)
 
-    # extract everything in the zipfiile to the training data dir
+    # extract everything in the zipfile to the training data dir
     with ZipFile(export_zipfile) as zip_exp:
         zip_exp.extractall(path=data_dir)
 

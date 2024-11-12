@@ -4,7 +4,7 @@ from collections import namedtuple
 from dataclasses import dataclass
 from time import sleep
 import pathlib
-from typing import Optional
+from typing import Optional, Any
 
 import humanize
 import requests
@@ -72,14 +72,21 @@ class Task:
             return self.done_at - self.started_at
 
 
+@dataclass
+class Workflow:
+    convert: Optional[str] = None
+    segment: Optional[str] = None
+    # workflow status is only present when a workflow has not run,
+    # so define a dataclass and make them optional
+    # to handle missing values
+
+
 # keep a registry of result classes for API result objects,
 # so they can be reused once they are defined
-RESULTCLASS_REGISTRY = {
-    "task": Task,
-}
+RESULTCLASS_REGISTRY = {"task": Task, "workflow": Workflow}
 
 
-def to_namedtuple(name: str, data: any):
+def to_namedtuple(name: str, data: Any):
     """convenience method to convert API response data into namedtuple objects
     for easier attribute access"""
 
@@ -89,8 +96,11 @@ def to_namedtuple(name: str, data: any):
         nt_class = RESULTCLASS_REGISTRY.get(name)
         # otherwise, create it and add it to the registry
         if nt_class is None:
+            logger.debug(f"Creating namedtuple with name {name}")
             nt_class = namedtuple(name, data)
             RESULTCLASS_REGISTRY[name] = nt_class
+        else:
+            logger.debug(f"Using existing result class for {name}: {nt_class}")
         # once we have the class, initialize an instance with the given data
         return nt_class(
             # convert any nested objects to namedtuple classes
@@ -190,7 +200,13 @@ class eScriptoriumAPIClient:
         """paginated list of models"""
         api_url = "models/"
         resp = self._make_request(api_url)
-        return ResultsList(result_type="model", **resp.json())
+        return ResultsList(result_type="list_model", **resp.json())
+
+    def model(self, model_id):
+        """details for a single models"""
+        api_url = f"models/{model_id}/"
+        resp = self._make_request(api_url)
+        return to_namedtuple("model", resp.json())
 
     def update_model(self, model_id: int, model_file: pathlib.Path):
         """Update an existing model record with a new model file."""
@@ -220,6 +236,19 @@ class eScriptoriumAPIClient:
         resp = self._make_request(api_url)
         return to_namedtuple("document", resp.json())
 
+    def document_parts(self, document_id: int):
+        """list of all the parts associated with a document"""
+        api_url = f"documents/{document_id}/parts/"
+        resp = self._make_request(api_url)
+        # document part listed here is different than full parts result
+        return ResultsList(result_type="documentpart", **resp.json())
+
+    def document_part(self, document_id: int, part_id: int):
+        """details for one part of a document"""
+        api_url = f"documents/{document_id}/parts/{part_id}/"
+        resp = self._make_request(api_url)
+        return to_namedtuple("part", resp.json())
+
     def document_export(
         self, document_id: int, transcription_id: int, include_images: bool = False
     ):
@@ -244,6 +273,17 @@ class eScriptoriumAPIClient:
         # NOTE: specifying a valid document id and invalid transription id
         # returns a 400 bad request
         return to_namedtuple("status", resp.json())
+
+    # API provides types for these items
+    types = ["block", "line", "annotations", "part"]
+
+    def list_types(self, item):
+        """list of available types"""
+        if item not in self.types:
+            raise ValueError(f"{item} is not a supported type for list types")
+        api_url = f"types/{item}/"
+        resp = self._make_request(api_url)
+        return ResultsList(result_type="type", **resp.json())
 
     def export_file_url(
         self,
@@ -320,6 +360,30 @@ class eScriptoriumAPIClient:
             content_length = resp.headers.get("content-length")
             filename = content_disposition.split("filename=")[-1].strip('"')
             outfile = pathlib.Path(filename)
+            # report on filename and size based on content-length header
+            logger.info(
+                f"Saving as {filename} ({humanize.naturalsize(content_length)})"
+            )
+            with outfile.open("wb") as filehandle:
+                for chunk in resp.iter_content(chunk_size=1024):
+                    filehandle.write(chunk)
+            return outfile
+
+    def download_file(self, url, save_location, filename=None):
+        resp = requests.get(url, stream=True)
+        if resp.status_code == requests.codes.ok:
+            content_length = resp.headers.get("content-length")
+
+            if not filename:
+                # content disposition may include filename
+                content_disposition = resp.headers.get("content-disposition")
+                if content_disposition:
+                    filename = content_disposition.split("filename=")[-1].strip('"')
+                else:
+                    # FIXME: should have a better fallback than this
+                    filename = slugify(url)
+
+            outfile = save_location / filename
             # report on filename and size based on content-length header
             logger.info(
                 f"Saving as {filename} ({humanize.naturalsize(content_length)})"

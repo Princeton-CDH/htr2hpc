@@ -1,43 +1,153 @@
+import logging
 import pathlib
+from collections import defaultdict
 from zipfile import ZipFile
 
+import humanize
+from django.utils.text import slugify  # is django a reasonable dependency?
 import parsl
-from parsl.app.app import python_app, bash_app
+import requests
+from parsl.app.app import python_app, bash_app, join_app
 from parsl.data_provider.files import File
+from kraken.containers import BaselineLine, Region, Segmentation
+from kraken.lib.arrow_dataset import build_binary_dataset
+from kraken.serialization import serialize
+
 
 from htr2hpc.api_client import eScriptoriumAPIClient
 
+logger = logging.getLogger(__name__)
+
+
+# get a document part from eS api and convert into kraken objects
+
 
 @python_app
-def prep_training_data(es_base_url, es_api_token, document_id, transcription_id):
-    from htr2hpc.api_client import eScriptoriumAPIClient
+def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
+    # get a single document part from eScripotrium API and return as a
+    # kraken segmentation
 
-    api = eScriptoriumAPIClient(es_base_url, api_token=es_api_token)
-    # get current user info, since id is needed to determine export filename
-    user = api.current_user()
-    # get document details so we don't have to specify both document id and name
-    document = api.document(document_id)
-    export_zipfile = api.download_document_export(
-        user.pk, document_id, document.name, transcription_id
+    # TODO: can we cache these? types used across all parts
+    # get list of line types and convert to a lookup from id to name
+    line_types = {ltype.pk: ltype.name for ltype in api.list_types("line").results}
+    # same for block types (used for regions)
+    block_types = {btype.pk: btype.name for btype in api.list_types("block").results}
+    part = api.document_part(document_id, part_id)
+    # print(part)
+    # image uri: part.image.uri
+    # regions : part.regions
+
+    # adapted from escriptorium.app.core.tasks.make_segmentation_training_data
+
+    # gather base lines
+    baselines = [
+        BaselineLine(
+            id=line.external_id,
+            baseline=line.baseline,
+            boundary=line.mask,
+            # this mirrors the behavior from eS code for export:
+            # mark as default if type is not in the public list
+            # db includes more types but they are not marked as public
+            tags={"type": line_types.get(line.typology, "default")},
+        )
+        for line in part.lines
+    ]
+    logger.info(f"Document {document_id} part {part_id}: {len(baselines)} baselines")
+
+    # gather regions in a dictionary keyed on type name
+    # name -> list of regions
+    regions = defaultdict(list)
+    for region in part.regions:
+        region_type = block_types.get(region.typology, "default")
+        regions[region_type].append(
+            Region(
+                id=region.external_id, boundary=region.box, tags={"type": region_type}
+            )
+        )
+    logger.info(
+        f"Document {document_id} part {part_id}:  {len(part.regions)} regions, {len(regions.keys())} block types"
     )
-    # run in current working directory for now
-    data_dir = pathlib.Path("training_data")
-    data_dir.mkdir(exist_ok=True)
 
-    # extract everything in the zipfile to the training data dir
-    with ZipFile(export_zipfile) as zip_exp:
-        zip_exp.extractall(path=data_dir)
+    image_uri = f"{api.base_url}{part.image.uri}"
+    image_file = api.download_file(
+        image_uri, image_dir, part.image.uri.replace("/media/", "").replace("/", "-")
+    )
 
-    # return training directory as a parsl file
-    return File(data_dir)
+    return Segmentation(
+        # eS code has text-direction hardcoded as horizontal-lr
+        text_direction="horizontal-lr",
+        # imagename should be a path to a local image file; can we use parsl File?
+        imagename=image_file,
+        type="baselines",
+        lines=baselines,
+        regions=regions,
+        script_detection=False,
+    )
+
+
+@python_app
+def compile_data(segmentations, output_dir):
+    output_file = output_dir / "dataset.arrow"
+    build_binary_dataset(
+        files=segmentations, format_type=None, output_file=str(output_file)
+    )
+    return output_file
+
+
+# should this be a parsl python app? run in parallel with segmentation data?
+def get_model(api, model_id, training_type, output_dir):
+    model_info = api.model(model_id)
+    if model_info.job != training_type:
+        raise ValueError(
+            f"Model {model_id} is a {model_info.job} model, but {training_type} requested"
+        )
+    return api.download_file(model_info.file, output_dir)
+
+
+# def prep_training_data(es_base_url, es_api_token, document_id, part_ids=None):
+def prep_training_data(api, document_id, part_ids=None):
+    # if part ids are not specified, get all parts
+    if part_ids is None:
+        doc_parts = api.document_parts(document_id)
+        part_ids = [part.pk for part in doc_parts.results]
+
+    output_dir = pathlib.Path(f"doc{document_id}")
+    output_dir.mkdir(exist_ok=True)
+    image_dir = output_dir / "images"
+    image_dir.mkdir(exist_ok=True)
+
+    # kick of parsl python app to get document parts as kraken segmentations
+    segmentation_data = [
+        get_segmentation_data(api, document_id, part_id, image_dir)
+        for part_id in part_ids
+    ]
+    # get all the results
+    segmentations = [s.result() for s in segmentation_data]
+
+    # test serializing as alto to compare export, compilation
+    for seg in segmentations:
+        # output xml next to the image file
+        xml_path = pathlib.Path(seg.imagename).with_suffix(".xml")
+        # make image path a local / relative path
+        seg.imagename = pathlib.Path(seg.imagename).name
+        xml_path.open("w").write(serialize(seg))
+
+    # for segtrain, return the path that contains the xml files
+    return image_dir
+
+    # FIXME: binary compiled data only seems to work for train and not segtrain
+    # compiled_data = compile_data(segmentations, output_dir).result()
 
 
 @bash_app
 def segtrain(inputs=[], outputs=[]):
     # first input should be directory for input data
     input_data_dir = inputs[0]
-    # TODO: real args here
-    return f"ketos segtrain -f alto {input_data_dir}/0*.xml"
+    # second input is model to use as starting point
+    input_model = inputs[1]
+    # third input is worker count
+    workers = inputs[2]
+    return f"ketos segtrain --epochs 50 --resize both -i {input_model} -o model --workers {workers} -d cuda:0 -f xml {input_data_dir}/*.xml"
     # TODO: return model as output file
 
 

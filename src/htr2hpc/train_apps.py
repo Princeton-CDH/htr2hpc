@@ -32,7 +32,7 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
     line_types = {ltype.pk: ltype.name for ltype in api.list_types("line").results}
     # same for block types (used for regions)
     block_types = {btype.pk: btype.name for btype in api.list_types("block").results}
-    part = api.document_part(document_id, part_id)
+    part = api.document_part_details(document_id, part_id)
     # print(part)
     # image uri: part.image.uri
     # regions : part.regions
@@ -69,6 +69,7 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
     )
 
     image_uri = f"{api.base_url}{part.image.uri}"
+    # download the file and save in the image dir; name based on url without media prefix
     image_file = api.download_file(
         image_uri, image_dir, part.image.uri.replace("/media/", "").replace("/", "-")
     )
@@ -96,7 +97,7 @@ def compile_data(segmentations, output_dir):
 
 # should this be a parsl python app? run in parallel with segmentation data?
 def get_model(api, model_id, training_type, output_dir):
-    model_info = api.model(model_id)
+    model_info = api.model_details(model_id)
     if model_info.job != training_type:
         raise ValueError(
             f"Model {model_id} is a {model_info.job} model, but {training_type} requested"
@@ -108,7 +109,7 @@ def get_model(api, model_id, training_type, output_dir):
 def prep_training_data(api, document_id, part_ids=None):
     # if part ids are not specified, get all parts
     if part_ids is None:
-        doc_parts = api.document_parts(document_id)
+        doc_parts = api.document_parts_list(document_id)
         part_ids = [part.pk for part in doc_parts.results]
 
     output_dir = pathlib.Path(f"doc{document_id}")

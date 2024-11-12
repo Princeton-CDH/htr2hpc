@@ -191,24 +191,25 @@ class eScriptoriumAPIClient:
             logger.error(resp.content)
             resp.raise_for_status()
 
-    def current_user(self):
+    def get_current_user(self):
         """Get information about the current user account"""
         api_url = "users/current/"
         return to_namedtuple("user", self._make_request(api_url).json())
 
-    def models(self):
+    def model_list(self):
         """paginated list of models"""
         api_url = "models/"
         resp = self._make_request(api_url)
         return ResultsList(result_type="list_model", **resp.json())
 
-    def model(self, model_id):
+    def model_details(self, model_id):
         """details for a single models"""
         api_url = f"models/{model_id}/"
         resp = self._make_request(api_url)
         return to_namedtuple("model", resp.json())
 
-    def update_model(self, model_id: int, model_file: pathlib.Path):
+    # TODO: add a model create method for posting a new model
+    def model_update(self, model_id: int, model_file: pathlib.Path):
         """Update an existing model record with a new model file."""
         api_url = f"models/{model_id}/"
         with open(model_file, "rb") as mfile:
@@ -224,26 +225,26 @@ class eScriptoriumAPIClient:
         # on successful update, returns the model object
         return to_namedtuple("model", resp.json())
 
-    def documents(self):
+    def document_list(self):
         """paginated list of documents"""
         api_url = "documents/"
         resp = self._make_request(api_url)
         return ResultsList(result_type="document", **resp.json())
 
-    def document(self, document_id: int):
+    def document_details(self, document_id: int):
         """details for a single document"""
         api_url = f"documents/{document_id}/"
         resp = self._make_request(api_url)
         return to_namedtuple("document", resp.json())
 
-    def document_parts(self, document_id: int):
+    def document_parts_list(self, document_id: int):
         """list of all the parts associated with a document"""
         api_url = f"documents/{document_id}/parts/"
         resp = self._make_request(api_url)
         # document part listed here is different than full parts result
         return ResultsList(result_type="documentpart", **resp.json())
 
-    def document_part(self, document_id: int, part_id: int):
+    def document_part_details(self, document_id: int, part_id: int):
         """details for one part of a document"""
         api_url = f"documents/{document_id}/parts/{part_id}/"
         resp = self._make_request(api_url)
@@ -329,7 +330,7 @@ class eScriptoriumAPIClient:
         )
         # currently returns status=ok, indicating a task has been queued
         if result.status == "ok":
-            task_list = self.tasks()
+            task_list = self.task_list()
             # assume most recent task, which is listed first
             # TODO: confirm correct task id based on method (export) and document name
             export_task = task_list.results[0]
@@ -340,7 +341,7 @@ class eScriptoriumAPIClient:
         while export_task.done_at is None:
             sleep(1)
             # refresh task details from api to check status
-            export_task = self.task(export_task.pk)
+            export_task = self.task_details(export_task.pk)
 
         logger.info(f"Export XML completed after {export_task.duration()}")
         export_file_url = self.export_file_url(
@@ -370,6 +371,11 @@ class eScriptoriumAPIClient:
             return outfile
 
     def download_file(self, url, save_location, filename=None):
+        """Convenience method to download a file to a specified location."""
+
+        # TODO: would be nice to make url relative to base_url if it's
+        # a relative url and not a full path
+
         resp = requests.get(url, stream=True)
         if resp.status_code == requests.codes.ok:
             content_length = resp.headers.get("content-length")
@@ -393,13 +399,13 @@ class eScriptoriumAPIClient:
                     filehandle.write(chunk)
             return outfile
 
-    def tasks(self):
+    def task_list(self):
         """paginated list of tasks"""
         api_url = "tasks/"
         resp = self._make_request(api_url)
         return ResultsList(result_type="task", **resp.json())
 
-    def task(self, task_id: int):
+    def task_details(self, task_id: int):
         """details for a single task"""
         api_url = f"tasks/{task_id}/"
         resp = self._make_request(api_url)

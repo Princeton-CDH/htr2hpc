@@ -228,7 +228,7 @@ class eScriptoriumAPIClient:
         data = {
             "transcription": transcription_id,  # could be multiple(?)
             "file_format": "alto",
-            "include_images": True,
+            "include_images": include_images,
             "region_types": block_types,
         }
 

@@ -14,10 +14,8 @@ logger = logging.getLogger(__name__)
 # get a document part from eS api and convert into kraken objects
 
 
-@python_app
-def get_segmentation_data(
-    api, document_id, part_id, image_dir, executors=["local_threads"]
-) -> Segmentation:
+@python_app(executors=["local"])
+def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
     # get a single document part from eScripotrium API and return as a
     # kraken segmentation
 
@@ -115,6 +113,7 @@ def prep_training_data(api, base_dir, document_id, part_ids=None):
 
     output_dir = base_dir / f"doc{document_id}"
     output_dir.mkdir()
+    # TODO: rename parts? pages? (now contains images & alto xml)
     image_dir = output_dir / "images"
     image_dir.mkdir()
 
@@ -141,13 +140,12 @@ def prep_training_data(api, base_dir, document_id, part_ids=None):
     # compiled_data = compile_data(segmentations, output_dir).result()
 
 
-@bash_app
+@bash_app(executors=["hpc"])
 def segtrain(
     inputs=[],
     outputs=[],
     stderr=parsl.AUTO_LOGNAME,
     stdout=parsl.AUTO_LOGNAME,
-    executors=["hpc"],
 ):
     # first input should be directory for input data
     input_data_dir = inputs[0]

@@ -141,8 +141,6 @@ def main():
     # if there is an error getting the training data, we get a
     # parsl.dataflow.errors.DependencyError
 
-    # change the current working directory
-    os.chdir(args.work_dir)
     relative_datadir = training_data_dir.relative_to(args.work_dir)
     relative_modelfile = model_file.relative_to(args.work_dir)
     output_model_dir = args.work_dir / "output_model"

@@ -1,5 +1,5 @@
 from parsl.config import Config
-from parsl.providers import SlurmProvider
+from parsl.providers import SlurmProvider, LocalProvider
 from parsl.executors import HighThroughputExecutor
 from parsl.launchers import SrunLauncher
 from parsl.executors.threads import ThreadPoolExecutor
@@ -7,11 +7,20 @@ from parsl.addresses import address_by_interface
 
 parsl_config = Config(
     executors=[
-        ThreadPoolExecutor(max_threads=8, label="local_threads"),
+        ThreadPoolExecutor(max_threads=8, label="local"),
+        # HighThroughputExecutor(
+        #     label="local",
+        #     worker_debug=True,
+        #     available_accelerators=2,
+        #     provider=LocalProvider(
+        #         init_blocks=1,
+        #         max_blocks=8,
+        #     ),
+        # ),
         HighThroughputExecutor(
             label="hpc",
             address=address_by_interface("ib0"),
-            cores_per_worker=2,
+            cores_per_worker=8,
             provider=SlurmProvider(
                 # Princeton HPC instructions say not to specify the partition,
                 # but to let the slurm scheduler handle that

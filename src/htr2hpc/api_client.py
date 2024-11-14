@@ -375,7 +375,6 @@ class eScriptoriumAPIClient:
 
         # TODO: would be nice to make url relative to base_url if it's
         # a relative url and not a full path
-
         resp = requests.get(url, stream=True)
         if resp.status_code == requests.codes.ok:
             content_length = resp.headers.get("content-length")
@@ -386,8 +385,8 @@ class eScriptoriumAPIClient:
                 if content_disposition:
                     filename = content_disposition.split("filename=")[-1].strip('"')
                 else:
-                    # FIXME: should have a better fallback than this
-                    filename = slugify(url)
+                    # if filename is not set in header, use the end of the url
+                    filename = url.rsplit("/")[-1]
 
             outfile = save_location / filename
             # report on filename and size based on content-length header

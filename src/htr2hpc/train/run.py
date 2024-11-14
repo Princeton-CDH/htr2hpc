@@ -9,12 +9,8 @@ from multiprocessing import cpu_count
 import parsl
 
 from htr2hpc.api_client import eScriptoriumAPIClient
-from htr2hpc.train_apps import (
-    prep_training_data,
-    segtrain,
-    get_model,
-    parsl_config,
-)
+from htr2hpc.train.apps import prep_training_data, segtrain, get_model
+from htr2hpc.train.config import parsl_config
 
 
 api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
@@ -22,7 +18,8 @@ api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
 # map our job type option choices to escriptorium terms
 es_model_jobs = {"segmentation": "Segment", "transcription": "Recognize"}
 
-if __name__ == "__main__":
+
+def main():
     try:
         api_token = os.environ[api_token_env_var]
     except KeyError:
@@ -168,3 +165,7 @@ if __name__ == "__main__":
 
     # parsl cleanup
     parsl.dfk().cleanup()
+
+
+if __name__ == "__main__":
+    main()

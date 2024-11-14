@@ -4,36 +4,11 @@ from collections import defaultdict
 
 import parsl
 from parsl.app.app import python_app, bash_app
-from parsl.config import Config
-from parsl.providers import SlurmProvider
-from parsl.executors import HighThroughputExecutor
-from parsl.launchers import SrunLauncher
-from parsl.executors.threads import ThreadPoolExecutor
 from kraken.containers import BaselineLine, Region, Segmentation
 from kraken.lib.arrow_dataset import build_binary_dataset
 from kraken.serialization import serialize
 
-
-
 logger = logging.getLogger(__name__)
-
-
-parsl_config = Config(
-    executors=[
-        ThreadPoolExecutor(max_threads=8, label="local_threads"),
-        HighThroughputExecutor(
-            label="hpc",
-            # address=address_by_hostname(),
-            max_workers_per_node=56,
-            provider=SlurmProvider(
-                nodes_per_block=128,
-                init_blocks=1,
-                partition="normal",
-                launcher=SrunLauncher(),
-            ),
-        ),
-    ],
-)
 
 
 # get a document part from eS api and convert into kraken objects

@@ -9,6 +9,12 @@ import parsl
 import requests
 from parsl.app.app import python_app, bash_app, join_app
 from parsl.data_provider.files import File
+from parsl.config import Config
+from parsl.providers import SlurmProvider, LocalProvider
+from parsl.executors import HighThroughputExecutor
+from parsl.launchers import SrunLauncher
+from parsl.addresses import address_by_hostname
+from parsl.executors.threads import ThreadPoolExecutor
 from kraken.containers import BaselineLine, Region, Segmentation
 from kraken.lib.arrow_dataset import build_binary_dataset
 from kraken.serialization import serialize
@@ -19,11 +25,31 @@ from htr2hpc.api_client import eScriptoriumAPIClient
 logger = logging.getLogger(__name__)
 
 
+parsl_config = Config(
+    executors=[
+        ThreadPoolExecutor(max_threads=8, label="local_threads"),
+        HighThroughputExecutor(
+            label="hpc",
+            # address=address_by_hostname(),
+            max_workers_per_node=56,
+            provider=SlurmProvider(
+                nodes_per_block=128,
+                init_blocks=1,
+                partition="normal",
+                launcher=SrunLauncher(),
+            ),
+        ),
+    ],
+)
+
+
 # get a document part from eS api and convert into kraken objects
 
 
 @python_app
-def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
+def get_segmentation_data(
+    api, document_id, part_id, image_dir, executors=["local_threads"]
+) -> Segmentation:
     # get a single document part from eScripotrium API and return as a
     # kraken segmentation
 
@@ -45,6 +71,10 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
             id=line.external_id,
             baseline=line.baseline,
             boundary=line.mask,
+            # NOTE: eS celery task training prep only includes text
+            # when generating training data for recognition, not segmentation
+            #
+            text=line.text if hasattr(line, "text") else None,
             # this mirrors the behavior from eS code for export:
             # mark as default if type is not in the public list
             # db includes more types but they are not marked as public
@@ -53,6 +83,9 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
         for line in part.lines
     ]
     logger.info(f"Document {document_id} part {part_id}: {len(baselines)} baselines")
+
+    # NOTE: eS celery task training prep only includes regions
+    # for segmentation, not recognition
 
     # gather regions in a dictionary keyed on type name
     # name -> list of regions
@@ -106,18 +139,18 @@ def get_model(api, model_id, training_type, output_dir):
 
 
 # def prep_training_data(es_base_url, es_api_token, document_id, part_ids=None):
-def prep_training_data(api, document_id, part_ids=None):
+def prep_training_data(api, base_dir, document_id, part_ids=None):
     # if part ids are not specified, get all parts
     if part_ids is None:
         doc_parts = api.document_parts_list(document_id)
         part_ids = [part.pk for part in doc_parts.results]
 
-    output_dir = pathlib.Path(f"doc{document_id}")
-    output_dir.mkdir(exist_ok=True)
+    output_dir = base_dir / f"doc{document_id}"
+    output_dir.mkdir()
     image_dir = output_dir / "images"
-    image_dir.mkdir(exist_ok=True)
+    image_dir.mkdir()
 
-    # kick of parsl python app to get document parts as kraken segmentations
+    # kick off parsl python app to get document parts as kraken segmentations
     segmentation_data = [
         get_segmentation_data(api, document_id, part_id, image_dir)
         for part_id in part_ids
@@ -141,7 +174,13 @@ def prep_training_data(api, document_id, part_ids=None):
 
 
 @bash_app
-def segtrain(inputs=[], outputs=[]):
+def segtrain(
+    inputs=[],
+    outputs=[],
+    stderr=parsl.AUTO_LOGNAME,
+    stdout=parsl.AUTO_LOGNAME,
+    executors=["hpc"],
+):
     # first input should be directory for input data
     input_data_dir = inputs[0]
     # second input is model to use as starting point

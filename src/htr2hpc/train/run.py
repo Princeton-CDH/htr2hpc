@@ -79,6 +79,7 @@ def main():
         help="Optional list of parts to train on (if not entire document)",
         # TODO: use list or intspan here
     )
+    # NOTE: needs to match the number in the parsl config...
     parser.add_argument(
         "-w",
         "--workers",
@@ -146,8 +147,14 @@ def main():
     output_model_dir.mkdir()
     output_modelfile = output_model_dir / "model"
 
+    # get absolute versions of these paths _before_ changing working directory
+    abs_training_data_dir = training_data_dir.absolute()
+    abs_model_file = model_file.absolute()
+    abs_output_modelfile = output_modelfile.absolute()
+
     # change directory to working directory
     # by default, slurm executes the job from the directory where it was submitted
+    # this is where parsl will put the sbatch file also
     os.chdir(args.work_dir)
 
     if args.job == "segmentation":
@@ -155,10 +162,9 @@ def main():
             print(
                 segtrain(
                     inputs=[
-                        # use absolute paths
-                        training_data_dir.absolute(),
-                        model_file.absolute(),
-                        output_modelfile.absolute(),
+                        abs_training_data_dir,
+                        abs_model_file,
+                        abs_output_modelfile,
                         args.workers,
                     ]
                 ).result()

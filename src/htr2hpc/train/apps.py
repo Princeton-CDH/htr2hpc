@@ -20,6 +20,8 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
     # kraken segmentation
 
     # TODO: can we cache these? types used across all parts
+    # NOTE: document details includes valid block types and valid line types,
+    # maybe we should get that and pass it in to this method
     # get list of line types and convert to a lookup from id to name
     line_types = {ltype.pk: ltype.name for ltype in api.list_types("line").results}
     # same for block types (used for regions)
@@ -30,6 +32,12 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
     # regions : part.regions
 
     # adapted from escriptorium.app.core.tasks.make_segmentation_training_data
+    # (additional logic in make_recognition_segmentation )
+
+    # TODO: for recognition task, we need to get transcription lines
+    # from api.document_part_transcription_list
+    # each one includes a line id, transcription id, and content
+    # ... need to match up based on line pk
 
     # gather base lines
     baselines = [
@@ -39,8 +47,6 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
             boundary=line.mask,
             # NOTE: eS celery task training prep only includes text
             # when generating training data for recognition, not segmentation
-            #
-            text=line.text if hasattr(line, "text") else None,
             # this mirrors the behavior from eS code for export:
             # mark as default if type is not in the public list
             # db includes more types but they are not marked as public

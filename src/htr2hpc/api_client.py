@@ -250,6 +250,19 @@ class eScriptoriumAPIClient:
         resp = self._make_request(api_url)
         return to_namedtuple("part", resp.json())
 
+    def document_part_transcription_list(
+        self, document_id: int, part_id: int, transcription_id: Optional[int] = None
+    ):
+        """list of transcription lines for one part of a document"""
+        api_url = f"documents/{document_id}/parts/{part_id}/transcriptions/"
+        params = {}
+        # if transcription id is specified, pass as a querystring param to filter
+        # to only lines from that specific transcription
+        if transcription_id is not None:
+            params["transcription"] = transcription_id
+        resp = self._make_request(api_url, params=params)
+        return ResultsList(result_type="transcription_line", **resp.json())
+
     def document_export(
         self, document_id: int, transcription_id: int, include_images: bool = False
     ):

@@ -7,6 +7,7 @@ import pathlib
 from multiprocessing import cpu_count
 
 import parsl
+from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 
 from htr2hpc.api_client import eScriptoriumAPIClient
 from htr2hpc.train.apps import prep_training_data, segtrain, get_model
@@ -17,6 +18,12 @@ api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
 
 # map our job type option choices to escriptorium terms
 es_model_jobs = {"segmentation": "Segment", "transcription": "Recognize"}
+
+# kraken python package provides paths to the default best models for both modes
+default_model = {
+    "segmentation": SEGMENTATION_DEFAULT_MODEL,
+    "transcription": DEFAULT_MODEL,
+}
 
 
 def main():
@@ -106,6 +113,7 @@ def main():
     api = eScriptoriumAPIClient(args.base_url, api_token=api_token)
 
     # TODO : check api access works before going too far?
+    # (currently does not handle connection error gracefully)
 
     training_data_dir = prep_training_data(
         api,
@@ -116,6 +124,8 @@ def main():
     # if there is an error getting the training data, we get a
     # parsl.dataflow.errors.DependencyError
 
+    # if model id is specified, download the model from escriptorium API,
+    # confirming that it is the appropriate type (segmentation/transcription)
     if args.model_id:
         model_file = get_model(
             api,
@@ -123,10 +133,12 @@ def main():
             es_model_jobs[args.job],
             args.work_dir,
         )
-    # TODO: if not specified, get default model for training mode
 
-    # NOTE: print currently displays stdout with training progress
-    # TODO: need to pass in an output file for the bash app to return best model (?)
+    # if model id is not specified, use the default from kraken
+    else:
+        # get the appropriate model file for the requested training mode
+        # kraken default defs are path objects
+        model_file = default_model[args.job]
 
     # TODO: segtrain/ train should be wrapped by a join app,
     # so that once training completes we can determine whether or not to
@@ -178,9 +190,9 @@ def main():
     # setenv ESCRIPTORIUM_API_TOKEN "####"
     # ./src/htr2hpc/train.py http://localhost:8000/ -d 1 -t 1
 
-    # when this is all working, cleanup working dir (by default, option to skip)
+    # when this is all working, cleanup working dir (by default, with option to skip)
 
-    # parsl cleanup
+    #  cleanup
     parsl.dfk().cleanup()
 
 

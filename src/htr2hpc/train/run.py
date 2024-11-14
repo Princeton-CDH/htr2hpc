@@ -141,20 +141,24 @@ def main():
     # if there is an error getting the training data, we get a
     # parsl.dataflow.errors.DependencyError
 
-    relative_datadir = training_data_dir.relative_to(args.work_dir)
-    relative_modelfile = model_file.relative_to(args.work_dir)
+    # create a directory and path for the output model file
     output_model_dir = args.work_dir / "output_model"
     output_model_dir.mkdir()
     output_modelfile = output_model_dir / "model"
+
+    # change directory to working directory
+    # by default, slurm executes the job from the directory where it was submitted
+    os.chdir(args.work_dir)
 
     if args.job == "segmentation":
         try:
             print(
                 segtrain(
                     inputs=[
-                        relative_datadir,
-                        relative_modelfile,
-                        output_modelfile,
+                        # use absolute paths
+                        training_data_dir.absolute(),
+                        model_file.absolute(),
+                        output_modelfile.absolute(),
                         args.workers,
                     ]
                 ).result()

@@ -12,7 +12,6 @@ from htr2hpc.api_client import eScriptoriumAPIClient
 from htr2hpc.train_apps import (
     prep_training_data,
     segtrain,
-    get_segmentation_data,
     get_model,
     parsl_config,
 )

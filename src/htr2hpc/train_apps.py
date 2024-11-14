@@ -1,26 +1,19 @@
 import logging
 import pathlib
 from collections import defaultdict
-from zipfile import ZipFile
 
-import humanize
-from django.utils.text import slugify  # is django a reasonable dependency?
 import parsl
-import requests
-from parsl.app.app import python_app, bash_app, join_app
-from parsl.data_provider.files import File
+from parsl.app.app import python_app, bash_app
 from parsl.config import Config
-from parsl.providers import SlurmProvider, LocalProvider
+from parsl.providers import SlurmProvider
 from parsl.executors import HighThroughputExecutor
 from parsl.launchers import SrunLauncher
-from parsl.addresses import address_by_hostname
 from parsl.executors.threads import ThreadPoolExecutor
 from kraken.containers import BaselineLine, Region, Segmentation
 from kraken.lib.arrow_dataset import build_binary_dataset
 from kraken.serialization import serialize
 
 
-from htr2hpc.api_client import eScriptoriumAPIClient
 
 logger = logging.getLogger(__name__)
 

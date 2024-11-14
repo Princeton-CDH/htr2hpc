@@ -82,8 +82,9 @@ def main():
     parser.add_argument(
         "-w",
         "--workers",
-        help="Number of workers for training task (default: %(default)s)",
-        default=cpu_count(),
+        help="Number of workers for training task (default: %(default)d",
+        type=int,
+        default=8,
     )
     args = parser.parse_args()
 
@@ -144,12 +145,20 @@ def main():
     os.chdir(args.work_dir)
     relative_datadir = training_data_dir.relative_to(args.work_dir)
     relative_modelfile = model_file.relative_to(args.work_dir)
+    output_model_dir = args.work_dir / "output_model"
+    output_model_dir.mkdir()
+    output_modelfile = output_model_dir / "model"
 
     if args.job == "segmentation":
         try:
             print(
                 segtrain(
-                    inputs=[relative_datadir, relative_modelfile, args.workers]
+                    inputs=[
+                        relative_datadir,
+                        relative_modelfile,
+                        output_modelfile,
+                        args.workers,
+                    ]
                 ).result()
             )
         except parsl.app.errors.BashExitFailure as err:

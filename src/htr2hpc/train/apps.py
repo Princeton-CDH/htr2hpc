@@ -153,9 +153,19 @@ def segtrain(
     input_data_dir = inputs[0]
     # second input is model to use as starting point
     input_model = inputs[1]
+    # third input is model output
+    output_model = inputs[2]
+    # create a log directory adjacent to the model
+    log_dir = output_model.parent() / "kraken_logs"
+    log_dir.mkdir()
     # third input is worker count
-    workers = inputs[2]
-    return f"ketos segtrain --epochs 50 --resize both -i {input_model} -o model --workers {workers} -d cuda:0 -f xml {input_data_dir}/*.xml"
+    workers = inputs[3]
+    return (
+        f"ketos segtrain --epochs 200 --resize new -i {input_model}"
+        + f" -o {output_model} --workers {workers} -d cuda:0 "
+        + f"-f xml {input_data_dir}/*.xml"
+        + f"--log-dir {log_dir}"
+    )
     # TODO: return model as output file
 
 

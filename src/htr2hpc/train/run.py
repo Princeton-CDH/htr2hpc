@@ -188,7 +188,8 @@ def main():
                         abs_model_file,
                         abs_output_modelfile,
                         args.workers,
-                    ]
+                    ],
+                    label=f"segtrain-doc{args.document_id}",
                 ).result()
             )
         except parsl.app.errors.BashExitFailure as err:

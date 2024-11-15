@@ -117,6 +117,8 @@ def prep_training_data(api, base_dir, document_id, part_ids=None):
         doc_parts = api.document_parts_list(document_id)
         part_ids = [part.pk for part in doc_parts.results]
 
+    # NOTE: nesting dirs here probably not needed now that we require a
+    # working directory option when running the script
     output_dir = base_dir / f"doc{document_id}"
     output_dir.mkdir()
     # TODO: rename parts? pages? (now contains images & alto xml)
@@ -144,6 +146,10 @@ def prep_training_data(api, base_dir, document_id, part_ids=None):
 
     # FIXME: binary compiled data only seems to work for train and not segtrain
     # compiled_data = compile_data(segmentations, output_dir).result()
+
+
+# NOTE: possible to pass in some specification options at run time :
+# parsl_resource_specification={'cores': 1, 'memory': 1000, 'disk': 1000}
 
 
 @bash_app(executors=["hpc"])

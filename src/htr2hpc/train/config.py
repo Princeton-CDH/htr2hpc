@@ -8,15 +8,6 @@ from parsl.addresses import address_by_interface
 parsl_config = Config(
     executors=[
         ThreadPoolExecutor(max_threads=8, label="local"),
-        # HighThroughputExecutor(
-        #     label="local",
-        #     worker_debug=True,
-        #     available_accelerators=2,
-        #     provider=LocalProvider(
-        #         init_blocks=1,
-        #         max_blocks=8,
-        #     ),
-        # ),
         HighThroughputExecutor(
             label="hpc",
             address=address_by_interface("ib0"),
@@ -31,7 +22,7 @@ parsl_config = Config(
                 scheduler_options="#SBATCH --gres=gpu:1",
                 worker_init="module load anaconda3/2024.2; conda activate htr2hpc",
                 launcher=SrunLauncher(),
-                walltime="00:15:00",
+                walltime="02:00:00",
                 # Slurm scheduler can be slow at times,
                 # increase the command timeouts
                 cmd_timeout=120,

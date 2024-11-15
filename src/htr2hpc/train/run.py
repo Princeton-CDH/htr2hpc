@@ -37,13 +37,20 @@ def main():
         sys.exit(1)
 
     # TODO: add options for:
-    # - working directory
     # - create/update model flag (make explicit)
     #   name for the new model when creating a new one (required)
 
+    # use subparsers for the two modes
     parser = argparse.ArgumentParser(
         description="Export content from eScriptorium and train or fine-tune models"
     )
+    subparsers = parser.add_subparsers(
+        title="mode", description="supported training modes", required=True
+    )
+    segmentation_parser = subparsers.add_parser("segmentation")
+    transcription_parser = subparsers.add_parser("transcription")
+
+    # common arguments used in both modes
     parser.add_argument(
         "base_url",
         metavar="BASE_URL",
@@ -56,22 +63,13 @@ def main():
         help="Working directory where data should be downloaded (must already exist)",
         type=pathlib.Path,
     )
-
     parser.add_argument(
-        "-d", "--document", help="Document id to export", type=int, dest="document_id"
-    )
-    # parser.add_argument(
-    # "-t", "--transcription", help="Transcription id to export", type=int
-    # )
-    # transcription id matters for recognition training since a document may have multiple
-    # - part export logic may be different to get the correct transcription text
-    parser.add_argument(
-        "-j",
-        "--job",
-        help="Job type (segmentation or transcription)",
-        type=str,
-        choices=["segmentation", "transcription"],
-        default="segmentation",  # for convenience, for now
+        "-d",
+        "--document",
+        help="Document id to export",
+        type=int,
+        dest="document_id",
+        required=True,
     )
     parser.add_argument(
         "-m",
@@ -84,26 +82,38 @@ def main():
         "-p",
         "--parts",
         help="Optional list of parts to train on (if not entire document)",
-        # TODO: use list or intspan here
+        # TODO: use list or intspan here ?
     )
+
+    # training for transcription requires a transcription id
+    transcription_parser.add_argument(
+        "-t",
+        "--transcription",
+        help="Transcription id to export",
+        type=int,
+        dest="transcription_id",
+        required=True,
+    )
+
     # NOTE: needs to match the number in the parsl config...
+    # how best to configure this?
     parser.add_argument(
         "-w",
         "--workers",
-        help="Number of workers for training task (default: %(default)d",
+        help="Number of workers for training task (default: %(default)d)",
         type=int,
         default=8,
     )
     args = parser.parse_args()
 
     # make sure working directory does not already exist
+    # TODO: allow using an existing dir+data, or is that only a dev issue?
     if args.work_dir.exists():
         print(f"Working directory `{args.work_dir}` already exists", file=sys.stderr)
         sys.exit(1)
     # create new working directory
     args.work_dir.mkdir()
 
-    # logging.basicConfig(filename=sys.stdout, encoding="utf-8", level=logging.DEBUG)
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
     logger_upscope = logging.getLogger("htr2hpc")
     logger_upscope.setLevel(logging.INFO)
@@ -188,7 +198,7 @@ def main():
 
     # example to run against local dev instance:
     # setenv ESCRIPTORIUM_API_TOKEN "####"
-    # ./src/htr2hpc/train.py http://localhost:8000/ -d 1 -t 1
+    # ./src/htr2hpc/train.py transcription http://localhost:8000/ test_doc1 -d 1 -t 1
 
     # when this is all working, cleanup working dir (by default, with option to skip)
 

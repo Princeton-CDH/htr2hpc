@@ -45,7 +45,7 @@ def main():
         description="Export content from eScriptorium and train or fine-tune models"
     )
     subparsers = parser.add_subparsers(
-        title="mode", description="supported training modes", required=True
+        title="mode", description="supported training modes", required=True, dest="mode"
     )
     segmentation_parser = subparsers.add_parser("segmentation")
     transcription_parser = subparsers.add_parser("transcription")
@@ -140,7 +140,7 @@ def main():
         model_file = get_model(
             api,
             args.model_id,
-            es_model_jobs[args.job],
+            es_model_jobs[args.mode],
             args.work_dir,
         )
 
@@ -148,7 +148,7 @@ def main():
     else:
         # get the appropriate model file for the requested training mode
         # kraken default defs are path objects
-        model_file = default_model[args.job]
+        model_file = default_model[args.mode]
 
     # TODO: segtrain/ train should be wrapped by a join app,
     # so that once training completes we can determine whether or not to
@@ -179,7 +179,7 @@ def main():
     # this is where parsl will put the sbatch file also
     os.chdir(args.work_dir)
 
-    if args.job == "segmentation":
+    if args.mode == "segmentation":
         try:
             print(
                 segtrain(

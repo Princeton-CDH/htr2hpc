@@ -11,22 +11,33 @@ parsl_config = Config(
         HighThroughputExecutor(
             label="hpc",
             address=address_by_interface("ib0"),
-            max_workers_per_node=8,
+            max_workers_per_node=56,
             provider=SlurmProvider(
-                # Princeton HPC instructions say not to specify the partition,
-                # but to let the slurm scheduler handle that
-                nodes_per_block=1,
-                cores_per_node=8,
-                mem_per_node=3,  # in GB
+                nodes_per_block=8,
                 init_blocks=1,
-                scheduler_options="#SBATCH --gres=gpu:1",
-                worker_init="module load anaconda3/2024.2; conda activate htr2hpc",
+                partition="normal",
                 launcher=SrunLauncher(),
-                walltime="00:15:00",
-                # Slurm scheduler can be slow at times,
-                # increase the command timeouts
-                cmd_timeout=120,
             ),
         ),
+        # HighThroughputExecutor(
+        #     label="hpc",
+        #     address=address_by_interface("ib0"),
+        #     max_workers_per_node=8,
+        #     provider=SlurmProvider(
+        #         # Princeton HPC instructions say not to specify the partition,
+        #         # but to let the slurm scheduler handle that
+        #         nodes_per_block=1,
+        #         cores_per_node=8,
+        #         mem_per_node=3,  # in GB
+        #         init_blocks=1,
+        #         scheduler_options="#SBATCH --gres=gpu:1",
+        #         worker_init="module load anaconda3/2024.2; conda activate htr2hpc",
+        #         launcher=SrunLauncher(),
+        #         walltime="00:15:00",
+        #         # Slurm scheduler can be slow at times,
+        #         # increase the command timeouts
+        #         cmd_timeout=120,
+        #     ),
+        # ),
     ],
 )

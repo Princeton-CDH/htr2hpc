@@ -106,6 +106,11 @@ def main():
     )
     args = parser.parse_args()
 
+    # bail out on transcription for now (will be added later)
+    if args.mode == "transcription":
+        print("Transcription training is not yet supported")
+        sys.exit(1)
+
     # make sure working directory does not already exist
     # TODO: allow using an existing dir+data, or is that only a dev issue?
     if args.work_dir.exists():

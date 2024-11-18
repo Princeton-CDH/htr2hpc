@@ -250,7 +250,6 @@ class eScriptoriumAPIClient:
                 # field, so even if we supply this it gets set to zero.
                 # Calculating it is slow, so skip since it isn't currently usable
             }
-            print(data)
             resp = self._make_request(
                 api_url,
                 method="POST",

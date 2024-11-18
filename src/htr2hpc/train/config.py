@@ -15,6 +15,8 @@ parsl_config = Config(
             provider=SlurmProvider(
                 nodes_per_block=8,
                 init_blocks=1,
+                scheduler_options="#SBATCH --gres=gpu:1",
+                worker_init="module load anaconda3/2024.6; conda activate htr2hpc",
                 launcher=SrunLauncher(),
             ),
         ),

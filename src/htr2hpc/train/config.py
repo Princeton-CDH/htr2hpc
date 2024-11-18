@@ -11,12 +11,15 @@ parsl_config = Config(
         HighThroughputExecutor(
             label="hpc",
             address=address_by_interface("ib0"),
-            max_workers_per_node=56,
+            max_workers_per_node=8,
             provider=SlurmProvider(
-                nodes_per_block=8,
+                # nodes_per_block=8,
                 init_blocks=1,
+                cores_per_node=8,
+                mem_per_node=3,  # in GB
                 scheduler_options="#SBATCH --gres=gpu:1",
                 worker_init="module load anaconda3/2024.6; conda activate htr2hpc",
+                walltime="00:20:00",
                 launcher=SrunLauncher(),
             ),
         ),

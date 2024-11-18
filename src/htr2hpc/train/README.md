@@ -9,7 +9,7 @@ The `htr2hpc-train` script will download document parts and optionally a model f
 On the HPC system (i.e., della for Princeton), create a new python 3.11 conda environment named `htr2hpc` and install the current version of this software:
 
 ```sh
-module load anaconda3/2024.2
+module load anaconda3/2024.6
 conda create -n htr2hpc python=3.11
 conda activate htr2hpc
 pip install git+https://github.com/Princeton-CDH/htr2hpc.git@feature/export-and-train#egg=htr2hpc

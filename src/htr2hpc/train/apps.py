@@ -27,9 +27,6 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
     # same for block types (used for regions)
     block_types = {btype.pk: btype.name for btype in api.list_types("block").results}
     part = api.document_part_details(document_id, part_id)
-    # print(part)
-    # image uri: part.image.uri
-    # regions : part.regions
 
     # adapted from escriptorium.app.core.tasks.make_segmentation_training_data
     # (additional logic in make_recognition_segmentation )
@@ -110,41 +107,36 @@ def get_model(api, model_id, training_type, output_dir):
     return api.download_file(model_info.file, output_dir)
 
 
-# def prep_training_data(es_base_url, es_api_token, document_id, part_ids=None):
 def prep_training_data(api, base_dir, document_id, part_ids=None):
     # if part ids are not specified, get all parts
     if part_ids is None:
         doc_parts = api.document_parts_list(document_id)
         part_ids = [part.pk for part in doc_parts.results]
 
-    # NOTE: nesting dirs here probably not needed now that we require a
-    # working directory option when running the script
-    output_dir = base_dir / f"doc{document_id}"
+    # create a sub directory for images and xml
+    output_dir = base_dir / f"document_parts"
     output_dir.mkdir()
-    # TODO: rename parts? pages? (now contains images & alto xml)
-    image_dir = output_dir / "images"
-    image_dir.mkdir()
 
     # kick off parsl python app to get document parts as kraken segmentations
     segmentation_data = [
-        get_segmentation_data(api, document_id, part_id, image_dir)
+        get_segmentation_data(api, document_id, part_id, output_dir)
         for part_id in part_ids
     ]
     # get all the results
     segmentations = [s.result() for s in segmentation_data]
 
-    # test serializing as alto to compare export, compilation
+    # for segmentation training, serialize to alto xml
     for seg in segmentations:
-        # output xml next to the image file
+        # output xml with a base name corresponding to the image file
         xml_path = pathlib.Path(seg.imagename).with_suffix(".xml")
         # make image path a local / relative path
         seg.imagename = pathlib.Path(seg.imagename).name
         xml_path.open("w").write(serialize(seg))
 
     # for segtrain, return the path that contains the xml files
-    return image_dir
+    return output_dir
 
-    # FIXME: binary compiled data only seems to work for train and not segtrain
+    # NOTE: binary compiled data is only supported train and not segtrain
     # compiled_data = compile_data(segmentations, output_dir).result()
 
 
@@ -172,7 +164,8 @@ def segtrain(
         + f" -o {output_model} --workers {workers} -d cuda:0 "
         + f"-f xml {input_data_dir}/*.xml "
     )
-    # TODO: return model as output file
+    # TODO: calling function needs to check for best model
+    # or no improvement
 
 
 # use api.update_model with model id and pathlib.Path to model file

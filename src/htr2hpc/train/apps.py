@@ -88,6 +88,17 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
     )
 
 
+@python_app(executors=["local"])
+def seralize_segmentation(segmentation: Segmentation):
+    import pathlib
+
+    # output xml with a base name corresponding to the image file
+    xml_path = pathlib.Path(segmentation.imagename).with_suffix(".xml")
+    # make image path a local / relative path
+    segmentation.imagename = pathlib.Path(segmentation.imagename).name
+    xml_path.open("w").write(serialize(segmentation))
+
+
 @python_app
 def compile_data(segmentations, output_dir):
     output_file = output_dir / "dataset.arrow"
@@ -97,7 +108,8 @@ def compile_data(segmentations, output_dir):
     return output_file
 
 
-# should this be a parsl python app? run in parallel with segmentation data?
+# TODO: figure out how to run this as a parsl python app,
+# in parallel with downloading training data
 def get_model(api, model_id, training_type, output_dir):
     model_info = api.model_details(model_id)
     if model_info.job != training_type:
@@ -107,40 +119,30 @@ def get_model(api, model_id, training_type, output_dir):
     return api.download_file(model_info.file, output_dir)
 
 
-def prep_training_data(api, base_dir, document_id, part_ids=None):
+def get_training_data(api, output_dir, document_id, part_ids=None):
     # if part ids are not specified, get all parts
     if part_ids is None:
         doc_parts = api.document_parts_list(document_id)
         part_ids = [part.pk for part in doc_parts.results]
-
-    # create a sub directory for images and xml
-    output_dir = base_dir / f"document_parts"
-    output_dir.mkdir()
 
     # kick off parsl python app to get document parts as kraken segmentations
     segmentation_data = [
         get_segmentation_data(api, document_id, part_id, output_dir)
         for part_id in part_ids
     ]
-    # get all the results
-    segmentations = [s.result() for s in segmentation_data]
+    # if we're generating alto-xml (i.e., segmentation training data),
+    # serialize each of the parts we downloaded
+    serialization = [seralize_segmentation(seg) for seg in segmentation_data]
 
-    # for segmentation training, serialize to alto xml
-    for seg in segmentations:
-        # output xml with a base name corresponding to the image file
-        xml_path = pathlib.Path(seg.imagename).with_suffix(".xml")
-        # make image path a local / relative path
-        seg.imagename = pathlib.Path(seg.imagename).name
-        xml_path.open("w").write(serialize(seg))
-
-    # for segtrain, return the path that contains the xml files
-    return output_dir
+    # wait for serialization to complete
+    [s.result() for s in serialization]
+    # segmentations = [s.result() for s in segmentation_data]
 
     # NOTE: binary compiled data is only supported train and not segtrain
     # compiled_data = compile_data(segmentations, output_dir).result()
 
 
-# NOTE: possible to pass in some specification options at run time :
+# NOTE: it's possible to pass in some specification options at run time, e.g. :
 # parsl_resource_specification={'cores': 1, 'memory': 1000, 'disk': 1000}
 
 
@@ -150,6 +152,7 @@ def segtrain(
     outputs=[],
     stderr=parsl.AUTO_LOGNAME,
     stdout=parsl.AUTO_LOGNAME,
+    label="",
 ):
     # first input should be directory for input data
     input_data_dir = inputs[0]
@@ -163,9 +166,10 @@ def segtrain(
         f"ketos segtrain --epochs 200 --resize new -i {input_model}"
         + f" -o {output_model} --workers {workers} -d cuda:0 "
         + f"-f xml {input_data_dir}/*.xml "
+        + "--precision 16"  # automatic mixed precision for nvidia gpu
     )
     # TODO: calling function needs to check for best model
-    # or no improvement
+    # or no model improvement
 
 
 # use api.update_model with model id and pathlib.Path to model file

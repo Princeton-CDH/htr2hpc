@@ -10,7 +10,7 @@ import parsl
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 
 from htr2hpc.api_client import eScriptoriumAPIClient
-from htr2hpc.train.apps import prep_training_data, segtrain, get_model
+from htr2hpc.train.apps import get_training_data, segtrain, get_model
 from htr2hpc.train.config import parsl_config
 
 
@@ -78,11 +78,18 @@ def main():
         type=int,
         dest="model_id",
     )
+    # not supported yet, handle later
+    # parser.add_argument(
+    #     "-p",
+    #     "--parts",
+    #     help="Optional list of parts to train on (if not entire document)",
+    #     # TODO: use list or intspan here ?
+    # )
     parser.add_argument(
-        "-p",
-        "--parts",
-        help="Optional list of parts to train on (if not entire document)",
-        # TODO: use list or intspan here ?
+        "--existing-data",
+        help="Use existing data from a previous run",
+        action="store_true",
+        default=False,
     )
 
     # training for transcription requires a transcription id
@@ -113,11 +120,22 @@ def main():
 
     # make sure working directory does not already exist
     # TODO: allow using an existing dir+data, or is that only a dev issue?
-    if args.work_dir.exists():
-        print(f"Working directory `{args.work_dir}` already exists", file=sys.stderr)
+    if args.work_dir.exists() and not args.existing_data:
+        print(
+            f"Working directory `{args.work_dir}` already exists (use --existing-data allow)",
+            file=sys.stderr,
+        )
         sys.exit(1)
-    # create new working directory
-    args.work_dir.mkdir()
+    if args.existing_data and not args.work_dir.exists():
+        print(
+            f"SPecified working directory `{args.work_dir}` already exists (use --existing-data allow)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # create new working directory if it doesn't already exist
+    if not args.existing_data:
+        args.work_dir.mkdir()
 
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
     logger_upscope = logging.getLogger("htr2hpc")
@@ -130,17 +148,22 @@ def main():
     # TODO : check api access works before going too far?
     # (currently does not handle connection error gracefully)
 
-    training_data_dir = prep_training_data(
-        api,
-        args.work_dir,
-        args.document_id,
-        # TODO: optional part ids
-    )
+    training_data_dir = args.work_dir / "document_parts"
+    if not args.existing_data:
+        training_data_dir.mkdir()
+        get_training_data(
+            api,
+            training_data_dir,
+            args.document_id,
+            # TODO: optional part ids
+        )
+
     # if there is an error getting the training data, we get a
     # parsl.dataflow.errors.DependencyError
 
     # if model id is specified, download the model from escriptorium API,
     # confirming that it is the appropriate type (segmentation/transcription)
+    # NOTE: currently ignores existing data flag, since we need model file name
     if args.model_id:
         model_file = get_model(
             api,
@@ -171,7 +194,10 @@ def main():
 
     # create a directory and path for the output model file
     output_model_dir = args.work_dir / "output_model"
-    output_model_dir.mkdir()
+    # currently assuming model dir is empty
+    if args.existing_data:
+        output_model_dir.rmdir()
+    output_model_dir.mkdir()  # TODO: allow to exist?
     output_modelfile = output_model_dir / "model"
 
     # get absolute versions of these paths _before_ changing working directory
@@ -179,9 +205,9 @@ def main():
     abs_model_file = model_file.absolute()
     abs_output_modelfile = output_modelfile.absolute()
 
-    # change directory to working directory
-    # by default, slurm executes the job from the directory where it was submitted
-    # this is where parsl will put the sbatch file also
+    # change directory to working directory, since by default,
+    # slurm executes the job from the directory where it was submitted
+    # - this is where parsl will create the slurm sbatch file
     os.chdir(args.work_dir)
 
     if args.mode == "segmentation":

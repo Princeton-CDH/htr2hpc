@@ -148,7 +148,7 @@ def main():
     # TODO : check api access works before going too far?
     # (currently does not handle connection error gracefully)
 
-    training_data_dir = args.work_dir / "document_parts"
+    training_data_dir = args.work_dir / "parts"
     if not args.existing_data:
         training_data_dir.mkdir()
         get_training_data(

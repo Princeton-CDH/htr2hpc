@@ -15,7 +15,6 @@ parsl_config = Config(
             provider=SlurmProvider(
                 nodes_per_block=8,
                 init_blocks=1,
-                partition="normal",
                 launcher=SrunLauncher(),
             ),
         ),

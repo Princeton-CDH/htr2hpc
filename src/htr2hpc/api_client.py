@@ -5,10 +5,13 @@ from dataclasses import dataclass
 from time import sleep
 import pathlib
 from typing import Optional, Any
+import json
 
 import humanize
 import requests
 from django.utils.text import slugify  # is django a reasonable dependency?
+from kraken.lib import vgsl
+import coremltools
 
 from htr2hpc import __version__ as _version
 
@@ -141,6 +144,7 @@ class eScriptoriumAPIClient:
         data: Optional[dict] = None,
         files: Optional[dict] = None,
         method: str = "GET",
+        expected_status: int = requests.codes.ok,
     ):
         """
         Make a GET request with the configured session. Takes a url
@@ -167,7 +171,7 @@ class eScriptoriumAPIClient:
         logger.debug(
             f"get {rqst_url} {resp.status_code}: {resp.elapsed.total_seconds()} sec"
         )
-        if resp.status_code == requests.codes.ok:
+        if resp.status_code == expected_status:
             return resp
 
         # disable for now, this does not work in all cases
@@ -208,13 +212,13 @@ class eScriptoriumAPIClient:
         resp = self._make_request(api_url)
         return to_namedtuple("model", resp.json())
 
-    # TODO: add a model create method for posting a new model
     def model_update(self, model_id: int, model_file: pathlib.Path):
         """Update an existing model record with a new model file."""
         api_url = f"models/{model_id}/"
         with open(model_file, "rb") as mfile:
             files = {"file": mfile}
             data = {
+                # TODO don't overwrite previous name!
                 "name": "updated model",
                 "job": "Segment",  # required; get from existing record?
                 # file_size (int)  - set from pathlib object using .stat().st_size
@@ -224,6 +228,44 @@ class eScriptoriumAPIClient:
             resp = self._make_request(api_url, method="PUT", files=files, data=data)
         # on successful update, returns the model object
         return to_namedtuple("model", resp.json())
+
+    def model_create(self, model_file: pathlib.Path, model_name: str, job: str):
+        """Add a new model to eScriptorium. Takes a model file, name, and job
+        (Segment or Recognize)."""
+        if job not in {"Segment", "Recognize"}:
+            raise ValueError(f"{job} is not a valid model job name")
+
+        api_url = f"models/"
+
+        with open(model_file, "rb") as mfile:
+            files = {"file": mfile}
+            data = {
+                # NOTE: could optionally infer model name from filename
+                "name": model_name,
+                "job": job,
+                "file_size": model_file.stat().st_size,
+                # get accuracy from model
+                # "accuracy_percent": self.get_model_accuracy(model_file),
+                # NOTE: eScriptorium api has accuracy marked as a read-only
+                # field, so even if we supply this it gets set to zero.
+                # Calculating it is slow, so skip since it isn't currently usable
+            }
+            print(data)
+            resp = self._make_request(
+                api_url,
+                method="POST",
+                files=files,
+                data=data,
+                # should return 201 Created on success
+                expected_status=requests.codes.created,
+            )
+        # on successful update, returns the model object
+        return to_namedtuple("model", resp.json())
+
+    def get_model_accuracy(self, model_file: pathlib.Path):
+        m = coremltools.models.MLModel(str(model_file))
+        meta = json.loads(m.get_spec().description.metadata.userDefined["kraken_meta"])
+        return meta["accuracy"][-1][-1] * 100
 
     def document_list(self):
         """paginated list of documents"""

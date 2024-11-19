@@ -233,7 +233,7 @@ def main():
         print(
             f"Job {job_id} is no longer queued; ending status: {','.join(job_status)}"
         )
-        job_output = training_data_dir / f"segtrain_{job_id}.out"
+        job_output = args.work_dir / f"segtrain_{job_id}.out"
         print(f"Job output should be in {job_output}")
 
         # TODO: if it completed (or timeout?), check for results

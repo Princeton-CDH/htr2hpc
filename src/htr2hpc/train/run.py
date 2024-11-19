@@ -138,7 +138,7 @@ def main():
 
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
     logger_upscope = logging.getLogger("htr2hpc")
-    logger_upscope.setLevel(logging.INFO)
+    logger_upscope.setLevel(logging.DEBUG)
 
     api = eScriptoriumAPIClient(args.base_url, api_token=api_token)
 

@@ -135,21 +135,21 @@ def get_training_data(api, output_dir, document_id, part_ids=None):
     # compiled_data = compile_data(segmentations, output_dir)
 
 
-# TODO
 def segtrain(
     input_data_dir: pathlib.Path,
     input_model: pathlib.Path,
     output_model: pathlib.Path,
     num_workers: int = 8,
+    # optional param to specify name based on document? include date?
 ):
     segtrain_slurm = Slurm(
         nodes=1,
         ntasks=1,
         cpus_per_task=num_workers,
-        mem_per_cpu="3GB",
+        mem_per_cpu="3G",
         gres=["gpu:1"],
         job_name="segtrain",
-        output=f"segtrain_{Slurm.JOB_ARRAY_MASTER_ID}_{Slurm.JOB_ARRAY_ID}.out",
+        output=f"segtrain_{Slurm.JOB_ARRAY_MASTER_ID}.out",
         time=datetime.timedelta(minutes=20),
         # time=datetime.timedelta(hours=2),
     )
@@ -157,6 +157,7 @@ def segtrain(
     segtrain_slurm.add_cmd("module purge")
     segtrain_slurm.add_cmd("module load anaconda3/2024.6")
     segtrain_slurm.add_cmd("conda activate htr2hpc")
+    logger.debug(f"sbatch file\n: {segtrain_slurm}")
     # sbatch returns the job id for the created job
     segtrain_cmd = (
         f"ketos segtrain --epochs 200 --resize new -i {input_model}"

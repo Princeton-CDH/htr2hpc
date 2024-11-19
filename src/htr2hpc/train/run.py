@@ -209,7 +209,7 @@ def main():
         # https://slurm.schedmd.com/job_state_codes.html
         # end states could be FAILED, CANCELLED, OUT_OF_MEMORY, TIMEOUT
         # for now, wait while it's pending or running and then stop
-        while job_status not in {"PENDING", "RUNNING"}:
+        while job_status in {"PENDING", "RUNNING"}:
             sleep(30)
             job_status = slurm_job_status(job_id)
             print(f"job {job_id} status {job_status}")

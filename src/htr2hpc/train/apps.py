@@ -171,17 +171,32 @@ def segtrain(
     # or no model improvement
 
 
-def slurm_job_status(job_id: int) -> str:
+def slurm_job_queue_status(job_id: int) -> str:
     # use squeue to get the full-word status of a single job
     result = subprocess.run(
-        ["squeue", f"--jobs={job_id}", "--format=%T", "--noheader"],
+        ["squeue", f"--jobs={job_id}", "--only-job-state", "--format=%T", "--noheader"],
         capture_output=True,
         text=True,
     )
     # raise subprocess.CalledProcessError if return code indicates an error
     result.check_returncode()
-    # return status
-    return result.stdout
+    # return task status without any whitespace
+    # squeue doesn't report on the task when it is completed and no longer in the queue,
+    # so empty string means the job is complete
+    return result.stdout.strip()
+
+
+def slurm_job_status(job_id: int) -> set:
+    result = subprocess.run(
+        ["sacct", f"--jobs={job_id}", "--format=state%15", "--noheader"],
+        capture_output=True,
+        text=True,
+    )
+    # raise subprocess.CalledProcessError if return code indicates an error
+    result.check_returncode()
+    # sacct returns a table with status for each portion of the job;
+    # return all unique status codes for now
+    return set(result.stdout.split())
 
 
 # use api.update_model with model id and pathlib.Path to model file

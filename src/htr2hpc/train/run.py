@@ -9,7 +9,13 @@ from time import sleep
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 
 from htr2hpc.api_client import eScriptoriumAPIClient
-from htr2hpc.train.apps import get_training_data, segtrain, get_model, slurm_job_status
+from htr2hpc.train.apps import (
+    get_training_data,
+    segtrain,
+    get_model,
+    slurm_job_status,
+    slurm_job_queue_status,
+)
 
 
 api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
@@ -203,16 +209,25 @@ def main():
             abs_output_modelfile,
             args.num_workers,
         )
-        # assume we start in pending
-        job_status = "PENDING"
+        # get job status (presumably PENDING)
+        job_status = slurm_job_queue_status(job_id)
         # typical states are PENDING, RUNNING, SUSPENDED, COMPLETING, and COMPLETED.
         # https://slurm.schedmd.com/job_state_codes.html
         # end states could be FAILED, CANCELLED, OUT_OF_MEMORY, TIMEOUT
-        # for now, wait while it's pending or running and then stop
-        while job_status in {"PENDING", "RUNNING"}:
-            sleep(30)
-            job_status = slurm_job_status(job_id)
+        # * but note that squeue only reports on pending & running jobs
+
+        # loop while the job is pending or running and then stop
+        while job_status:
+            sleep(10)
+            job_status = slurm_job_queue_status(job_id)
             print(f"job {job_id} status {job_status}")
+
+        # check the completed status
+        job_status = slurm_job_status(job_id)
+        print(
+            f"Job {job_id} is no longer queued; ending status: {','.join(job_status)}"
+        )
+
         # TODO: if it completed (or timeout?), check for results
         # - if model improved, upload to eScriptorium as new or updated model
 

@@ -1,10 +1,13 @@
+import datetime
 import logging
 import pathlib
+import subprocess
 from collections import defaultdict
 
 from kraken.containers import BaselineLine, Region, Segmentation
 from kraken.lib.arrow_dataset import build_binary_dataset
 from kraken.serialization import serialize
+from simple_slurm import Slurm
 
 logger = logging.getLogger(__name__)
 
@@ -139,14 +142,42 @@ def segtrain(
     output_model: pathlib.Path,
     num_workers: int = 8,
 ):
-    return (
+    segtrain_slurm = Slurm(
+        nodes=1,
+        ntasks=1,
+        cpus_per_task=num_workers,
+        mem_per_cpu="3GB",
+        gres=["gpu:1"],
+        job_name="segtrain",
+        output=f"segtrain_{Slurm.JOB_ARRAY_MASTER_ID}_{Slurm.JOB_ARRAY_ID}.out",
+        time=datetime.timedelta(minutes=20),
+        # time=datetime.timedelta(hours=2),
+    )
+    segtrain_slurm.add_cmd("module load anaconda3/2024.6; conda activate htr2hpc")
+    # sbatch returns the job id for the created job
+    segtrain_cmd = (
         f"ketos segtrain --epochs 200 --resize new -i {input_model}"
         + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f xml {input_data_dir}/*.xml "
         + "--precision 16"  # automatic mixed precision for nvidia gpu
     )
+    logger.debug(f"segtrain command: {segtrain_cmd}")
+    return segtrain_slurm.sbatch(segtrain_cmd)
     # TODO: calling function needs to check for best model
     # or no model improvement
+
+
+def slurm_job_status(job_id: int) -> str:
+    # use squeue to get the full-word status of a single job
+    result = subprocess.run(
+        ["squeue", f"--jobs={job_id}", "--format=%T", "--noheader"],
+        capture_output=True,
+        text=True,
+    )
+    # raise subprocess.CalledProcessError if return code indicates an error
+    result.check_returncode()
+    # return status
+    return result.stdout
 
 
 # use api.update_model with model id and pathlib.Path to model file

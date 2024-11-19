@@ -30,6 +30,7 @@ dependencies = [
   "requests",
   "kraken",
   "humanize",
+  "simple_slurm"
 ]
 
 [project.urls]

@@ -9,7 +9,7 @@ from multiprocessing import cpu_count
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 
 from htr2hpc.api_client import eScriptoriumAPIClient
-from htr2hpc.train.apps import get_training_data, segtrain, get_model
+from htr2hpc.train.apps import get_training_data, segtrain, get_model, slurm_job_status
 
 
 api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
@@ -172,19 +172,11 @@ def main():
         # kraken default defs are path objects
         model_file = default_model[args.mode]
 
-    # TODO: segtrain/ train should be wrapped by a join app,
-    # so that once training completes we can determine whether or not to
-    # upload a new model to eScriptorium
-
     # TODO: determine which job to run based on the input
     # - get input data for that job
     # - run the bash app with the slurm provider
     # - get the result from the bash app and check for failure/success
     #
-
-    # except parsl.dataflow.errors.DependencyError as err:
-    # if there is an error getting the training data, we get a
-    # parsl.dataflow.errors.DependencyError
 
     # create a directory and path for the output model file
     output_model_dir = args.work_dir / "output_model"
@@ -205,24 +197,29 @@ def main():
     os.chdir(args.work_dir)
 
     if args.mode == "segmentation":
-        print(
-            segtrain(
-                abs_training_data_dir,
-                abs_model_file,
-                abs_output_modelfile,
-                args.num_workers,
-            )
+        job_id = segtrain(
+            abs_training_data_dir,
+            abs_model_file,
+            abs_output_modelfile,
+            args.num_workers,
         )
+        # assume we start in pending
+        job_status = "PENDING"
+        # typical states are PENDING, RUNNING, SUSPENDED, COMPLETING, and COMPLETED.
+        # https://slurm.schedmd.com/job_state_codes.html
+        # end states could be FAILED, CANCELLED, OUT_OF_MEMORY, TIMEOUT
+        # for now, wait while it's pending or running and then stop
+        while job_status not in {"PENDING", "RUNNING"}:
+            sleep(30)
+            job_status = slurm_job_status(job_id)
+            print(f"job {job_id} status {job_status}")
+        # TODO: if it completed (or timeout?), check for results
+        # - if model improved, upload to eScriptorium as new or updated model
 
     # TODO: handle transcription training
 
-    # example to run against local dev instance:
-    # setenv ESCRIPTORIUM_API_TOKEN "####"
-    # ./src/htr2hpc/train.py transcription http://localhost:8000/ test_doc1 -d 1 -t 1
-
-    # when this is all working, cleanup working dir (by default, with option to skip)
-
     #  TODO cleanup
+    # when this is all working, cleanup working dir (by default, with option to skip)
 
 
 if __name__ == "__main__":

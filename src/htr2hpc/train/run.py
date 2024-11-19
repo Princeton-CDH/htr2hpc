@@ -4,7 +4,7 @@ import os
 import sys
 import logging
 import pathlib
-from time import sleep
+import time
 
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 from tqdm import tqdm
@@ -221,12 +221,22 @@ def main():
         # use tqdm to display job status and wait time
         with tqdm(
             desc=f"Slurm job {job_id}",
-            bar_format="{desc}{postfix}    | {elapsed}",
+            bar_format="{desc} | total time: {elapsed}{postfix} ",
         ) as statusbar:
+            running = False
             while job_status:
-                statusbar.set_postfix_str(f"status: {job_status}")
-                sleep(3)
+                status = f"status: {job_status}"
+                # display an unofficial runtime to aid in troubleshooting
+                if running:
+                    runtime_elapsed = statusbar.format_interval(time.time() - runstart)
+                    status = f"{status}  ~ run time: {runtime_elapsed}"
+                statusbar.set_postfix_str(status)
+                time.sleep(1)
                 job_status = slurm_job_queue_status(job_id)
+                # capture start time first time we get a status of running
+                if not running and job_status == "RUNNING":
+                    running = True
+                    runstart = time.time()
 
         # check the completed status
         job_status = slurm_job_status(job_id)

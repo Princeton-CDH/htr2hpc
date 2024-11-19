@@ -10,9 +10,18 @@ On the HPC system (i.e., della for Princeton), create a new python 3.11 conda en
 
 ```sh
 module load anaconda3/2024.6
-conda create -n htr2hpc python=3.11
+wget https://github.com/mittagessen/kraken/raw/refs/heads/main/environment_cuda.yml
+conda env create -f environment_cuda.yml -n htr2hpc
 conda activate htr2hpc
-pip install git+https://github.com/Princeton-CDH/htr2hpc.git@feature/export-and-train#egg=htr2hpc
+pip install git+https://github.com/Princeton-CDH/htr2hpc.git@feature/export-and-train-noparsl#egg=htr2hpc
+```
+
+To tinker with htr2hpc settings, check out the code from github and install the local checkout as an editable installation:
+```sh
+git https://github.com/Princeton-CDH/htr2hpc.git
+cd htr2hpc
+git checkout feature/export-and-train-noparsl
+pip install -e .
 ```
 
 Change directory to your scratch space (e.g., `/scratch/gpfs/netid/` on della) or a subdirectory somewhere under it. Since the `htr2hpc-train` script monitors the slurm job, it is recommended to start a tmux session so that if you're disconnected the script will keep running and you can reconnect.
@@ -28,10 +37,12 @@ To start a segmentation training task, specify:
  - a directory name where the script should download files (directory must not exist)
  - an eScriptorium document id
  - an optional model id
- 
+
 For example:
 ```sh
 htr2hpc-train segmentation https://test-htr.lib.princeton.edu/ segtrain_doc2 --document 30 --model 3
 ```
+
+To reuse previously downloaded data, add the `--existing-data` flag.
 
 The script uses parsl to manage data and computate tasks. Parsl will create output files in a `runinfo/` directory, numbered by run. The output from the ketos `segtrain` task can be found under `runinfo/###/task_logs/0000/`.

@@ -6,12 +6,10 @@ import logging
 import pathlib
 from multiprocessing import cpu_count
 
-import parsl
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 
 from htr2hpc.api_client import eScriptoriumAPIClient
 from htr2hpc.train.apps import get_training_data, segtrain, get_model
-from htr2hpc.train.config import parsl_config
 
 
 api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
@@ -110,6 +108,7 @@ def main():
         help="Number of workers for training task (default: %(default)d)",
         type=int,
         default=8,
+        dest="num_workers",
     )
     args = parser.parse_args()
 
@@ -122,7 +121,7 @@ def main():
     # TODO: allow using an existing dir+data, or is that only a dev issue?
     if args.work_dir.exists() and not args.existing_data:
         print(
-            f"Working directory `{args.work_dir}` already exists (use --existing-data allow)",
+            f"Working directory `{args.work_dir}` already exists (use --existing-data to allow)",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -141,8 +140,6 @@ def main():
     logger_upscope = logging.getLogger("htr2hpc")
     logger_upscope.setLevel(logging.INFO)
 
-    parsl.load(parsl_config)
-
     api = eScriptoriumAPIClient(args.base_url, api_token=api_token)
 
     # TODO : check api access works before going too far?
@@ -157,9 +154,6 @@ def main():
             args.document_id,
             # TODO: optional part ids
         )
-
-    # if there is an error getting the training data, we get a
-    # parsl.dataflow.errors.DependencyError
 
     # if model id is specified, download the model from escriptorium API,
     # confirming that it is the appropriate type (segmentation/transcription)
@@ -211,20 +205,14 @@ def main():
     os.chdir(args.work_dir)
 
     if args.mode == "segmentation":
-        try:
-            print(
-                segtrain(
-                    inputs=[
-                        abs_training_data_dir,
-                        abs_model_file,
-                        abs_output_modelfile,
-                        args.workers,
-                    ],
-                    label=f"segtrain-doc{args.document_id}",
-                ).result()
+        print(
+            segtrain(
+                abs_training_data_dir,
+                abs_model_file,
+                abs_output_modelfile,
+                args.num_workers,
             )
-        except parsl.app.errors.BashExitFailure as err:
-            print(f"Something went wrong: {err}")
+        )
 
     # TODO: handle transcription training
 
@@ -234,8 +222,7 @@ def main():
 
     # when this is all working, cleanup working dir (by default, with option to skip)
 
-    #  cleanup
-    parsl.dfk().cleanup()
+    #  TODO cleanup
 
 
 if __name__ == "__main__":

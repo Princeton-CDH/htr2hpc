@@ -2,8 +2,6 @@ import logging
 import pathlib
 from collections import defaultdict
 
-import parsl
-from parsl.app.app import python_app, bash_app
 from kraken.containers import BaselineLine, Region, Segmentation
 from kraken.lib.arrow_dataset import build_binary_dataset
 from kraken.serialization import serialize
@@ -14,7 +12,6 @@ logger = logging.getLogger(__name__)
 # get a document part from eS api and convert into kraken objects
 
 
-@python_app(executors=["local"])
 def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
     # get a single document part from eScripotrium API and return as a
     # kraken segmentation
@@ -88,18 +85,15 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
     )
 
 
-@python_app(executors=["local"])
 def seralize_segmentation(segmentation: Segmentation):
-    import pathlib
-
     # output xml with a base name corresponding to the image file
     xml_path = pathlib.Path(segmentation.imagename).with_suffix(".xml")
     # make image path a local / relative path
     segmentation.imagename = pathlib.Path(segmentation.imagename).name
+    logger.debug(f"Serializing segmentation as {xml_path}")
     xml_path.open("w").write(serialize(segmentation))
 
 
-@python_app
 def compile_data(segmentations, output_dir):
     output_file = output_dir / "dataset.arrow"
     build_binary_dataset(
@@ -134,37 +128,20 @@ def get_training_data(api, output_dir, document_id, part_ids=None):
     # serialize each of the parts we downloaded
     serialization = [seralize_segmentation(seg) for seg in segmentation_data]
 
-    # wait for serialization to complete
-    [s.result() for s in serialization]
-    # segmentations = [s.result() for s in segmentation_data]
-
     # NOTE: binary compiled data is only supported train and not segtrain
-    # compiled_data = compile_data(segmentations, output_dir).result()
+    # compiled_data = compile_data(segmentations, output_dir)
 
 
-# NOTE: it's possible to pass in some specification options at run time, e.g. :
-# parsl_resource_specification={'cores': 1, 'memory': 1000, 'disk': 1000}
-
-
-@bash_app(executors=["hpc"])
+# TODO
 def segtrain(
-    inputs=[],
-    outputs=[],
-    stderr=parsl.AUTO_LOGNAME,
-    stdout=parsl.AUTO_LOGNAME,
-    label="",
+    input_data_dir: pathlib.Path,
+    input_model: pathlib.Path,
+    output_model: pathlib.Path,
+    num_workers: int = 8,
 ):
-    # first input should be directory for input data
-    input_data_dir = inputs[0]
-    # second input is model to use as starting point
-    input_model = inputs[1]
-    # third input is model output
-    output_model = inputs[2]
-    # third input is worker count
-    workers = inputs[3]
     return (
         f"ketos segtrain --epochs 200 --resize new -i {input_model}"
-        + f" -o {output_model} --workers {workers} -d cuda:0 "
+        + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f xml {input_data_dir}/*.xml "
         + "--precision 16"  # automatic mixed precision for nvidia gpu
     )

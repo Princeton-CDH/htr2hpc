@@ -30,7 +30,6 @@ dependencies = [
   "requests",
   "kraken",
   "humanize",
-  "parsl",
 ]
 
 [project.urls]

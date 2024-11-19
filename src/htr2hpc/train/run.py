@@ -4,7 +4,7 @@ import os
 import sys
 import logging
 import pathlib
-from multiprocessing import cpu_count
+from time import sleep
 
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 
@@ -45,7 +45,7 @@ def main():
     subparsers = parser.add_subparsers(
         title="mode", description="supported training modes", required=True, dest="mode"
     )
-    segmentation_parser = subparsers.add_parser("segmentation")
+    subparsers.add_parser("segmentation")  # currently no segmentation-specific options
     transcription_parser = subparsers.add_parser("transcription")
 
     # common arguments used in both modes

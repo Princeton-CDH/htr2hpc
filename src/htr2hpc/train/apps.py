@@ -129,7 +129,7 @@ def get_training_data(api, output_dir, document_id, part_ids=None):
     ]
     # if we're generating alto-xml (i.e., segmentation training data),
     # serialize each of the parts we downloaded
-    serialization = [seralize_segmentation(seg) for seg in segmentation_data]
+    [seralize_segmentation(seg) for seg in segmentation_data]
 
     # NOTE: binary compiled data is only supported train and not segtrain
     # compiled_data = compile_data(segmentations, output_dir)

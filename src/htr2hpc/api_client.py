@@ -10,7 +10,6 @@ import json
 import humanize
 import requests
 from django.utils.text import slugify  # is django a reasonable dependency?
-from kraken.lib import vgsl
 import coremltools
 
 from htr2hpc import __version__ as _version
@@ -235,7 +234,7 @@ class eScriptoriumAPIClient:
         if job not in {"Segment", "Recognize"}:
             raise ValueError(f"{job} is not a valid model job name")
 
-        api_url = f"models/"
+        api_url = "models/"
 
         with open(model_file, "rb") as mfile:
             files = {"file": mfile}

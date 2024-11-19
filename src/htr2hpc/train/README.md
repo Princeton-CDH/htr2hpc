@@ -45,4 +45,4 @@ htr2hpc-train segmentation https://test-htr.lib.princeton.edu/ segtrain_doc2 --d
 
 To reuse previously downloaded data, add the `--existing-data` flag.
 
-The script uses parsl to manage data and computate tasks. Parsl will create output files in a `runinfo/` directory, numbered by run. The output from the ketos `segtrain` task can be found under `runinfo/###/task_logs/0000/`.
+The output from the slurm job will be placed in the working directory you specified when running the htr2hpc-train command, in a file named `segtrain_####.out` where #### is the slurm job id.

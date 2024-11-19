@@ -7,6 +7,7 @@ import pathlib
 from time import sleep
 
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
+from tqdm import tqdm
 
 from htr2hpc.api_client import eScriptoriumAPIClient
 from htr2hpc.train.apps import (
@@ -82,6 +83,7 @@ def main():
         type=int,
         dest="model_id",
     )
+
     # not supported yet, handle later
     # parser.add_argument(
     #     "-p",
@@ -133,7 +135,7 @@ def main():
         sys.exit(1)
     if args.existing_data and not args.work_dir.exists():
         print(
-            f"SPecified working directory `{args.work_dir}` already exists (use --existing-data allow)",
+            f"Specified working directory `{args.work_dir}` already exists (use --existing-data allow)",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -199,7 +201,6 @@ def main():
 
     # change directory to working directory, since by default,
     # slurm executes the job from the directory where it was submitted
-    # - this is where parsl will create the slurm sbatch file
     os.chdir(args.work_dir)
 
     if args.mode == "segmentation":
@@ -217,16 +218,23 @@ def main():
         # * but note that squeue only reports on pending & running jobs
 
         # loop while the job is pending or running and then stop
-        while job_status:
-            sleep(10)
-            job_status = slurm_job_queue_status(job_id)
-            print(f"job {job_id} status {job_status}")
+        # use tqdm to display job status and wait time
+        with tqdm(
+            desc=f"Slurm job {job_id}",
+            bar_format="{desc}{postfix}    | {elapsed}",
+        ) as statusbar:
+            while job_status:
+                statusbar.set_postfix_str(f"status: {job_status}")
+                sleep(3)
+                job_status = slurm_job_queue_status(job_id)
 
         # check the completed status
         job_status = slurm_job_status(job_id)
         print(
             f"Job {job_id} is no longer queued; ending status: {','.join(job_status)}"
         )
+        job_output = training_data_dir / f"segtrain_{job_id}.out"
+        print(f"Job output should be in {job_output}")
 
         # TODO: if it completed (or timeout?), check for results
         # - if model improved, upload to eScriptorium as new or updated model

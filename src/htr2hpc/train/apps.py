@@ -5,7 +5,9 @@ import subprocess
 from collections import defaultdict
 
 from kraken.containers import BaselineLine, Region, Segmentation
-from kraken.lib.arrow_dataset import build_binary_dataset
+
+# skip import, syntax error in current kraken
+# from kraken.lib.arrow_dataset import build_binary_dataset
 from kraken.serialization import serialize
 from simple_slurm import Slurm
 
@@ -146,14 +148,20 @@ def segtrain(
         nodes=1,
         ntasks=1,
         cpus_per_task=num_workers,
-        mem_per_cpu="3G",
+        mem_per_cpu="4G",
         gres=["gpu:1"],
         job_name="segtrain",
         output=f"segtrain_{Slurm.JOB_ARRAY_MASTER_ID}.out",
         time=datetime.timedelta(minutes=20),
         # time=datetime.timedelta(hours=2),
     )
-    # setup steps
+    # do we want to use CUDA Multi-Process Service (MPS) ?
+    # della documentation says to specify with --gpu-mps,
+    # but simple slurm doesn't recognize this as a valid directive.
+    # Work around that by adding it as a command (if indeed we want this)
+    # segtrain_slurm.add_cmd("#SBATCH --gpu-mps")
+
+    # add commands for setup steps
     segtrain_slurm.add_cmd("module purge")
     segtrain_slurm.add_cmd("module load anaconda3/2024.6")
     segtrain_slurm.add_cmd("conda activate htr2hpc")
@@ -163,12 +171,18 @@ def segtrain(
         f"ketos segtrain --epochs 200 --resize new -i {input_model}"
         + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f xml {input_data_dir}/*.xml "
-        + "--precision 16"  # automatic mixed precision for nvidia gpu
+        # + "--precision 16"  # automatic mixed precision for nvidia gpu
     )
+
     logger.debug(f"segtrain command: {segtrain_cmd}")
     return segtrain_slurm.sbatch(segtrain_cmd)
     # TODO: calling function needs to check for best model
     # or no model improvement
+
+
+def get_best_model(model_dir: pathlib.Path) -> pathlib.Path | None:
+    best = list(model_dir.glob("*_best.mlmodel"))
+    return best[0] if best else None
 
 
 def slurm_job_queue_status(job_id: int) -> str:

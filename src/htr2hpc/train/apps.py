@@ -153,7 +153,10 @@ def segtrain(
         time=datetime.timedelta(minutes=20),
         # time=datetime.timedelta(hours=2),
     )
-    segtrain_slurm.add_cmd("module load anaconda3/2024.6; conda activate htr2hpc")
+    # setup steps
+    segtrain_slurm.add_cmd("module purge")
+    segtrain_slurm.add_cmd("module load anaconda3/2024.6")
+    segtrain_slurm.add_cmd("conda activate htr2hpc")
     # sbatch returns the job id for the created job
     segtrain_cmd = (
         f"ketos segtrain --epochs 200 --resize new -i {input_model}"

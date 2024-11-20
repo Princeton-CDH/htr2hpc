@@ -43,12 +43,34 @@ def get_segmentation_data(
     # each one includes a line id, transcription id, and content
     # ... need to match up based on line pk
 
+    # NOTE: eS celery task training prep only includes regions
+    # for segmentation, not recognition
+
+    # gather regions in a dictionary keyed on type name for
+    # the segmentation object (name -> list of regions)
+    # and also a lookup by id, for assocating lines with regions
+    regions = defaultdict(list)
+    region_pk_to_id = {}
+    for region in part.regions:
+        # map pk to external id for lines to use
+        region_pk_to_id[region.pk] = region.external_id
+        # get region type and create a kraken region object
+        region_type = block_types.get(region.typology, "default")
+        regions[region_type].append(
+            Region(
+                id=region.external_id, boundary=region.box, tags={"type": region_type}
+            )
+        )
+
     # gather base lines
     baselines = [
         BaselineLine(
             id=line.external_id,
             baseline=line.baseline,
             boundary=line.mask,
+            # eScriptorium api returns a single region pk
+            # kraken takes a list of string ids
+            regions=[region_pk_to_id[line.region]],
             # NOTE: eS celery task training prep only includes text
             # when generating training data for recognition, not segmentation
             # this mirrors the behavior from eS code for export:
@@ -59,20 +81,6 @@ def get_segmentation_data(
         for line in part.lines
     ]
     logger.info(f"Document {document_id} part {part_id}: {len(baselines)} baselines")
-
-    # NOTE: eS celery task training prep only includes regions
-    # for segmentation, not recognition
-
-    # gather regions in a dictionary keyed on type name
-    # name -> list of regions
-    regions = defaultdict(list)
-    for region in part.regions:
-        region_type = block_types.get(region.typology, "default")
-        regions[region_type].append(
-            Region(
-                id=region.external_id, boundary=region.box, tags={"type": region_type}
-            )
-        )
 
     logger.info(
         f"Document {document_id} part {part_id}:  {len(part.regions)} regions, {len(regions.keys())} block types"

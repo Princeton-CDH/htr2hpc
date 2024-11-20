@@ -6,6 +6,7 @@ import logging
 import pathlib
 import time
 
+from intspan import intspan
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 from tqdm import tqdm
 
@@ -84,13 +85,13 @@ def main():
         dest="model_id",
     )
 
-    # not supported yet, handle later
-    # parser.add_argument(
-    #     "-p",
-    #     "--parts",
-    #     help="Optional list of parts to train on (if not entire document)",
-    #     # TODO: use list or intspan here ?
-    # )
+    parser.add_argument(
+        "-p",
+        "--parts",
+        help="Optional list of part ids for training. Format as #,#,#  or #-##."
+        + "(if not specified, uses entire document)",
+        type=intspan,
+    )
     parser.add_argument(
         "--existing-data",
         help="Use existing data from a previous run",
@@ -156,12 +157,7 @@ def main():
     training_data_dir = args.work_dir / "parts"
     if not args.existing_data:
         training_data_dir.mkdir()
-        get_training_data(
-            api,
-            training_data_dir,
-            args.document_id,
-            # TODO: optional part ids
-        )
+        get_training_data(api, training_data_dir, args.document_id, args.parts)
 
     # if model id is specified, download the model from escriptorium API,
     # confirming that it is the appropriate type (segmentation/transcription)

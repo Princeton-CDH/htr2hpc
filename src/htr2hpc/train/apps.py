@@ -17,17 +17,22 @@ logger = logging.getLogger(__name__)
 # get a document part from eS api and convert into kraken objects
 
 
-def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
-    # get a single document part from eScripotrium API and return as a
-    # kraken segmentation
+def get_segmentation_data(
+    api, document_details, part_id, image_dir
+) -> tuple[Segmentation, tuple]:
+    """Get a single document part from the eScriptorium API and generate
+    a kraken segmentation object.
 
-    # TODO: can we cache these? types used across all parts
-    # NOTE: document details includes valid block types and valid line types,
-    # maybe we should get that and pass it in to this method
-    # get list of line types and convert to a lookup from id to name
-    line_types = {ltype.pk: ltype.name for ltype in api.list_types("line").results}
+    Returns a tuple of the segmentation object and the part details from the API,
+    which includes image size needed for serialization.
+    """
+
+    # document details includes id (pk) and valid line and block types
+    document_id = document_details.pk
+    # convert list of line types to a lookup from id to name
+    line_types = {ltype.pk: ltype.name for ltype in document_details.valid_line_types}
     # same for block types (used for regions)
-    block_types = {btype.pk: btype.name for btype in api.list_types("block").results}
+    block_types = {btype.pk: btype.name for btype in document_details.valid_block_types}
     part = api.document_part_details(document_id, part_id)
 
     # adapted from escriptorium.app.core.tasks.make_segmentation_training_data
@@ -68,6 +73,7 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
                 id=region.external_id, boundary=region.box, tags={"type": region_type}
             )
         )
+
     logger.info(
         f"Document {document_id} part {part_id}:  {len(part.regions)} regions, {len(regions.keys())} block types"
     )
@@ -78,25 +84,29 @@ def get_segmentation_data(api, document_id, part_id, image_dir) -> Segmentation:
         image_uri, image_dir, part.image.uri.replace("/media/", "").replace("/", "-")
     )
 
-    return Segmentation(
-        # eS code has text-direction hardcoded as horizontal-lr
+    seg = Segmentation(
+        # eS task code has text-direction hardcoded as horizontal-lr
         text_direction="horizontal-lr",
-        # imagename should be a path to a local image file; can we use parsl File?
+        # imagename should be a path to a local image file
         imagename=image_file,
         type="baselines",
         lines=baselines,
         regions=regions,
         script_detection=False,
     )
+    return (
+        seg,
+        part,
+    )
 
 
-def seralize_segmentation(segmentation: Segmentation):
+def serialize_segmentation(segmentation: Segmentation, part):
     # output xml with a base name corresponding to the image file
     xml_path = pathlib.Path(segmentation.imagename).with_suffix(".xml")
     # make image path a local / relative path
     segmentation.imagename = pathlib.Path(segmentation.imagename).name
     logger.debug(f"Serializing segmentation as {xml_path}")
-    xml_path.open("w").write(serialize(segmentation))
+    xml_path.open("w").write(serialize(segmentation, image_size=part.image.size))
 
 
 def compile_data(segmentations, output_dir):
@@ -124,14 +134,17 @@ def get_training_data(api, output_dir, document_id, part_ids=None):
         doc_parts = api.document_parts_list(document_id)
         part_ids = [part.pk for part in doc_parts.results]
 
-    # kick off parsl python app to get document parts as kraken segmentations
+    # document details includes line and block types
+    document_details = api.document_details(document_id)
+
+    # get segmentation data for each part of the document that is requested
     segmentation_data = [
-        get_segmentation_data(api, document_id, part_id, output_dir)
+        get_segmentation_data(api, document_details, part_id, output_dir)
         for part_id in part_ids
     ]
     # if we're generating alto-xml (i.e., segmentation training data),
     # serialize each of the parts we downloaded
-    [seralize_segmentation(seg) for seg in segmentation_data]
+    [serialize_segmentation(seg, part) for (seg, part) in segmentation_data]
 
     # NOTE: binary compiled data is only supported train and not segtrain
     # compiled_data = compile_data(segmentations, output_dir)

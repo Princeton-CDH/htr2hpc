@@ -1,3 +1,19 @@
+"""
+Utility script to delete models from eScriptorim API, for easily
+cleaning up models created and uploaded for testing.
+
+Requires an eScriptorium API token set as an environment variable in
+**ESCRIPTORIUM_API_TOKEN**.
+
+Takes a base url for the eScriptorium instance and a model name prefix; will
+delete all models that start with the specified model name prefix.
+
+usage:
+
+    python src/htr2hpc/train/rm_models.py https://test-htr.lib.princeton.edu/ model_prefix
+
+"""
+
 import os
 import argparse
 

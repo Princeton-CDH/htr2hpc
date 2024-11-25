@@ -25,8 +25,8 @@ es_model_jobs = {"segmentation": "Segment", "transcription": "Recognize"}
 
 # kraken python package provides paths to the default best models for both modes
 default_model = {
-    "segmentation": SEGMENTATION_DEFAULT_MODEL,
-    "transcription": DEFAULT_MODEL,
+    "Segment": SEGMENTATION_DEFAULT_MODEL,
+    "Recognize": DEFAULT_MODEL,
 }
 
 
@@ -47,6 +47,8 @@ class TrainingManager:
     def __post_init__(self):
         # initialize api client
         self.api = eScriptoriumAPIClient(self.base_url, self.api_token)
+        # TODO : check api access works before going too far?
+        # (currently does not handle connection error very gracefully)
 
         # store the path to original working directory before changing directory
         self.orig_working_dir = pathlib.Path.cwd()
@@ -75,7 +77,7 @@ class TrainingManager:
         else:
             # get the appropriate model file for the requested training mode
             # kraken default defs are path objects
-            self.model_file = default_model[args.mode]
+            self.model_file = default_model[self.training_mode]
 
         # create a directory and path for the output model file
         self.output_model_dir = self.work_dir / "output_model"
@@ -99,7 +101,7 @@ class TrainingManager:
         with tqdm(
             desc=f"Slurm job {job_id}",
             bar_format="{desc} | total time: {elapsed}{postfix} ",
-            disable=not args.show_progress,
+            disable=not self.show_progress,
         ) as statusbar:
             running = False
             while job_status:
@@ -121,7 +123,7 @@ class TrainingManager:
         print(
             f"Job {job_id} is no longer queued; ending status: {','.join(job_status)}"
         )
-        job_output = args.work_dir / f"segtrain_{job_id}.out"
+        job_output = self.work_dir / f"segtrain_{job_id}.out"
         print(f"Job output is in {job_output}")
 
     def segmentation_training(self):
@@ -294,9 +296,6 @@ def main():
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
     logger_upscope = logging.getLogger("htr2hpc")
     logger_upscope.setLevel(logging.INFO)
-
-    # TODO : check api access works before going too far?
-    # (currently does not handle connection error gracefully)
 
     # nearly all the argparse options need to be passed to the training manager class
     # convert to a _copy_ dictionary and delete the unused parmeters

@@ -84,7 +84,13 @@ def main():
         type=int,
         dest="model_id",
     )
-
+    parser.add_argument(
+        "--model-name",
+        help="Name to be used for the newly trained model",
+        type=str,
+        dest="model_name",
+        required=True,
+    )
     parser.add_argument(
         "-p",
         "--parts",

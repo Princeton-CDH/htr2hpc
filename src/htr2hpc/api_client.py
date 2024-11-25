@@ -17,6 +17,14 @@ from htr2hpc import __version__ as _version
 logger = logging.getLogger(__name__)
 
 
+class NotFound(Exception):
+    pass
+
+
+class NotAllowed(Exception):
+    pass
+
+
 @dataclass
 class ResultsList:
     """API list response."""
@@ -184,9 +192,11 @@ class eScriptoriumAPIClient:
         #     except AttributeError:
         #         print(resp.content)
         elif resp.status_code == requests.codes.not_found:
-            logger.error("Error: not found")
+            raise NotFound(f"404 Not Found error: {rqst_url}")
         elif resp.status_code == requests.codes.unauthorized:
-            logger.error("Error: not authorized")
+            raise NotAllowed(f"401 Not Authorized: {rqst_url}")
+        elif resp.status_code == requests.codes.forbidden:
+            raise NotAllowed(f"403 Forbiddden: {rqst_url}")
         else:
             # TODO: error handling / logging for other cases?
             # (useful for dev if nothing else...)

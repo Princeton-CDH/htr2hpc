@@ -6,21 +6,23 @@ The `htr2hpc-train` script will download document parts and optionally a model f
 
 ## Setup
 
-On the HPC system (i.e., della for Princeton), create a new python 3.11 conda environment named `htr2hpc` and install the current version of this software:
+On the HPC system (i.e., della for Princeton), download kraken and use their provided conda files to create a new python 3.11 conda environment named `htr2hpc`, and install the current version of this software:
 
 ```sh
-module load anaconda3/2024.6
-wget https://github.com/mittagessen/kraken/raw/refs/heads/main/environment_cuda.yml
+module load anaconda3/2024.2
+git clone https://github.com/mittagessen/kraken.git
+cd kraken
 conda env create -f environment_cuda.yml -n htr2hpc
 conda activate htr2hpc
-pip install git+https://github.com/Princeton-CDH/htr2hpc.git@feature/export-and-train-noparsl#egg=htr2hpc
+pip install torchvision torch==2.1 torchaudio==2.1
+pip install git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
 ```
 
 To tinker with htr2hpc settings, check out the code from github and install the local checkout as an editable installation:
 ```sh
 git clone https://github.com/Princeton-CDH/htr2hpc.git
 cd htr2hpc
-git checkout feature/export-and-train-noparsl
+git checkout develop
 pip install -e .
 ```
 

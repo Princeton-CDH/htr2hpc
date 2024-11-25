@@ -11,7 +11,7 @@ from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 from tqdm import tqdm
 
 from htr2hpc.api_client import eScriptoriumAPIClient
-from htr2hpc.train.apps import (
+from htr2hpc.train.data import (
     get_training_data,
     segtrain,
     get_model,

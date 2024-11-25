@@ -181,8 +181,14 @@ def upload_models(
     with the specified job type (Segment/Recognize). Returns a count of the
     number of models created."""
     uploaded = 0
+
+    # segtrain creates models based on modelname with _0, _1, _2 ... _49
+    # sort numerically on the latter portion of the name
+    modelfiles = sorted(
+        model_dir.glob("*.mlmodel"), key=lambda path: int(path.stem.split("_")[-1])
+    )
     for model_file in tqdm(
-        model_dir.glob("*.mlmodel"),
+        modelfiles,
         desc=f"Uploading {model_type} models",
         disable=not show_progress,
     ):

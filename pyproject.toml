@@ -25,14 +25,23 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pucas>=0.9",  
-  "psutil"
+  "pucas>=0.9",    # TODO: move to an optional group for webapp integration only?
+  "psutil",
+  "requests",
+  "kraken",
+  "humanize",
+  "simple_slurm",
+  "tqdm",
+  "intspan"
 ]
 
 [project.urls]
 Documentation = "https://github.com/Princeton-CDH/htr2hpc#readme"
 Issues = "https://github.com/Princeton-CDH/htr2hpc/issues"
 Source = "https://github.com/Princeton-CDH/htr2hpc"
+
+[project.scripts]
+htr2hpc-train = "htr2hpc.train.run:main"
 
 [tool.hatch.version]
 path = "src/htr2hpc/__init__.py"

@@ -189,7 +189,8 @@ def segtrain(
     logger.debug(f"sbatch file\n: {segtrain_slurm}")
     # sbatch returns the job id for the created job
     segtrain_cmd = (
-        f"ketos segtrain --epochs 200 --resize new -i {input_model}"
+        # run with default number of epochs (50)
+        f"ketos segtrain --resize both -i {input_model}"
         + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f xml {input_data_dir}/*.xml "
         # + "--precision 16"  # automatic mixed precision for nvidia gpu

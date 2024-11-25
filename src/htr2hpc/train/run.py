@@ -5,6 +5,7 @@ import sys
 import logging
 import pathlib
 import time
+from shutil import rmtree
 
 from intspan import intspan
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
@@ -61,7 +62,7 @@ def main():
     parser.add_argument(
         "work_dir",
         metavar="WORKING_DIR",
-        help="Working directory where data should be downloaded (must already exist)",
+        help="Working directory where data should be downloaded (must NOT already exist)",
         type=pathlib.Path,
     )
     parser.add_argument(
@@ -99,6 +100,14 @@ def main():
         action="store_true",
         default=False,
     )
+    # control whether or not to clean up temporary files (on by default)
+    parser.add_argument(
+        "--clean",
+        help="Clean up temporary working files after training ends",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+
     # control progress bar display (on by default)
     parser.add_argument(
         "--progress",
@@ -133,16 +142,17 @@ def main():
         sys.exit(1)
 
     # make sure working directory does not already exist
-    # TODO: allow using an existing dir+data, or is that only a dev issue?
     if args.work_dir.exists() and not args.existing_data:
         print(
             f"Working directory `{args.work_dir}` already exists (use --existing-data to allow)",
             file=sys.stderr,
         )
+        # NOTE: existing-data option allows reusing previously downloaded data, but this
+        # is primarily a dev/test workaround, does not handle all cases
         sys.exit(1)
     if args.existing_data and not args.work_dir.exists():
         print(
-            f"Specified working directory `{args.work_dir}` already exists (use --existing-data allow)",
+            f"Working directory `{args.work_dir}` does not exist but --existing-data was requested",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -184,9 +194,10 @@ def main():
 
     # create a directory and path for the output model file
     output_model_dir = args.work_dir / "output_model"
-    # currently assuming model dir is empty
+    # remove the output model directory to avoid confusion with any old
+    # model files from a previous run
     if args.existing_data:
-        output_model_dir.rmdir()
+        rmtree(output_model_dir)
     output_model_dir.mkdir()
     output_modelfile = output_model_dir / args.model_name
 
@@ -264,7 +275,16 @@ def main():
 
     # TODO: handle transcription training
 
-    #  TODO cleanup
+    # unless requested not to, clean up the working directory, which includes:
+    # - downloaded training data & model to fine tune
+    # - generated models
+    # - training output
+    if args.clean:
+        print(
+            f"Removing working directory {args.work_dir} with all training data and models."
+        )
+        rmtree(args.work_dir)
+
     # when this is all working, cleanup working dir (by default, with option to skip)
 
 

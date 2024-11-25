@@ -114,9 +114,6 @@ def main():
         dest="transcription_id",
         required=True,
     )
-
-    # NOTE: needs to match the number in the parsl config...
-    # how best to configure this?
     parser.add_argument(
         "-w",
         "--workers",
@@ -182,7 +179,6 @@ def main():
         # kraken default defs are path objects
         model_file = default_model[args.mode]
 
-    # TODO: determine which job to run based on the input
     # - get input data for that job
     # - run the bash app with the slurm provider
     # - get the result from the bash app and check for failure/success
@@ -193,8 +189,8 @@ def main():
     # currently assuming model dir is empty
     if args.existing_data:
         output_model_dir.rmdir()
-    output_model_dir.mkdir()  # TODO: allow to exist?
-    output_modelfile = output_model_dir / "model"
+    output_model_dir.mkdir()
+    output_modelfile = output_model_dir / args.model_name
 
     # get absolute versions of these paths _before_ changing working directory
     abs_training_data_dir = training_data_dir.absolute()
@@ -248,8 +244,8 @@ def main():
         job_output = args.work_dir / f"segtrain_{job_id}.out"
         print(f"Job output should be in {job_output}")
 
-        # TODO: if it completed (or timeout?), check for results
-        # - if model improved, upload to eScriptorium as new or updated model
+        # TODO: after run completes, check for results
+        # - for segmentation, upload all models to eScriptorium as new models
 
     # TODO: handle transcription training
 

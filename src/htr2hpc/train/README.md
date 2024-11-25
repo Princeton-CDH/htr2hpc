@@ -18,7 +18,7 @@ pip install git+https://github.com/Princeton-CDH/htr2hpc.git@feature/export-and-
 
 To tinker with htr2hpc settings, check out the code from github and install the local checkout as an editable installation:
 ```sh
-git https://github.com/Princeton-CDH/htr2hpc.git
+git clone https://github.com/Princeton-CDH/htr2hpc.git
 cd htr2hpc
 git checkout feature/export-and-train-noparsl
 pip install -e .

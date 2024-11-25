@@ -423,8 +423,11 @@ class eScriptoriumAPIClient:
                     filehandle.write(chunk)
             return outfile
 
-    def download_file(self, url, save_location, filename=None):
-        """Convenience method to download a file to a specified location."""
+    def download_file(
+        self, url: str, save_location: pathlib.Path, filename=None
+    ) -> Optional[pathlib.Path]:
+        """Convenience method to download a file to a specified location.
+        Returns"""
 
         # TODO: would be nice to make url relative to base_url if it's
         # a relative url and not a full path
@@ -450,6 +453,8 @@ class eScriptoriumAPIClient:
                 for chunk in resp.iter_content(chunk_size=1024):
                     filehandle.write(chunk)
             return outfile
+
+        return None
 
     def task_list(self):
         """paginated list of tasks"""

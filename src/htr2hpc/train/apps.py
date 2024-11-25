@@ -109,6 +109,12 @@ def get_segmentation_data(
 
 
 def serialize_segmentation(segmentation: Segmentation, part):
+    """Serialize a segmentation object as ALTO XML for use as training data.
+    Requires kraken :class:`~kraken.containers.Segmentation` and part
+    details returned by eScriptorum API.
+    """
+    # TODO: consider moving this into above method as optional behavior
+
     # output xml with a base name corresponding to the image file
     xml_path = pathlib.Path(segmentation.imagename).with_suffix(".xml")
     # make image path a local / relative path
@@ -118,6 +124,8 @@ def serialize_segmentation(segmentation: Segmentation, part):
 
 
 def compile_data(segmentations, output_dir):
+    """Compile a list of kraken segmentation objects into a binary file for
+    recognition training."""
     output_file = output_dir / "dataset.arrow"
     build_binary_dataset(
         files=segmentations, format_type=None, output_file=str(output_file)
@@ -125,9 +133,11 @@ def compile_data(segmentations, output_dir):
     return output_file
 
 
-# TODO: figure out how to run this as a parsl python app,
-# in parallel with downloading training data
 def get_model(api, model_id, training_type, output_dir):
+    """Download a model file from the eScriptorium and save it to the specified
+    directory. Raises a ValueError if the model is not the specified
+    training type. Returns a :class:`pathlib.Path` to the downloaded file."""
+
     model_info = api.model_details(model_id)
     if model_info.job != training_type:
         raise ValueError(

@@ -11,13 +11,8 @@ from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 from tqdm import tqdm
 
 from htr2hpc.api_client import eScriptoriumAPIClient
-from htr2hpc.train.data import (
-    get_training_data,
-    segtrain,
-    get_model,
-    slurm_job_status,
-    slurm_job_queue_status,
-)
+from htr2hpc.train.data import get_training_data, get_model
+from htr2hpc.train.slurm import segtrain, slurm_job_status, slurm_job_queue_status
 
 
 api_token_env_var = "ESCRIPTORIUM_API_TOKEN"

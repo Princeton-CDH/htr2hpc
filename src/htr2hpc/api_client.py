@@ -228,13 +228,21 @@ class eScriptoriumAPIClient:
         # on successful update, returns the model object
         return to_namedtuple("model", resp.json())
 
-    def model_create(self, model_file: pathlib.Path, model_name: str, job: str):
+    def model_create(
+        self,
+        model_file: pathlib.Path,
+        job: str,
+        model_name: Optional[str] = None,
+    ):
         """Add a new model to eScriptorium. Takes a model file, name, and job
         (Segment or Recognize)."""
         if job not in {"Segment", "Recognize"}:
             raise ValueError(f"{job} is not a valid model job name")
 
         api_url = "models/"
+        # if model name is unset, use filename stem
+        if model_name is None:
+            model_name = model_file.stem
 
         with open(model_file, "rb") as mfile:
             files = {"file": mfile}

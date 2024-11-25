@@ -11,7 +11,7 @@ from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 from tqdm import tqdm
 
 from htr2hpc.api_client import eScriptoriumAPIClient
-from htr2hpc.train.data import get_training_data, get_model
+from htr2hpc.train.data import get_training_data, get_model, upload_models
 from htr2hpc.train.slurm import segtrain, slurm_job_status, slurm_job_queue_status
 
 
@@ -99,6 +99,14 @@ def main():
         action="store_true",
         default=False,
     )
+    # control progress bar display (on by default)
+    parser.add_argument(
+        "--progress",
+        help="Show progress",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        dest="show_progress",
+    )
 
     # training for transcription requires a transcription id
     transcription_parser.add_argument(
@@ -145,7 +153,7 @@ def main():
 
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
     logger_upscope = logging.getLogger("htr2hpc")
-    logger_upscope.setLevel(logging.DEBUG)
+    logger_upscope.setLevel(logging.INFO)
 
     api = eScriptoriumAPIClient(args.base_url, api_token=api_token)
 
@@ -174,11 +182,6 @@ def main():
         # kraken default defs are path objects
         model_file = default_model[args.mode]
 
-    # - get input data for that job
-    # - run the bash app with the slurm provider
-    # - get the result from the bash app and check for failure/success
-    #
-
     # create a directory and path for the output model file
     output_model_dir = args.work_dir / "output_model"
     # currently assuming model dir is empty
@@ -191,6 +194,9 @@ def main():
     abs_training_data_dir = training_data_dir.absolute()
     abs_model_file = model_file.absolute()
     abs_output_modelfile = output_modelfile.absolute()
+
+    # store the path to original working directory before changing directory
+    orig_working_dir = pathlib.Path.cwd()
 
     # change directory to working directory, since by default,
     # slurm executes the job from the directory where it was submitted
@@ -215,6 +221,7 @@ def main():
         with tqdm(
             desc=f"Slurm job {job_id}",
             bar_format="{desc} | total time: {elapsed}{postfix} ",
+            disable=not args.show_progress,
         ) as statusbar:
             running = False
             while job_status:
@@ -239,8 +246,21 @@ def main():
         job_output = args.work_dir / f"segtrain_{job_id}.out"
         print(f"Job output should be in {job_output}")
 
-        # TODO: after run completes, check for results
+        # change back to original working directory
+        os.chdir(orig_working_dir)
+
+        # after run completes, check for results
         # - for segmentation, upload all models to eScriptorium as new models
+        upload_count = upload_models(
+            api,
+            output_modelfile.parent,
+            es_model_jobs[args.mode],
+            show_progress=args.show_progress,
+        )
+        # - does this behavior depend on job exit status?
+        # reasonable to assume any model files created should be uploaded¿
+
+        print(f"Uploaded {upload_count} segmentation models to eScriptorium")
 
     # TODO: handle transcription training
 

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from time import sleep
 import pathlib
 from typing import Optional, Any
+from urllib.parse import urlparse, parse_qs
 import json
 
 import humanize
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 class ResultsList:
     """API list response."""
 
+    api: "eScriptoriumAPIClient"
     # all API list methods have the same structure,
     # so use a dataclass but specify the result type
 
@@ -34,6 +36,18 @@ class ResultsList:
         # convert result entries to namedtuple class based on
         # specified result type name
         self.results = [to_namedtuple(self.result_type, d) for d in self.results]
+
+    def next_page(self):
+        # if there is a next page of results
+        if self.next:
+            # parse the url to get the page number for the next page
+            next_params = parse_qs(urlparse(self.next).query)
+            next_page_num = next_params["page"][0]
+            # convert result type (e.g. "list_model") into api method (model_list)
+            # (this may be brittle...)
+            single_rtype = self.result_type.replace("list", "").strip("_")
+            list_method = getattr(self.api, f"{single_rtype}_list")
+            return list_method(page=next_page_num)
 
 
 @dataclass
@@ -156,6 +170,8 @@ class eScriptoriumAPIClient:
 
         if method == "GET":
             session_request = self.session.get
+        elif method == "DELETE":
+            session_request = self.session.delete
         elif method in ["POST", "PUT"]:
             session_request = getattr(self.session, method.lower())
             # add post data and files to the request if any are specified
@@ -199,11 +215,14 @@ class eScriptoriumAPIClient:
         api_url = "users/current/"
         return to_namedtuple("user", self._make_request(api_url).json())
 
-    def model_list(self):
+    def model_list(self, page=None):
         """paginated list of models"""
         api_url = "models/"
-        resp = self._make_request(api_url)
-        return ResultsList(result_type="list_model", **resp.json())
+        params = None
+        if page:
+            params = {"page": page}
+        resp = self._make_request(api_url, params=params)
+        return ResultsList(api=self, result_type="list_model", **resp.json())
 
     def model_details(self, model_id):
         """details for a single models"""
@@ -227,6 +246,14 @@ class eScriptoriumAPIClient:
             resp = self._make_request(api_url, method="PUT", files=files, data=data)
         # on successful update, returns the model object
         return to_namedtuple("model", resp.json())
+
+    def model_delete(self, model_id: int):
+        """Delete an existing model record from eScriptorum."""
+        api_url = f"models/{model_id}/"
+        # eScriptorium returns a 204 No Content response on success
+        self._make_request(
+            api_url, method="DELETE", expected_status=requests.codes.no_content
+        )
 
     def model_create(
         self,
@@ -273,11 +300,14 @@ class eScriptoriumAPIClient:
         meta = json.loads(m.get_spec().description.metadata.userDefined["kraken_meta"])
         return meta["accuracy"][-1][-1] * 100
 
-    def document_list(self):
+    def document_list(self, page=None):
         """paginated list of documents"""
         api_url = "documents/"
-        resp = self._make_request(api_url)
-        return ResultsList(result_type="document", **resp.json())
+        params = None
+        if page:
+            params = {"page": page}
+        resp = self._make_request(api_url, params=params)
+        return ResultsList(api=self, result_type="document", **resp.json())
 
     def document_details(self, document_id: int):
         """details for a single document"""
@@ -285,12 +315,15 @@ class eScriptoriumAPIClient:
         resp = self._make_request(api_url)
         return to_namedtuple("document", resp.json())
 
-    def document_parts_list(self, document_id: int):
+    def document_parts_list(self, document_id: int, page=None):
         """list of all the parts associated with a document"""
         api_url = f"documents/{document_id}/parts/"
-        resp = self._make_request(api_url)
+        params = None
+        if page:
+            params = {"page": page}
+        resp = self._make_request(api_url, params=params)
         # document part listed here is different than full parts result
-        return ResultsList(result_type="documentpart", **resp.json())
+        return ResultsList(api=self, result_type="document_parts", **resp.json())
 
     def document_part_details(self, document_id: int, part_id: int):
         """details for one part of a document"""
@@ -309,7 +342,7 @@ class eScriptoriumAPIClient:
         if transcription_id is not None:
             params["transcription"] = transcription_id
         resp = self._make_request(api_url, params=params)
-        return ResultsList(result_type="transcription_line", **resp.json())
+        return ResultsList(api=self, result_type="transcription_line", **resp.json())
 
     def document_export(
         self, document_id: int, transcription_id: int, include_images: bool = False
@@ -345,7 +378,7 @@ class eScriptoriumAPIClient:
             raise ValueError(f"{item} is not a supported type for list types")
         api_url = f"types/{item}/"
         resp = self._make_request(api_url)
-        return ResultsList(result_type="type", **resp.json())
+        return ResultsList(api=self, result_type="type", **resp.json())
 
     def export_file_url(
         self,
@@ -464,11 +497,14 @@ class eScriptoriumAPIClient:
 
         return None
 
-    def task_list(self):
+    def task_list(self, page=None):
         """paginated list of tasks"""
         api_url = "tasks/"
-        resp = self._make_request(api_url)
-        return ResultsList(result_type="task", **resp.json())
+        params = None
+        if page:
+            params = {"page": page}
+        resp = self._make_request(api_url, params=params)
+        return ResultsList(api=self, result_type="task", **resp.json())
 
     def task_details(self, task_id: int):
         """details for a single task"""

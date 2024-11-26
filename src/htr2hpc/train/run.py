@@ -41,6 +41,7 @@ class TrainingManager:
     num_workers: int
     parts: Optional[intspan] = None
     model_id: Optional[int] = None
+    transcription_id: Optional[int] = None
     existing_data: bool = False
     show_progress: bool = True
 
@@ -60,7 +61,11 @@ class TrainingManager:
         if not self.existing_data:
             self.training_data_dir.mkdir()
         get_training_data(
-            self.api, self.training_data_dir, self.document_id, self.parts
+            self.api,
+            self.training_data_dir,
+            self.document_id,
+            self.parts,
+            self.transcription_id,
         )
 
         # if model id is specified, download the model from escriptorium API,
@@ -268,11 +273,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # bail out on transcription for now (will be added later)
-    if args.mode == "transcription":
-        print("Transcription training is not yet supported")
-        sys.exit(1)
-
     # make sure working directory does not already exist
     if args.work_dir.exists() and not args.existing_data:
         print(
@@ -313,6 +313,11 @@ def main():
 
         if args.mode == "segmentation":
             training_mgr.segmentation_training()
+
+        if args.mode == "recognition":
+            print(
+                "recognition training is not yet implemented; please review training data."
+            )
     except (NotFound, NotAllowed) as err:
         print(f"Something went wrong: {err}")
 

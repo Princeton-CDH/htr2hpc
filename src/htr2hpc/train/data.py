@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_segmentation_data(
-    api, document_details, part_id, image_dir
+    api, document_details, part_id, image_dir, transcription_id=None
 ) -> tuple[Segmentation, tuple]:
     """Get a single document part from the eScriptorium API and generate
     a kraken segmentation object.
@@ -38,11 +38,6 @@ def get_segmentation_data(
 
     # adapted from escriptorium.app.core.tasks.make_segmentation_training_data
     # (additional logic in make_recognition_segmentation )
-
-    # TODO: for recognition task, we need to get transcription lines
-    # from api.document_part_transcription_list
-    # each one includes a line id, transcription id, and content
-    # ... need to match up based on line pk
 
     # NOTE: eS celery task training prep only includes regions
     # for segmentation, not recognition
@@ -63,7 +58,20 @@ def get_segmentation_data(
             )
         )
 
-    # gather base lines
+    # recognition training requires transcription text content
+    # if a transcription id is specified, retrieve transcription content
+    text_lines = {}
+    if transcription_id:
+        transcription_lines = api.document_part_transcription_list(
+            document_id, part_id, transcription_id
+        )
+        # TODO: handle next page of results; logic in feature/rm-models branch
+        for text_line in transcription_lines.results:
+            # Each transcription line includes a line id,
+            # transcription id, and text content.
+            # Add to dict so we can lookup content by line id
+            text_lines[text_line.line] = text_line.content
+
     baselines = [
         BaselineLine(
             id=line.external_id,
@@ -72,12 +80,12 @@ def get_segmentation_data(
             # eScriptorium api returns a single region pk
             # kraken takes a list of string ids
             regions=[region_pk_to_id[line.region]],
-            # NOTE: eS celery task training prep only includes text
-            # when generating training data for recognition, not segmentation
-            # this mirrors the behavior from eS code for export:
             # mark as default if type is not in the public list
             # db includes more types but they are not marked as public
             tags={"type": line_types.get(line.typology, "default")},
+            # get text transcription content for this line, if available
+            # (only possible when transcription id is specified)
+            text=text_lines.get(line.pk),
         )
         for line in part.lines
     ]
@@ -147,7 +155,9 @@ def get_model(api, model_id, training_type, output_dir):
     return api.download_file(model_info.file, output_dir)
 
 
-def get_training_data(api, output_dir, document_id, part_ids=None):
+def get_training_data(
+    api, output_dir, document_id, part_ids=None, transcription_id=None
+):
     # if part ids are not specified, get all parts
     if part_ids is None:
         doc_parts = api.document_parts_list(document_id)
@@ -158,7 +168,9 @@ def get_training_data(api, output_dir, document_id, part_ids=None):
 
     # get segmentation data for each part of the document that is requested
     segmentation_data = [
-        get_segmentation_data(api, document_details, part_id, output_dir)
+        get_segmentation_data(
+            api, document_details, part_id, output_dir, transcription_id
+        )
         for part_id in part_ids
     ]
     # if we're generating alto-xml (i.e., segmentation training data),

@@ -3,6 +3,7 @@ import logging
 import pathlib
 import subprocess
 from collections import defaultdict
+from tqdm import tqdm
 
 from kraken.containers import BaselineLine, Region, Segmentation
 
@@ -171,6 +172,33 @@ def get_training_data(api, output_dir, document_id, part_ids=None):
 def get_best_model(model_dir: pathlib.Path) -> pathlib.Path | None:
     best = list(model_dir.glob("*_best.mlmodel"))
     return best[0] if best else None
+
+
+def upload_models(
+    api, model_dir: pathlib.Path, model_type: str, show_progress=True
+) -> int:
+    """Upload all model files in the specified model directory to eScriptorum
+    with the specified job type (Segment/Recognize). Returns a count of the
+    number of models created."""
+    uploaded = 0
+
+    # segtrain creates models based on modelname with _0, _1, _2 ... _49
+    # sort numerically on the latter portion of the name
+    modelfiles = sorted(
+        model_dir.glob("*.mlmodel"), key=lambda path: int(path.stem.split("_")[-1])
+    )
+    for model_file in tqdm(
+        modelfiles,
+        desc=f"Uploading {model_type} models",
+        disable=not show_progress,
+    ):
+        # NOTE: should have error handling here;
+        # what kinds of exceptions/errors might occur?
+        created = api.model_create(model_file, job=model_type)
+        if created:
+            uploaded += 1
+
+    return uploaded
 
 
 # use api.update_model with model id and pathlib.Path to model file

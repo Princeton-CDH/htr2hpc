@@ -6,6 +6,7 @@ from collections import defaultdict
 from tqdm import tqdm
 
 from kraken.containers import BaselineLine, Region, Segmentation
+from kraken.lib.arrow_dataset import build_binary_dataset
 
 # skip import, syntax error in current kraken
 # from kraken.lib.arrow_dataset import build_binary_dataset
@@ -173,12 +174,27 @@ def get_training_data(
         )
         for part_id in part_ids
     ]
-    # if we're generating alto-xml (i.e., segmentation training data),
-    # serialize each of the parts we downloaded
-    [serialize_segmentation(seg, part) for (seg, part) in segmentation_data]
 
-    # NOTE: binary compiled data is only supported train and not segtrain
-    # compiled_data = compile_data(segmentations, output_dir)
+    # if transcription id is specified, compile as binary dataset
+    # for recognition training
+    if transcription_id:
+        segmentations = [seg for seg, _ in segmentation_data]
+        # NOTE: get code errors in kraken if the image path is not valid.
+        # Image path on created segments should be relative to current
+        # working directory. Must resolve so the kraken binary compile
+        # function can load image files by path.
+        build_binary_dataset(
+            segmentations,
+            output_file=str(output_dir / "train.arrow"),
+            num_workers=4,
+            format_type=None,
+        )
+
+    # if no transcription id is specified, then serialize as
+    # alto-xml for segmentation training
+    else:
+        # serialize each of the parts that were downloaded
+        [serialize_segmentation(seg, part) for (seg, part) in segmentation_data]
 
 
 def get_best_model(model_dir: pathlib.Path) -> pathlib.Path | None:

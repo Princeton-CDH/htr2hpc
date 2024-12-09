@@ -79,8 +79,7 @@ def recognition_train(
     logger.debug(f"sbatch file\n: {recogtrain_slurm}")
     # sbatch returns the job id for the created job
     recogtrain_cmd = (
-        # run with default number of epochs (50)
-        f"ketos train -u NFD --augment --lag 50--resize new -i {input_model}"
+        f"ketos train -u NFD --augment --lag 50 --resize new -i {input_model}"
         + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f binary {input_data_dir}/train.arrow "
     )

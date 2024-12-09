@@ -14,7 +14,12 @@ from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
 from tqdm import tqdm
 
 from htr2hpc.api_client import eScriptoriumAPIClient, NotFound, NotAllowed
-from htr2hpc.train.data import get_training_data, get_model, upload_models
+from htr2hpc.train.data import (
+    get_training_data,
+    get_model,
+    upload_models,
+    get_best_model,
+)
 from htr2hpc.train.slurm import (
     segtrain,
     slurm_job_status,
@@ -30,8 +35,9 @@ es_model_jobs = {"segmentation": "Segment", "transcription": "Recognize"}
 
 # kraken python package provides paths to the default best models for both modes
 default_model = {
-    "Segment": SEGMENTATION_DEFAULT_MODEL,
-    "Recognize": DEFAULT_MODEL,
+    "Segment": SEGMENTATION_DEFAULT_MODEL,  # this is a PosixPath
+    # this is a list of string, relative path, but file does not actually exist
+    "Recognize": DEFAULT_MODEL[0],
 }
 
 
@@ -133,7 +139,7 @@ class TrainingManager:
         print(
             f"Job {job_id} is no longer queued; ending status: {','.join(job_status)}"
         )
-        job_output = self.work_dir / f"segtrain_{job_id}.out"
+        job_output = self.work_dir / f"train_{job_id}.out"
         print(f"Job output is in {job_output}")
 
     def segmentation_training(self):
@@ -348,7 +354,7 @@ def main():
         if args.mode == "segmentation":
             training_mgr.segmentation_training()
 
-        if args.mode == "recognition":
+        if args.mode == "transcription":
             training_mgr.recognition_training()
             print(
                 "recognition training is not yet implemented; please review training data and output."

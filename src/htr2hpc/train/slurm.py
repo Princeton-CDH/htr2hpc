@@ -70,7 +70,7 @@ def recognition_train(
         gres=["gpu:1"],
         job_name="train",
         output=f"train_{Slurm.JOB_ARRAY_MASTER_ID}.out",
-        time=datetime.timedelta(minutes=20),
+        time=datetime.timedelta(minutes=50),
         # time=datetime.timedelta(hours=2),
     )
     recogtrain_slurm.add_cmd("module purge")

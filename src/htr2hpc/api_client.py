@@ -123,8 +123,6 @@ def to_namedtuple(name: str, data: Any):
             logger.debug(f"Creating namedtuple with name {name}")
             nt_class = namedtuple(name, data)
             RESULTCLASS_REGISTRY[name] = nt_class
-        else:
-            logger.debug(f"Using existing result class for {name}: {nt_class}")
         # once we have the class, initialize an instance with the given data
         return nt_class(
             # convert any nested objects to namedtuple classes

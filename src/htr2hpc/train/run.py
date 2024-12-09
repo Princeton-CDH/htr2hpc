@@ -335,7 +335,7 @@ def main():
 
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
     logger_upscope = logging.getLogger("htr2hpc")
-    logger_upscope.setLevel(logging.INFO)
+    logger_upscope.setLevel(logging.DEBUG)
 
     # nearly all the argparse options need to be passed to the training manager class
     # convert to a _copy_ dictionary and delete the unused parmeters
@@ -357,7 +357,7 @@ def main():
         if args.mode == "transcription":
             training_mgr.recognition_training()
             print(
-                "recognition training is not yet implemented; please review training data and output."
+                "recognition training is not yet fully implemented; please review training data and output."
             )
     except (NotFound, NotAllowed) as err:
         print(f"Something went wrong: {err}")

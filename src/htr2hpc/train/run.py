@@ -15,7 +15,12 @@ from tqdm import tqdm
 
 from htr2hpc.api_client import eScriptoriumAPIClient, NotFound, NotAllowed
 from htr2hpc.train.data import get_training_data, get_model, upload_models
-from htr2hpc.train.slurm import segtrain, slurm_job_status, slurm_job_queue_status
+from htr2hpc.train.slurm import (
+    segtrain,
+    slurm_job_status,
+    slurm_job_queue_status,
+    recognition_train,
+)
 
 
 api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
@@ -151,6 +156,35 @@ class TrainingManager:
         # change back to original working directory
         os.chdir(self.orig_working_dir)
         self.upload_models()
+
+    def recognition_training(self):
+        # NOTE: this is nearly the same as segmentation_training method
+
+        # get absolute versions of these paths _before_ changing working directory
+        abs_training_data_dir = self.training_data_dir.absolute()
+        abs_model_file = self.model_file.absolute()
+        abs_output_modelfile = self.output_modelfile.absolute()
+
+        # change directory to working directory, since by default,
+        # slurm executes the job from the directory where it was submitted
+        os.chdir(self.work_dir)
+
+        job_id = recognition_train(
+            abs_training_data_dir,
+            abs_model_file,
+            abs_output_modelfile,
+            self.num_workers,
+        )
+        self.monitor_slurm_job(job_id)
+        # change back to original working directory
+        os.chdir(self.orig_working_dir)
+
+        best_model = get_best_model(abs_output_modelfile.parent)
+        if best_model:
+            print(f"best resulting model is {best_model}")
+        else:
+            print("no best model found")
+        # self.upload_models()
 
     def upload_models(self):
         # - for segmentation, upload all models to eScriptorium as new models
@@ -315,8 +349,9 @@ def main():
             training_mgr.segmentation_training()
 
         if args.mode == "recognition":
+            training_mgr.recognition_training()
             print(
-                "recognition training is not yet implemented; please review training data."
+                "recognition training is not yet implemented; please review training data and output."
             )
     except (NotFound, NotAllowed) as err:
         print(f"Something went wrong: {err}")

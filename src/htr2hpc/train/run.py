@@ -18,7 +18,7 @@ from htr2hpc.train.data import (
     get_training_data,
     get_model,
     upload_models,
-    get_best_model,
+    upload_best_model,
 )
 from htr2hpc.train.slurm import (
     segtrain,
@@ -179,12 +179,24 @@ class TrainingManager:
         # change back to original working directory
         os.chdir(self.orig_working_dir)
 
-        best_model = get_best_model(abs_output_modelfile.parent)
+        upload_count = upload_models(
+            self.api,
+            self.output_modelfile.parent,
+            self.training_mode,
+            show_progress=self.show_progress,
+        )
+        # - should this behavior depend on job exit status?
+        # reasonable to assume any model files created should be uploaded?
+        print(f"Uploaded {upload_count} {self.training_mode} models to eScriptorium")
+
+        best_model = upload_best_model(
+            self.api, self.output_modelfile.parent, self.training_mode
+        )
         if best_model:
-            print(f"best resulting model is {best_model}")
+            print(f"Uploaded {best_model} to eScriptorum")
         else:
-            print("no best model found")
-        # self.upload_models()
+            # possibly best model found but uploade failed?
+            print("No best model found")
 
     def upload_models(self):
         # - for segmentation, upload all models to eScriptorium as new models

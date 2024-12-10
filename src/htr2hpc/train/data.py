@@ -235,5 +235,26 @@ def upload_models(
     return uploaded
 
 
+def upload_best_model(
+    api, model_dir: pathlib.Path, model_type: str
+) -> Optional[pathlib.Path]:
+    """Upload the best model in the specified model directory to eScriptorium
+    with the specified job type (Segment/Recognize). Returns pathlib.Path
+    for best model if found and successfully uploaded; otherwise returns None."""
+    best_model = get_best_model(model_dir)
+    if best_model:
+        created = api.model_create(
+            best_model,
+            job=model_type,
+            # strip off _best from file for model name in eScriptorium
+            model_name=best_model.stem.replace("_best", ""),
+        )
+        if created:
+            return best_model
+        # TODO: return something different here if model create failed?
+
+    return None
+
+
 # use api.update_model with model id and pathlib.Path to model file
 # to update existing model record with new file

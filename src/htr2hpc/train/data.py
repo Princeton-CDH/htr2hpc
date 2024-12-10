@@ -66,12 +66,14 @@ def get_segmentation_data(
         transcription_lines = api.document_part_transcription_list(
             document_id, part_id, transcription_id
         )
-        # TODO: handle next page of results; logic in feature/rm-models branch
-        for text_line in transcription_lines.results:
-            # Each transcription line includes a line id,
-            # transcription id, and text content.
-            # Add to dict so we can lookup content by line id
-            text_lines[text_line.line] = text_line.content
+        while transcription_lines.next:
+            for text_line in transcription_lines.results:
+                # Each transcription line includes a line id,
+                # transcription id, and text content.
+                # Add to dict so we can lookup content by line id
+                text_lines[text_line.line] = text_line.content
+            # get next page of results
+            transcription_lines = transcription_lines.next()
 
     baselines = [
         BaselineLine(

@@ -79,10 +79,10 @@ def recognition_train(
     logger.debug(f"sbatch file\n: {recogtrain_slurm}")
     # sbatch returns the job id for the created job
 
-    # input model is optional
-    input_model_opt = f"-i {input_model}" if input_model else ""
+    # input model is optional; resize is only used with exesting model
+    input_model_opt = f"--resize new -i {input_model}" if input_model else ""
     recogtrain_cmd = (
-        f"ketos train --resize union {input_model_opt}"
+        f"ketos train {input_model_opt}"
         + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f binary {input_data_dir}/train.arrow "
     )

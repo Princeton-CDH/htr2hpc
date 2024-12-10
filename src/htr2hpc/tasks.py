@@ -2,7 +2,8 @@ import logging
 
 from celery import shared_task
 from django.contrib.auth import get_user_model
-from django.contrib.sites.shortcuts import get_current_site
+from django.contrib.sites.models import Site
+from django.conf import settings
 from intspan import intspan
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ def segtrain(
     # create a name for an output directory based on mode and document id
     outdir = f"segtrain_doc{document_pk}"
 
-    site = get_current_site()
+    site = Site.objects.get(pk=settings.SITE_ID)
     site_url = site.domain
     if not site_url.startswith("http"):
         site_url = f"https://{site_url}"

@@ -29,10 +29,20 @@ def segtrain(
 ):
     print("### running override segtrain task")
 
+    # NOTE: when called from the web ui, the SegTrainForm includes
+    # a field for model_name but that value is not passed to the celery task
+    # HOWEVER: when a model name is specified, the form process method
+    # creates a new, empty model db record with that name; when override
+    # is not requested, form logic creates a copy of the model.
+    # So we may need to revise the script with an option to update
+    # the specified model.
+
     # we require both of these; are they really optional?
-    if not user_pk or document_pk:
-        # can't proceeed
-        logger.error("segtrain called without document_pk or user_pk")
+    if not all([user_pk, document_pk]):
+        # can't proceed without both of these
+        logger.error(
+            "segtrain called with out document_pk or user_pk (document_pk={document_pk} user_pk={user_pk}"
+        )
         return
 
     try:
@@ -71,4 +81,4 @@ def segtrain(
     cmd = f"htr2hpc-train segmentation {site_url} {outdir} {opts}"
 
     # for now just output the command
-    logger.debug(cmd)
+    logger.info(cmd)

@@ -26,7 +26,8 @@ def get_segmentation_data(
     a kraken segmentation object.
 
     Returns a tuple of the segmentation object and the part details from the API,
-    which includes image size needed for serialization.
+    which includes image size needed for serialization. Includes transcription
+    text when a `transcription_id` is specified.
     """
 
     # document details includes id (pk) and valid line and block types
@@ -38,10 +39,9 @@ def get_segmentation_data(
     part = api.document_part_details(document_id, part_id)
 
     # adapted from escriptorium.app.core.tasks.make_segmentation_training_data
-    # (additional logic in make_recognition_segmentation )
-
-    # NOTE: eS celery task training prep only includes regions
-    # for segmentation, not recognition
+    # and  make_recognition_segmentation
+    # NOTE: regions are not strictly needed for recognition training,
+    # but does not seem to hurt to include them
 
     # gather regions in a dictionary keyed on type name for
     # the segmentation object (name -> list of regions)

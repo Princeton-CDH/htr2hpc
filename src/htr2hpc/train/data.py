@@ -1,12 +1,11 @@
-import datetime
 import logging
 import pathlib
-import subprocess
+from typing import Optional
 from collections import defaultdict
-from tqdm import tqdm
 
 from kraken.containers import BaselineLine, Region, Segmentation
 from kraken.lib.arrow_dataset import build_binary_dataset
+from tqdm import tqdm
 
 # skip import, syntax error in current kraken
 # from kraken.lib.arrow_dataset import build_binary_dataset

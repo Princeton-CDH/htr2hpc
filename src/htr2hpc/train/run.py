@@ -113,6 +113,7 @@ class TrainingManager:
             disable=not self.show_progress,
         ) as statusbar:
             running = False
+            runstart = time.time()
             while job_status:
                 status = f"status: {job_status}"
                 # display an unofficial runtime to aid in troubleshooting

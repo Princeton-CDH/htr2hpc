@@ -330,6 +330,9 @@ def main():
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
     logger_upscope = logging.getLogger("htr2hpc")
     logger_upscope.setLevel(logging.DEBUG)
+    # output kraken logging details to confirm binary data looks ok
+    logger_kraken = logging.getLogger("kraken")
+    logger_kraken.setLevel(logging.DEBUG)
 
     # nearly all the argparse options need to be passed to the training manager class
     # convert to a _copy_ dictionary and delete the unused parmeters

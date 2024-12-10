@@ -63,17 +63,23 @@ def get_segmentation_data(
     # if a transcription id is specified, retrieve transcription content
     text_lines = {}
     if transcription_id:
-        transcription_lines = api.document_part_transcription_list(
-            document_id, part_id, transcription_id
-        )
-        while transcription_lines.next:
+        # API could have multiple pages of transcription lines;
+        # loop until all pages of results are consumed
+        while True:
+            transcription_lines = api.document_part_transcription_list(
+                document_id, part_id, transcription_id
+            )
             for text_line in transcription_lines.results:
                 # Each transcription line includes a line id,
                 # transcription id, and text content.
                 # Add to dict so we can lookup content by line id
                 text_lines[text_line.line] = text_line.content
-            # get next page of results
-            transcription_lines = transcription_lines.next()
+            # if there is another page of results, get them
+            if transcription_lines.next:
+                transcription_lines = transcription_lines.next_page()
+            # otherwise, we've hit the end; stop looping
+            else:
+                break
 
     baselines = [
         BaselineLine(
@@ -92,6 +98,7 @@ def get_segmentation_data(
         )
         for line in part.lines
     ]
+
     logger.info(f"Document {document_id} part {part_id}: {len(baselines)} baselines")
 
     logger.info(
@@ -138,9 +145,15 @@ def serialize_segmentation(segmentation: Segmentation, part):
 def compile_data(segmentations, output_dir):
     """Compile a list of kraken segmentation objects into a binary file for
     recognition training."""
-    output_file = output_dir / "dataset.arrow"
+    # NOTE: get code errors in kraken if the image path is not valid.
+    # Image path on created segments should be relative to current
+    # working directory. Must resolve so the kraken binary compile
+    # function can load image files by path.
+    output_file = output_dir / "train.arrow"
     build_binary_dataset(
-        files=segmentations, format_type=None, output_file=str(output_file)
+        files=segmentations,
+        format_type=None,  # None = kraken Segmentation objects
+        output_file=str(output_file),
     )
     return output_file
 
@@ -181,16 +194,7 @@ def get_training_data(
     # for recognition training
     if transcription_id:
         segmentations = [seg for seg, _ in segmentation_data]
-        # NOTE: get code errors in kraken if the image path is not valid.
-        # Image path on created segments should be relative to current
-        # working directory. Must resolve so the kraken binary compile
-        # function can load image files by path.
-        build_binary_dataset(
-            segmentations,
-            output_file=str(output_dir / "train.arrow"),
-            num_workers=4,
-            format_type=None,
-        )
+        compile_data(segmentations, output_dir)
 
     # if no transcription id is specified, then serialize as
     # alto-xml for segmentation training

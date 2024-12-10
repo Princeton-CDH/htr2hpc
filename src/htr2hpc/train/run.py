@@ -10,7 +10,7 @@ from shutil import rmtree
 from typing import Optional
 
 from intspan import intspan
-from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
+from kraken.kraken import SEGMENTATION_DEFAULT_MODEL
 from tqdm import tqdm
 
 from htr2hpc.api_client import eScriptoriumAPIClient, NotFound, NotAllowed
@@ -33,13 +33,6 @@ api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
 # map our job type option choices to escriptorium terms
 es_model_jobs = {"segmentation": "Segment", "transcription": "Recognize"}
 
-# kraken python package provides paths to the default best models for both modes
-default_model = {
-    "Segment": SEGMENTATION_DEFAULT_MODEL,  # this is a PosixPath
-    # this is a list of string, relative path, but file does not actually exist
-    "Recognize": DEFAULT_MODEL[0],
-}
-
 
 @dataclass
 class TrainingManager:
@@ -55,6 +48,7 @@ class TrainingManager:
     transcription_id: Optional[int] = None
     existing_data: bool = False
     show_progress: bool = True
+    model_file: pathlib.Path = None
 
     def __post_init__(self):
         # initialize api client
@@ -89,11 +83,10 @@ class TrainingManager:
                 self.training_mode,
                 self.work_dir,
             )
-        # if model id is not specified, use the default from kraken
-        else:
-            # get the appropriate model file for the requested training mode
-            # kraken default defs are path objects
-            self.model_file = default_model[self.training_mode]
+        # if model id is not specified and we are doing segmentation training,
+        # use the default from kraken
+        elif self.training_mode == "segmentation":
+            self.model_file = SEGMENTATION_DEFAULT_MODEL
 
         # create a directory and path for the output model file
         self.output_model_dir = self.work_dir / "output_model"
@@ -168,7 +161,8 @@ class TrainingManager:
 
         # get absolute versions of these paths _before_ changing working directory
         abs_training_data_dir = self.training_data_dir.absolute()
-        abs_model_file = self.model_file.absolute()
+        # input model is optional
+        abs_model_file = self.model_file.absolute() if self.model_file else None
         abs_output_modelfile = self.output_modelfile.absolute()
 
         # change directory to working directory, since by default,
@@ -177,8 +171,8 @@ class TrainingManager:
 
         job_id = recognition_train(
             abs_training_data_dir,
-            abs_model_file,
             abs_output_modelfile,
+            abs_model_file,
             self.num_workers,
         )
         self.monitor_slurm_job(job_id)
@@ -340,8 +334,8 @@ def main():
     # nearly all the argparse options need to be passed to the training manager class
     # convert to a _copy_ dictionary and delete the unused parmeters
     arg_options = dict(vars(args))
-    del arg_options["mode"]
     del arg_options["clean"]
+    del arg_options["mode"]  # passed in as training_mode
 
     # initialize training manager
     training_mgr = TrainingManager(

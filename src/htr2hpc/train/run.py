@@ -179,17 +179,7 @@ class TrainingManager:
         self.monitor_slurm_job(job_id)
         # change back to original working directory
         os.chdir(self.orig_working_dir)
-
-        upload_count = upload_models(
-            self.api,
-            self.output_modelfile.parent,
-            self.training_mode,
-            show_progress=self.show_progress,
-        )
-        # - should this behavior depend on job exit status?
-        # reasonable to assume any model files created should be uploaded?
-        print(f"Uploaded {upload_count} {self.training_mode} models to eScriptorium")
-
+        # look for and upload best model
         best_model = upload_best_model(
             self.api, self.output_modelfile.parent, self.training_mode
         )

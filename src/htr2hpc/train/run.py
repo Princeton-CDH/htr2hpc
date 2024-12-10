@@ -350,19 +350,13 @@ def main():
     try:
         # prep data for training
         training_mgr.training_prep()
-
+        # run training for requested mode
         if args.mode == "segmentation":
             training_mgr.segmentation_training()
-
         if args.mode == "transcription":
             training_mgr.recognition_training()
-            print(
-                "recognition training is not yet fully implemented; please review training data and output."
-            )
     except (NotFound, NotAllowed) as err:
         print(f"Something went wrong: {err}")
-
-    # TODO: handle transcription training
 
     # unless requested not to, clean up the working directory, which includes:
     # - downloaded training data & model to fine tune
@@ -373,8 +367,6 @@ def main():
             f"Removing working directory {args.work_dir} with all training data and models."
         )
         rmtree(args.work_dir)
-
-    # when this is all working, cleanup working dir (by default, with option to skip)
 
 
 if __name__ == "__main__":

@@ -6,17 +6,15 @@ from django.contrib.sites.models import Site
 from django.conf import settings
 from intspan import intspan
 
+# import escriptorium models
+from apps.core.models import Transcription
+from apps.users.consumers import send_event
+
 logger = logging.getLogger(__name__)
 
 # override escriptorium training tasks to run on HPC
 
 User = get_user_model()
-
-
-def override_tasks():
-    from escriptorium import celery
-
-    celery.app.tasks.unregister("core.tasks.segtrain")
 
 
 @shared_task(default_retry_delay=60 * 60)
@@ -42,7 +40,7 @@ def segtrain(
     if not all([user_pk, document_pk]):
         # can't proceed without both of these
         logger.error(
-            "segtrain called with out document_pk or user_pk (document_pk={document_pk} user_pk={user_pk}"
+            f"segtrain called without document_pk or user_pk; document_pk={document_pk} user_pk={user_pk}"
         )
         return
 
@@ -53,12 +51,24 @@ def segtrain(
         logger.error(f"segtrain called with invalid user_pk {user_pk}")
         return
 
-    # do we need to mark the model as training?
-    # should that be done here or in the script via api?
+    # notify user that training is starting
+    send_event(
+        "document",
+        document_pk,
+        "training:start",
+        {
+            "id": model_pk,
+        },
+    )
+
+    # TODO: mark the model as training
+    # would be nice if the script could handle, but that field is listed
+    # as read only in the api
 
     # generate the command to run
 
     # create a name for an output directory based on mode and document id
+    # TODO: make this relative to scratch & username?
     outdir = f"segtrain_doc{document_pk}"
 
     site = Site.objects.get(pk=settings.SITE_ID)
@@ -68,7 +78,7 @@ def segtrain(
 
     arg_options = [
         f"--document {document_pk}",  # document id is always required
-        f"--model-name segtrain_doc{document_pk}",  # our script requires a model name
+        f"--model-name segtrain_doc{document_pk}",  # TODO: get from model
     ]
 
     # part and model are optional
@@ -80,6 +90,58 @@ def segtrain(
     opts = " ".join(arg_options)
 
     cmd = f"htr2hpc-train segmentation {site_url} {outdir} {opts}"
+
+    # for now just output the command
+    logger.info(cmd)
+
+
+@shared_task(default_retry_delay=60 * 60)
+def train(
+    transcription_pk=None,
+    model_pk=None,
+    task_group_pk=None,
+    part_pks=None,
+    user_pk=None,
+    **kwargs,
+):
+    # we require all of these; are they really optional?
+    if not all([user_pk, transcription_pk, part_pks]):
+        # can't proceed without these
+        logger.error(
+            "train called without transcription_pk, part_pks, or user_pk "
+            + f"transcription_pk={transcription_pk} part_pks={part_pks} user_pk={user_pk}"
+        )
+        return
+
+    # create a name for an output directory based on mode and document id
+    # TODO: make this relative to scratch & username?
+    outdir = f"train_transcription{transcription_pk}"
+
+    # get document from transcription
+    transcription = Transcription.objects.get(pk=transcription_pk)
+    document = transcription.document
+
+    site = Site.objects.get(pk=settings.SITE_ID)
+    site_url = site.domain
+    if not site_url.startswith("http"):
+        site_url = f"https://{site_url}"
+
+    arg_options = [
+        # mode-specific options must come before all others
+        f"--transcription {transcription_pk}",
+        site_url,
+        str(outdir),
+        f"--document {document.pk}",  # document id is always required
+        f"--model-name train_transcription{transcription_pk}",  # TODO: get from model
+        # parse and serialize part ids with intspan
+        f"--parts {intspan(part_pks)}",
+    ]
+
+    if model_pk:
+        arg_options.append(f"--model {model_pk}")
+    opts = " ".join(arg_options)
+
+    cmd = f"htr2hpc-train transcription {opts}"
 
     # for now just output the command
     logger.info(cmd)

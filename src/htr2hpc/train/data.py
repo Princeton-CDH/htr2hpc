@@ -18,6 +18,31 @@ logger = logging.getLogger(__name__)
 # get a document part from eS api and convert into kraken objects
 
 
+def get_transcription_lines(api, document_id, part_id, transcription_id):
+    # The API could have multiple pages of transcription lines;
+    # loop until all pages of results are consumed
+    text_lines = {}
+    # get the first page of results
+    transcription_lines = api.document_part_transcription_list(
+        document_id, part_id, transcription_id
+    )
+    while True:
+        # gather lines of text from the current page
+        for text_line in transcription_lines.results:
+            # Each transcription line includes a line id,
+            # transcription id, and text content.
+            # Add to dict so we can lookup content by line id
+            text_lines[text_line.line] = text_line.content
+        # if there is another page of results, get them
+        if transcription_lines.next:
+            transcription_lines = transcription_lines.next_page()
+        # otherwise, we've hit the end; stop looping
+        else:
+            break
+
+    return text_lines
+
+
 def get_segmentation_data(
     api, document_details, part_id, image_dir, transcription_id=None
 ) -> tuple[Segmentation, tuple]:
@@ -60,25 +85,12 @@ def get_segmentation_data(
 
     # recognition training requires transcription text content
     # if a transcription id is specified, retrieve transcription content
-    text_lines = {}
     if transcription_id:
-        # API could have multiple pages of transcription lines;
-        # loop until all pages of results are consumed
-        while True:
-            transcription_lines = api.document_part_transcription_list(
-                document_id, part_id, transcription_id
-            )
-            for text_line in transcription_lines.results:
-                # Each transcription line includes a line id,
-                # transcription id, and text content.
-                # Add to dict so we can lookup content by line id
-                text_lines[text_line.line] = text_line.content
-            # if there is another page of results, get them
-            if transcription_lines.next:
-                transcription_lines = transcription_lines.next_page()
-            # otherwise, we've hit the end; stop looping
-            else:
-                break
+        text_lines = get_transcription_lines(
+            api, document_id, part_id, transcription_id
+        )
+    else:
+        text_lines = {}
 
     baselines = [
         BaselineLine(
@@ -170,13 +182,28 @@ def get_model(api, model_id, training_type, output_dir):
     return api.download_file(model_info.file, output_dir)
 
 
+def get_document_parts(api, document_id):
+    part_ids = []
+    # get first page of results
+    document_parts = api.document_parts_list(document_id)
+    while True:
+        # retrieve part ids from the current page and check for more
+        part_ids.extend([part.pk for part in document_parts.results])
+        # if there is another page of results, get it
+        if document_parts.next:
+            document_parts = document_parts.next_page()
+        # otherwise, stop looping
+        else:
+            break
+    return part_ids
+
+
 def get_training_data(
     api, output_dir, document_id, part_ids=None, transcription_id=None
 ):
     # if part ids are not specified, get all parts
     if part_ids is None:
-        doc_parts = api.document_parts_list(document_id)
-        part_ids = [part.pk for part in doc_parts.results]
+        part_ids = get_document_parts(api, document_id)
 
     # document details includes line and block types
     document_details = api.document_details(document_id)

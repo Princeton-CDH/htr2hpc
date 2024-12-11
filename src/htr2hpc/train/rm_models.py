@@ -51,18 +51,20 @@ def main():
     args = parser.parse_args()
 
     api = eScriptoriumAPIClient(args.base_url, api_token=api_token)
-    model_list = api.model_list()
     rm_models = []
-    # filter by match on name
-    while model_list.next:
+    # handle one or more pages of results from model list
+    while True:
+        model_list = api.model_list()
         rm_models.extend(
-            [
-                model
-                for model in model_list.results
-                if model.name.startswith(args.model_name)
-            ]
+            [m for m in model_list.results if m.name.startswith(args.model_name)]
         )
-        model_list = model_list.next_page()
+
+        # if there is another page of results, get them
+        if model_list.next:
+            model_list = model_list.next_page()
+        # otherwise, we've hit the end; stop looping
+        else:
+            break
 
     if rm_models:
         print(f"Removing {len(rm_models)} models")

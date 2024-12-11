@@ -48,14 +48,12 @@ class ResultsList:
     def next_page(self):
         # if there is a next page of results
         if self.next:
-            # parse the url to get the page number for the next page
-            next_params = parse_qs(urlparse(self.next).query)
-            next_page_num = next_params["page"][0]
-            # convert result type (e.g. "list_model") into api method (model_list)
-            # (this may be brittle...)
-            single_rtype = self.result_type.replace("list", "").strip("_")
-            list_method = getattr(self.api, f"{single_rtype}_list")
-            return list_method(page=next_page_num)
+            # request the next page and return as a
+            #  results list item with the same type and api client as this one
+            resp = self.api._make_request(self.next)
+            return ResultsList(
+                api=self.api, result_type=self.result_type, **resp.json()
+            )
 
 
 @dataclass
@@ -169,7 +167,12 @@ class eScriptoriumAPIClient:
         Make a GET request with the configured session. Takes a url
         relative to :attr:`api_root` and optional dictionary of parameters for the request.
         """
-        rqst_url = f"{self.api_root}/{url}"
+        # support absolute urls for retrieving paged results,
+        # but only urls within the configured eScriptorium instance
+        if url.startswith(self.api_root):
+            rqst_url = url
+        else:
+            rqst_url = f"{self.api_root}/{url}"
         rqst_opts = {}
         if params:
             rqst_opts["params"] = params.copy()

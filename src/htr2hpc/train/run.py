@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+
 import logging
 import pathlib
 import time
@@ -85,7 +86,7 @@ class TrainingManager:
             )
         # if model id is not specified and we are doing segmentation training,
         # use the default from kraken
-        elif self.training_mode == "segmentation":
+        elif self.training_mode == "Segment":
             self.model_file = SEGMENTATION_DEFAULT_MODEL
 
         # create a directory and path for the output model file
@@ -341,7 +342,7 @@ def main():
     # convert to a _copy_ dictionary and delete the unused parmeters
     arg_options = dict(vars(args))
     del arg_options["clean"]
-    del arg_options["mode"]  # passed in as training_mode
+    del arg_options["mode"]  # converted to training_mode (Segment/Recognize)
 
     # initialize training manager
     training_mgr = TrainingManager(

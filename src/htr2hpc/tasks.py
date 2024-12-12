@@ -1,13 +1,13 @@
 import logging
 
 from celery import shared_task
+from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
 from django.conf import settings
 from intspan import intspan
 
-# import escriptorium models
-from apps.core.models import Transcription
+# imports from escriptorium
 from apps.users.consumers import send_event
 
 logger = logging.getLogger(__name__)
@@ -62,6 +62,7 @@ def segtrain(
     )
 
     # TODO: mark the model as training
+    # OcrModel = apps.get_model("core", "OcrModel")
     # would be nice if the script could handle, but that field is listed
     # as read only in the api
 
@@ -118,6 +119,8 @@ def train(
     outdir = f"train_transcription{transcription_pk}"
 
     # get document from transcription
+    Transcription = apps.get_model("core", "Transcription")
+    # OcrModel = apps.get_model("core", "OcrModel")
     transcription = Transcription.objects.get(pk=transcription_pk)
     document = transcription.document
 

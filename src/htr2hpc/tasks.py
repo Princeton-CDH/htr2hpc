@@ -5,8 +5,10 @@ from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
 from django.conf import settings
+from django.utils.translation import gettext as _
 from intspan import intspan
 from fabric import Connection
+from invoke.exceptions import UnexpectedExit
 
 # imports from escriptorium
 from apps.users.consumers import send_event
@@ -52,7 +54,15 @@ def segtrain(
         logger.error(f"segtrain called with invalid user_pk {user_pk}")
         return
 
-    # notify user that training is starting
+    # get the requested model from the db
+    OcrModel = apps.get_model("core", "OcrModel")
+    model = OcrModel.objects.get(pk=model_pk)
+    # mark the model as being in training
+    # would be nice if the script could handle, but that field is listed
+    # as read only in the api
+    model.training = True
+    model.save()
+    # send event to indicate training is starting
     send_event(
         "document",
         document_pk,
@@ -61,11 +71,6 @@ def segtrain(
             "id": model_pk,
         },
     )
-
-    # TODO: mark the model as training
-    # OcrModel = apps.get_model("core", "OcrModel")
-    # would be nice if the script could handle, but that field is listed
-    # as read only in the api
 
     # assume we're using LDAP accounts only so usernames match here and on hpc
     username = user.username
@@ -86,7 +91,7 @@ def segtrain(
     arg_options = [
         f"--document {document_pk}",  # document id is always required
         f"--model-name segtrain_doc{document_pk}",  # TODO: get from model
-        f"--no-progress",  # disable progressbar
+        "--no-progress",  # disable progressbar
     ]
 
     # part and model are optional
@@ -110,18 +115,54 @@ def segtrain(
         user=username,
         connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
     )
+    user.notify("Starting remote training")
     # note: may need to use tmux to keep from disconnecting
-    with conn.cd(working_dir):
-        result = conn.run(
-            f"conda run -n htr2hpc {cmd}",
-            env={"ESCRIPTORIUM_API_TOKEN": api_token},
+    try:
+        with conn.cd(working_dir):
+            result = conn.run(
+                f"conda run -n htr2hpc {cmd}",
+                env={"ESCRIPTORIUM_API_TOKEN": api_token},
+            )
+            print(result)
+    except UnexpectedExit as err:
+        print(err)
+        # send training error event
+        send_event(
+            "document",
+            document_pk,
+            "training:error",
+            {
+                "id": model.pk,
+            },
         )
-        print(result)
+        user.notify(
+            _("Something went wrong running the training."),
+            id="training-error",
+            level="danger",
+        )
+        # escriptorium task deletes the model if there is an error
+        # is it always safe to do that?
+        model.delete()
+        return
 
     # could the celery task exit? or does it need to monitor the
     # remote script?
 
-    # then what?
+    # when/if training completes:
+    # - mark model as no longer being trained
+    model.training = False
+    model.save()
+    # - notify the user that training completed
+    user.notify(_("Training finished!"), id="training-success", level="success")
+    # send training complete event
+    send_event(
+        "document",
+        document_pk,
+        "training:done",
+        {
+            "id": model.pk,
+        },
+    )
 
 
 # todo: maybe make the fab command a method that can be run for testing
@@ -177,8 +218,6 @@ def train(
     opts = " ".join(arg_options)
 
     cmd = f"htr2hpc-train transcription {opts}"
-
-    result = Connection(host=settings.HPC_HOSTNAME, user="rkoeser").run("")
 
     # for now just output the command
     logger.info(cmd)

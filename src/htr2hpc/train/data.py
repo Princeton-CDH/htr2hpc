@@ -97,9 +97,10 @@ def get_segmentation_data(
             id=line.external_id,
             baseline=line.baseline,
             boundary=line.mask,
-            # eScriptorium api returns a single region pk
+            # eScriptorium api returns a single region pk;
             # kraken takes a list of string ids
-            regions=[region_pk_to_id[line.region]],
+            # orphan lines have no region
+            regions=[region_pk_to_id[line.region]] if line.region else None,
             # mark as default if type is not in the public list
             # db includes more types but they are not marked as public
             tags={"type": line_types.get(line.typology, "default")},

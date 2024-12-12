@@ -90,7 +90,7 @@ def segtrain(
 
     arg_options = [
         f"--document {document_pk}",  # document id is always required
-        f"--model-name segtrain_doc{document_pk}",  # TODO: get from model
+        f"--model-name {model.name}",
         "--no-progress",  # disable progressbar
     ]
 

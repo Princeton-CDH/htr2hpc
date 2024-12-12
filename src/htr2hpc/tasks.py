@@ -85,6 +85,7 @@ def segtrain(
     arg_options = [
         f"--document {document_pk}",  # document id is always required
         f"--model-name segtrain_doc{document_pk}",  # TODO: get from model
+        f"--no-progress",  # disable progressbar
     ]
 
     # part and model are optional
@@ -120,6 +121,10 @@ def segtrain(
     # remote script?
 
     # then what?
+
+
+# todo: maybe make the fab command a method that can be run for testing
+# from shell/cli ?
 
 
 @shared_task(default_retry_delay=60 * 60)

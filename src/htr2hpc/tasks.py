@@ -72,8 +72,9 @@ def segtrain(
     api_token = user.auth_token.key
 
     # create a name for an output directory based on mode and document id
-    # TODO: make this relative to scratch & username?
     working_dir = f"/scratch/gpfs/{username}/htr2hpc"
+    # TODO: should we add a timestamp to ensure uniqueness?
+    # script will fail if there is an existing directory
     outdir = f"segtrain_doc{document_pk}"
 
     # generate the command to run

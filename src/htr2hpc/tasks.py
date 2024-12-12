@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
 from django.conf import settings
 from intspan import intspan
+from fabric import Connection
 
 # imports from escriptorium
 from apps.users.consumers import send_event
@@ -66,12 +67,16 @@ def segtrain(
     # would be nice if the script could handle, but that field is listed
     # as read only in the api
 
-    # generate the command to run
+    # assume we're using LDAP accounts only so usernames match here and on hpc
+    username = user.username
+    api_token = user.auth_token.key
 
     # create a name for an output directory based on mode and document id
     # TODO: make this relative to scratch & username?
+    working_dir = f"/scratch/gpfs/{username}/htr2hpc"
     outdir = f"segtrain_doc{document_pk}"
 
+    # generate the command to run
     site = Site.objects.get(pk=settings.SITE_ID)
     site_url = site.domain
     if not site_url.startswith("http"):
@@ -91,9 +96,23 @@ def segtrain(
     opts = " ".join(arg_options)
 
     cmd = f"htr2hpc-train segmentation {site_url} {outdir} {opts}"
-
     # for now just output the command
     logger.info(cmd)
+
+    # ideally hostname should be set in django config
+    conn = Connection(host="della", user=username)
+    # note: may need to use tmux to keep from disconnecting
+    with conn.cd(working_dir):
+        result = conn.run(
+            f"conda run -n htr2hpc {cmd}",
+            env={"ESCRIPTORIUM_API_TOKEN": api_token},
+        )
+        print(result)
+
+    # could the celery task exit? or does it need to monitor the
+    # remote script?
+
+    # then what?
 
 
 @shared_task(default_retry_delay=60 * 60)
@@ -145,6 +164,8 @@ def train(
     opts = " ".join(arg_options)
 
     cmd = f"htr2hpc-train transcription {opts}"
+
+    result = Connection(host=settings.HPC_HOSTNAME, user="rkoeser").run("")
 
     # for now just output the command
     logger.info(cmd)

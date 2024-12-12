@@ -110,20 +110,21 @@ def segtrain(
     logger.debug(
         f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}"
     )
-    conn = Connection(
-        host=settings.HPC_HOSTNAME,
-        user=username,
-        connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
-    )
+
     user.notify("Starting remote training")
     # note: may need to use tmux to keep from disconnecting
     try:
-        with conn.cd(working_dir):
-            result = conn.run(
-                f"conda run -n htr2hpc {cmd}",
-                env={"ESCRIPTORIUM_API_TOKEN": api_token},
-            )
-            print(result)
+        with Connection(
+            host=settings.HPC_HOSTNAME,
+            user=username,
+            connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
+        ) as conn:
+            with conn.cd(working_dir):
+                result = conn.run(
+                    f"module load anaconda3/2024.6 && conda run -n htr2hpc {cmd}",
+                    env={"ESCRIPTORIUM_API_TOKEN": api_token},
+                )
+                print(result)
     except UnexpectedExit as err:
         print(err)
         # send training error event

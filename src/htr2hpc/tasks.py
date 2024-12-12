@@ -99,8 +99,15 @@ def segtrain(
     # for now just output the command
     logger.info(cmd)
 
-    # ideally hostname should be set in django config
-    conn = Connection(host="della", user=username)
+    # hostname and ssh key path set in django config
+    logger.debug(
+        f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}"
+    )
+    conn = Connection(
+        host=settings.HPC_HOSTNAME,
+        user=username,
+        connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
+    )
     # note: may need to use tmux to keep from disconnecting
     with conn.cd(working_dir):
         result = conn.run(

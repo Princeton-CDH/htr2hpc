@@ -100,6 +100,7 @@ class Task:
 class Workflow:
     convert: Optional[str] = None
     segment: Optional[str] = None
+    transcribe: Optional[str] = None
     # workflow status is only present when a workflow has not run,
     # so define a dataclass and make them optional
     # to handle missing values

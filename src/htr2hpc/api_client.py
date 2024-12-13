@@ -106,9 +106,39 @@ class Workflow:
     # to handle missing values
 
 
+@dataclass
+class OCRModel:
+    #: model id in escriptorium
+    pk: int
+    #: model name
+    name: str
+    #: url to model file
+    file: str
+    #: file size
+    file_size: int
+    #: training job (Segment or Recognize)
+    job: str
+    #: owner username
+    owner: str
+    #: boolean indicating whether or not this model is currently training
+    training: bool
+    #: list of versions
+    versions: list
+    #: list of related documents by document id
+    documents: list[int]
+    #: model accuracy
+    accuracy_percent: float
+    #: model permissions
+    rights: str
+    #: parent model if this model is finetuned from another model; not always supplied
+    parent: Optional[str] = None
+    #: whether model is sharable
+    can_share: bool
+
+
 # keep a registry of result classes for API result objects,
 # so they can be reused once they are defined
-RESULTCLASS_REGISTRY = {"task": Task, "workflow": Workflow}
+RESULTCLASS_REGISTRY = {"task": Task, "workflow": Workflow, "model": OCRModel}
 
 
 def to_namedtuple(name: str, data: Any):

@@ -25,7 +25,7 @@ def segtrain(
     model_pk=None,
     part_pks=[],
     document_pk=None,
-    task_group_pk=None,
+    task_group_pk=None,  # do train/segtrain update task status anywhere?
     user_pk=None,
     **kwargs,
 ):
@@ -125,6 +125,9 @@ def segtrain(
                     env={"ESCRIPTORIUM_API_TOKEN": api_token},
                 )
                 print(result)
+        # TODO: maybe script can write job id to a  dot file in the output dir
+        # so the celery task can check the status?
+        # or do we even need that level of detail (pending/running/complete)
     except UnexpectedExit as err:
         print(err)
         # send training error event
@@ -143,7 +146,7 @@ def segtrain(
         )
         # escriptorium task deletes the model if there is an error
         # is it always safe to do that?
-        model.delete()
+        # model.delete()
         return
 
     # could the celery task exit? or does it need to monitor the

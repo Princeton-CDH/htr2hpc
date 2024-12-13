@@ -51,6 +51,44 @@ def segtrain(
 
     logger.debug(f"segtrain command: {segtrain_cmd}")
     return segtrain_slurm.sbatch(segtrain_cmd)
+
+
+def recognition_train(
+    input_data_dir: pathlib.Path,
+    output_model: pathlib.Path,
+    input_model: pathlib.Path = None,
+    num_workers: int = 8,
+    # optional param to specify name based on document? include date?
+) -> int:
+    """Run ketos recognition training as a slurm job.
+    Returns the slurm job id for the queued job."""
+    recogtrain_slurm = Slurm(
+        nodes=1,
+        ntasks=1,
+        cpus_per_task=num_workers,
+        mem_per_cpu="2G",
+        gres=["gpu:1"],
+        job_name="train",
+        output=f"train_{Slurm.JOB_ARRAY_MASTER_ID}.out",
+        time=datetime.timedelta(minutes=15),
+        # time=datetime.timedelta(hours=2),
+    )
+    recogtrain_slurm.add_cmd("module purge")
+    recogtrain_slurm.add_cmd("module load anaconda3/2024.6")
+    recogtrain_slurm.add_cmd("conda activate htr2hpc")
+    logger.debug(f"sbatch file\n: {recogtrain_slurm}")
+    # sbatch returns the job id for the created job
+
+    # input model is optional; resize is only used with exesting model
+    input_model_opt = f"--resize new -i {input_model}" if input_model else ""
+    recogtrain_cmd = (
+        f"ketos train {input_model_opt}"
+        + f" -o {output_model} --workers {num_workers} -d cuda:0 "
+        + f"-f binary {input_data_dir}/train.arrow "
+    )
+
+    logger.debug(f"recognition train command: {recogtrain_cmd}")
+    return recogtrain_slurm.sbatch(recogtrain_cmd)
     # TODO: calling function needs to check for best model
     # or no model improvement
 

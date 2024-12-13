@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+
 import logging
 import pathlib
 import time
@@ -10,24 +11,28 @@ from shutil import rmtree
 from typing import Optional
 
 from intspan import intspan
-from kraken.kraken import SEGMENTATION_DEFAULT_MODEL, DEFAULT_MODEL
+from kraken.kraken import SEGMENTATION_DEFAULT_MODEL
 from tqdm import tqdm
 
 from htr2hpc.api_client import eScriptoriumAPIClient, NotFound, NotAllowed
-from htr2hpc.train.data import get_training_data, get_model, upload_models
-from htr2hpc.train.slurm import segtrain, slurm_job_status, slurm_job_queue_status
+from htr2hpc.train.data import (
+    get_training_data,
+    get_model,
+    upload_models,
+    upload_best_model,
+)
+from htr2hpc.train.slurm import (
+    segtrain,
+    slurm_job_status,
+    slurm_job_queue_status,
+    recognition_train,
+)
 
 
 api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
 
 # map our job type option choices to escriptorium terms
 es_model_jobs = {"segmentation": "Segment", "transcription": "Recognize"}
-
-# kraken python package provides paths to the default best models for both modes
-default_model = {
-    "Segment": SEGMENTATION_DEFAULT_MODEL,
-    "Recognize": DEFAULT_MODEL,
-}
 
 
 @dataclass
@@ -41,8 +46,10 @@ class TrainingManager:
     num_workers: int
     parts: Optional[intspan] = None
     model_id: Optional[int] = None
+    transcription_id: Optional[int] = None
     existing_data: bool = False
     show_progress: bool = True
+    model_file: pathlib.Path = None
 
     def __post_init__(self):
         # initialize api client
@@ -60,7 +67,11 @@ class TrainingManager:
         if not self.existing_data:
             self.training_data_dir.mkdir()
         get_training_data(
-            self.api, self.training_data_dir, self.document_id, self.parts
+            self.api,
+            self.training_data_dir,
+            self.document_id,
+            self.parts,
+            self.transcription_id,
         )
 
         # if model id is specified, download the model from escriptorium API,
@@ -73,11 +84,10 @@ class TrainingManager:
                 self.training_mode,
                 self.work_dir,
             )
-        # if model id is not specified, use the default from kraken
-        else:
-            # get the appropriate model file for the requested training mode
-            # kraken default defs are path objects
-            self.model_file = default_model[self.training_mode]
+        # if model id is not specified and we are doing segmentation training,
+        # use the default from kraken
+        elif self.training_mode == "Segment":
+            self.model_file = SEGMENTATION_DEFAULT_MODEL
 
         # create a directory and path for the output model file
         self.output_model_dir = self.work_dir / "output_model"
@@ -104,6 +114,7 @@ class TrainingManager:
             disable=not self.show_progress,
         ) as statusbar:
             running = False
+            runstart = time.time()
             while job_status:
                 status = f"status: {job_status}"
                 # display an unofficial runtime to aid in troubleshooting
@@ -123,7 +134,7 @@ class TrainingManager:
         print(
             f"Job {job_id} is no longer queued; ending status: {','.join(job_status)}"
         )
-        job_output = self.work_dir / f"segtrain_{job_id}.out"
+        job_output = self.work_dir / f"train_{job_id}.out"
         print(f"Job output is in {job_output}")
 
     def segmentation_training(self):
@@ -146,6 +157,38 @@ class TrainingManager:
         # change back to original working directory
         os.chdir(self.orig_working_dir)
         self.upload_models()
+
+    def recognition_training(self):
+        # NOTE: this is nearly the same as segmentation_training method
+
+        # get absolute versions of these paths _before_ changing working directory
+        abs_training_data_dir = self.training_data_dir.absolute()
+        # input model is optional
+        abs_model_file = self.model_file.absolute() if self.model_file else None
+        abs_output_modelfile = self.output_modelfile.absolute()
+
+        # change directory to working directory, since by default,
+        # slurm executes the job from the directory where it was submitted
+        os.chdir(self.work_dir)
+
+        job_id = recognition_train(
+            abs_training_data_dir,
+            abs_output_modelfile,
+            abs_model_file,
+            self.num_workers,
+        )
+        self.monitor_slurm_job(job_id)
+        # change back to original working directory
+        os.chdir(self.orig_working_dir)
+        # look for and upload best model
+        best_model = upload_best_model(
+            self.api, self.output_modelfile.parent, self.training_mode
+        )
+        if best_model:
+            print(f"Uploaded {best_model} to eScriptorum")
+        else:
+            # possibly best model found but uploade failed?
+            print("No best model found")
 
     def upload_models(self):
         # - for segmentation, upload all models to eScriptorium as new models
@@ -268,11 +311,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # bail out on transcription for now (will be added later)
-    if args.mode == "transcription":
-        print("Transcription training is not yet supported")
-        sys.exit(1)
-
     # make sure working directory does not already exist
     if args.work_dir.exists() and not args.existing_data:
         print(
@@ -295,13 +333,16 @@ def main():
 
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
     logger_upscope = logging.getLogger("htr2hpc")
-    logger_upscope.setLevel(logging.INFO)
+    logger_upscope.setLevel(logging.DEBUG)
+    # output kraken logging details to confirm binary data looks ok
+    logger_kraken = logging.getLogger("kraken")
+    logger_kraken.setLevel(logging.DEBUG)
 
     # nearly all the argparse options need to be passed to the training manager class
     # convert to a _copy_ dictionary and delete the unused parmeters
     arg_options = dict(vars(args))
-    del arg_options["mode"]
     del arg_options["clean"]
+    del arg_options["mode"]  # converted to training_mode (Segment/Recognize)
 
     # initialize training manager
     training_mgr = TrainingManager(
@@ -310,13 +351,13 @@ def main():
     try:
         # prep data for training
         training_mgr.training_prep()
-
+        # run training for requested mode
         if args.mode == "segmentation":
             training_mgr.segmentation_training()
+        if args.mode == "transcription":
+            training_mgr.recognition_training()
     except (NotFound, NotAllowed) as err:
         print(f"Something went wrong: {err}")
-
-    # TODO: handle transcription training
 
     # unless requested not to, clean up the working directory, which includes:
     # - downloaded training data & model to fine tune
@@ -327,8 +368,6 @@ def main():
             f"Removing working directory {args.work_dir} with all training data and models."
         )
         rmtree(args.work_dir)
-
-    # when this is all working, cleanup working dir (by default, with option to skip)
 
 
 if __name__ == "__main__":

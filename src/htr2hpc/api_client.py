@@ -48,14 +48,12 @@ class ResultsList:
     def next_page(self):
         # if there is a next page of results
         if self.next:
-            # parse the url to get the page number for the next page
-            next_params = parse_qs(urlparse(self.next).query)
-            next_page_num = next_params["page"][0]
-            # convert result type (e.g. "list_model") into api method (model_list)
-            # (this may be brittle...)
-            single_rtype = self.result_type.replace("list", "").strip("_")
-            list_method = getattr(self.api, f"{single_rtype}_list")
-            return list_method(page=next_page_num)
+            # request the next page and return as a
+            #  results list item with the same type and api client as this one
+            resp = self.api._make_request(self.next)
+            return ResultsList(
+                api=self.api, result_type=self.result_type, **resp.json()
+            )
 
 
 @dataclass
@@ -100,6 +98,7 @@ class Task:
 class Workflow:
     convert: Optional[str] = None
     segment: Optional[str] = None
+    transcribe: Optional[str] = None
     # workflow status is only present when a workflow has not run,
     # so define a dataclass and make them optional
     # to handle missing values
@@ -123,8 +122,6 @@ def to_namedtuple(name: str, data: Any):
             logger.debug(f"Creating namedtuple with name {name}")
             nt_class = namedtuple(name, data)
             RESULTCLASS_REGISTRY[name] = nt_class
-        else:
-            logger.debug(f"Using existing result class for {name}: {nt_class}")
         # once we have the class, initialize an instance with the given data
         return nt_class(
             # convert any nested objects to namedtuple classes
@@ -171,7 +168,12 @@ class eScriptoriumAPIClient:
         Make a GET request with the configured session. Takes a url
         relative to :attr:`api_root` and optional dictionary of parameters for the request.
         """
-        rqst_url = f"{self.api_root}/{url}"
+        # support absolute urls for retrieving paged results,
+        # but only urls within the configured eScriptorium instance
+        if url.startswith(self.api_root):
+            rqst_url = url
+        else:
+            rqst_url = f"{self.api_root}/{url}"
         rqst_opts = {}
         if params:
             rqst_opts["params"] = params.copy()

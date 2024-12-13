@@ -130,10 +130,10 @@ class OCRModel:
     accuracy_percent: float
     #: model permissions
     rights: str
-    #: parent model if this model is finetuned from another model; not always supplied
-    parent: Optional[str] = None
     #: whether model is sharable
     can_share: bool
+    #: parent model if this model is finetuned from another model; not always supplied
+    parent: Optional[str] = None
 
 
 # keep a registry of result classes for API result objects,
@@ -197,8 +197,9 @@ class eScriptoriumAPIClient:
         expected_status: int = requests.codes.ok,
     ):
         """
-        Make a GET request with the configured session. Takes a url
-        relative to :attr:`api_root` and optional dictionary of parameters for the request.
+        Make an http request with the configured session. Takes a url
+        relative to or starting with :attr:`api_root` and optional dictionaries
+        of parameters, data, and files for the request.
         """
         rqst_url = f"{self.api_root}/{url}"
         rqst_opts = {}
@@ -221,7 +222,7 @@ class eScriptoriumAPIClient:
 
         resp = session_request(rqst_url, **rqst_opts)
         logger.debug(
-            f"get {rqst_url} {resp.status_code}: {resp.elapsed.total_seconds()} sec"
+            f"{method} {rqst_url} {resp.status_code}: {resp.elapsed.total_seconds()} sec"
         )
         if resp.status_code == expected_status:
             return resp

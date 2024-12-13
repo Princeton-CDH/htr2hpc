@@ -111,7 +111,10 @@ def segtrain(
         f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}"
     )
 
-    user.notify("Starting remote training")
+    user.notify(
+        "Starting remote training; slurm portion can be monitored on mydella",
+        links=["https://mydella.princeton.edu/pun/sys/dashboard/activejobs"],
+    )
     # note: may need to use tmux to keep from disconnecting
     try:
         with Connection(

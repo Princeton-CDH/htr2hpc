@@ -17,7 +17,7 @@ from tqdm import tqdm
 from htr2hpc.api_client import eScriptoriumAPIClient, NotFound, NotAllowed
 from htr2hpc.train.data import (
     get_training_data,
-    get_model,
+    get_model_file,
     upload_models,
     upload_best_model,
 )
@@ -46,12 +46,16 @@ class TrainingManager:
     num_workers: int
     parts: Optional[intspan] = None
     model_id: Optional[int] = None
+    update: bool = False
     transcription_id: Optional[int] = None
     existing_data: bool = False
     show_progress: bool = True
     model_file: pathlib.Path = None
 
     def __post_init__(self):
+        if self.update and not self.model_id:
+            raise ValueError("Cannot set update to true if model_id is not set")
+
         # initialize api client
         self.api = eScriptoriumAPIClient(self.base_url, self.api_token)
         # TODO : check api access works before going too far?
@@ -77,13 +81,23 @@ class TrainingManager:
         # if model id is specified, download the model from escriptorium API,
         # confirming that it is the appropriate type (segmentation/transcription)
         # NOTE: currently ignores existing data flag, since we need model file name
+        # TODO: handle model with no file (i.e., newly created model in eScriptorium)
         if self.model_id:
-            self.model_file = get_model(
+            # when model id + update are specified,
+            # use model name from api info
+            if self.model_name is None:
+                model_info = self.api.model_details(self.model_id)
+                # NOTE: model name does not necessarily match filename
+                # exactly, e.g. bnSEG_complex vs bnseg_complex
+                self.model_name = model_info.name
+
+            self.model_file = get_model_file(
                 self.api,
                 self.model_id,
                 self.training_mode,
                 self.work_dir,
             )
+
         # if model id is not specified and we are doing segmentation training,
         # use the default from kraken
         elif self.training_mode == "Segment":
@@ -156,7 +170,10 @@ class TrainingManager:
         self.monitor_slurm_job(job_id)
         # change back to original working directory
         os.chdir(self.orig_working_dir)
-        self.upload_models()
+        if self.update:
+            self.upload_best()
+        else:
+            self.upload_all_models()
 
     def recognition_training(self):
         # NOTE: this is nearly the same as segmentation_training method
@@ -180,17 +197,30 @@ class TrainingManager:
         self.monitor_slurm_job(job_id)
         # change back to original working directory
         os.chdir(self.orig_working_dir)
+        self.upload_best()
+
+    def upload_best(self):
         # look for and upload best model
+
+        # when update is requested, specify model id to be updated
+        if self.update:
+            model_id = self.model_id
+        else:
+            model_id = None
         best_model = upload_best_model(
-            self.api, self.output_modelfile.parent, self.training_mode
+            self.api,
+            self.output_modelfile.parent,
+            self.training_mode,
+            model_id=model_id,
         )
         if best_model:
+            # TODO: revise message to include info about created/updated model id ##
             print(f"Uploaded {best_model} to eScriptorum")
         else:
             # possibly best model found but uploade failed?
             print("No best model found")
 
-    def upload_models(self):
+    def upload_all_models(self):
         # - for segmentation, upload all models to eScriptorium as new models
         upload_count = upload_models(
             self.api,
@@ -256,11 +286,18 @@ def main():
         dest="model_id",
     )
     parser.add_argument(
+        "-u",
+        "--update",
+        help="Update the model specified in model_id with the best model trained (must --model)",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--model-name",
-        help="Name to be used for the newly trained model",
+        help="Name to be used for newly trained model (not compatible with --update)",
         type=str,
         dest="model_name",
-        required=True,
+        required=False,
     )
     parser.add_argument(
         "-p",
@@ -310,6 +347,16 @@ def main():
         dest="num_workers",
     )
     args = parser.parse_args()
+    # validate argument combinations
+    if args.update:
+        error_messages = []
+        if not args.model_id:
+            error_messages.append("cannot use --update without specifying --model")
+        if args.model_name:
+            error_messages.append("cannot specify both --model-name and --update")
+        if error_messages:
+            print(f"Error: {'; '.join(error_messages)}")
+            sys.exit(1)
 
     # make sure working directory does not already exist
     if args.work_dir.exists() and not args.existing_data:

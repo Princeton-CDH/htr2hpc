@@ -273,18 +273,34 @@ class eScriptoriumAPIClient:
         resp = self._make_request(api_url)
         return to_namedtuple("model", resp.json())
 
-    def model_update(self, model_id: int, model_file: pathlib.Path):
+    def model_update(
+        self,
+        model_id: int,
+        model_file: pathlib.Path,
+        job: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ):
         """Update an existing model record with a new model file."""
         api_url = f"models/{model_id}/"
+        # if job or name is not specified, set it based on
+        # infoormation retrieved from the api
+        if job is None or model_name is None:
+            model_info = self.model_details(model_id)
+            # use value passed in if set; otherwise use value from current model
+            job = job or model_info.job
+            model_name = model_name or model_info.name
+
         with open(model_file, "rb") as mfile:
             files = {"file": mfile}
             data = {
-                # TODO don't overwrite previous name!
-                "name": "updated model",
-                "job": "Segment",  # required; get from existing record?
-                # file_size (int)  - set from pathlib object using .stat().st_size
-                # versions ?
-                # accuracy_percent
+                "name": model_name,
+                "job": job,
+                "file_size": model_file.stat().st_size,
+                # report model accuracy
+                # NOTE: this requires a customization to the eScriptorium api,
+                # which exposes the underlying training accuracy field
+                # as a read-write model attribute
+                "training_accuracy": self.get_model_accuracy(model_file),
             }
             resp = self._make_request(api_url, method="PUT", files=files, data=data)
         # on successful update, returns the model object
@@ -321,11 +337,12 @@ class eScriptoriumAPIClient:
                 "name": model_name,
                 "job": job,
                 "file_size": model_file.stat().st_size,
-                # get accuracy from model
+                # report accuracy from model
                 # "accuracy_percent": self.get_model_accuracy(model_file),
-                # NOTE: eScriptorium api has accuracy marked as a read-only
-                # field, so even if we supply this it gets set to zero.
-                # Calculating it is slow, so skip since it isn't currently usable
+                # NOTE: this requires a customization to the eScriptorium api,
+                # which exposes the underlying training accuracy field
+                # as a read-write model attribute
+                "training_accuracy": self.get_model_accuracy(model_file),
             }
             resp = self._make_request(
                 api_url,

@@ -174,7 +174,6 @@ def get_model_file(api, model_id, training_type, output_dir):
     """Download a model file from the eScriptorium and save it to the specified
     directory. Raises a ValueError if the model is not the specified
     training type. Returns a :class:`pathlib.Path` to the downloaded file."""
-
     model_info = api.model_details(model_id)
     if model_info.job != training_type:
         raise ValueError(
@@ -269,25 +268,30 @@ def upload_models(
 
 
 def upload_best_model(
-    api, model_dir: pathlib.Path, model_type: str
+    api, model_dir: pathlib.Path, model_type: str, model_id: int = None
 ) -> Optional[pathlib.Path]:
     """Upload the best model in the specified model directory to eScriptorium
-    with the specified job type (Segment/Recognize). Returns pathlib.Path
+    with the specified job type (Segment/Recognize).  If a model id is specified,
+    updates that model; otherwise creates a new model. Returns :class:`pathlib.Path` object
     for best model if found and successfully uploaded; otherwise returns None."""
     best_model = get_best_model(model_dir)
-    if best_model:
-        created = api.model_create(
-            best_model,
-            job=model_type,
+    if not best_model:
+        return None
+    # common parameters used for both create and update
+    params = {
+        "model_file": best_model,
+        "job": model_type,
+    }
+    # if model id is specified, update existing model
+    if model_id:
+        model = api.model_update(model_id, **params)
+    else:
+        model = api.model_create(
             # strip off _best from file for model name in eScriptorium
             model_name=best_model.stem.replace("_best", ""),
+            **params,
         )
-        if created:
-            return best_model
-        # TODO: return something different here if model create failed?
+    if model:
+        return best_model
 
-    return None
-
-
-# use api.update_model with model id and pathlib.Path to model file
-# to update existing model record with new file
+    # TODO: return something different here if api call failed?

@@ -126,6 +126,8 @@ class OCRModel:
     documents: list[int]
     #: model accuracy
     accuracy_percent: float
+    #: training accuracy - local override to allow write access
+    training_accuracy: float
     #: model permissions
     rights: str
     #: whether model is sharable

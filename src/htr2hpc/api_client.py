@@ -265,7 +265,7 @@ class eScriptoriumAPIClient:
         if page:
             params = {"page": page}
         resp = self._make_request(api_url, params=params)
-        return ResultsList(api=self, result_type="list_model", **resp.json())
+        return ResultsList(api=self, result_type="model", **resp.json())
 
     def model_details(self, model_id):
         """details for a single models"""

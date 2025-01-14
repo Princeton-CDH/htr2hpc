@@ -113,7 +113,7 @@ def segtrain(
 
     user.notify(
         "Starting remote training; slurm portion can be monitored on mydella",
-        links=["https://mydella.princeton.edu/pun/sys/dashboard/activejobs"],
+        links=[{'text': 'Della Active Jobs', 'src': "https://mydella.princeton.edu/pun/sys/dashboard/activejobs"}],
     )
     # note: may need to use tmux to keep from disconnecting
     try:

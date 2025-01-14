@@ -12,7 +12,11 @@ from typing import Optional
 
 from intspan import intspan
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL
+import requests
 from tqdm import tqdm
+from urllib3.exceptions import HTTPError
+
+# from urllib3.exceptions import ConnectionError
 
 from htr2hpc.api_client import eScriptoriumAPIClient, NotFound, NotAllowed
 from htr2hpc.train.data import (
@@ -58,8 +62,17 @@ class TrainingManager:
 
         # initialize api client
         self.api = eScriptoriumAPIClient(self.base_url, self.api_token)
-        # TODO : check api access works before going too far?
-        # (currently does not handle connection error very gracefully)
+        # Report on current user, to confirm the expected account is in use.
+        # This also serves as a configuration check before going further.
+        try:
+            current_user = self.api.get_current_user()
+            print(
+                f"Connecting to eScriptorium as {current_user.username} ({current_user.email})"
+            )
+        except (requests.exceptions.ConnectionError, NotFound, NotAllowed) as err:
+            # invalid hostname raises a connection error
+            # wrong hostname (no API endpoint) raises not found api error
+            raise ConnectionError(f"Error connecting to eScriptorium: {err}")
 
         # store the path to original working directory before changing directory
         self.orig_working_dir = pathlib.Path.cwd()
@@ -383,7 +396,7 @@ def main():
     logger_upscope.setLevel(logging.DEBUG)
     # output kraken logging details to confirm binary data looks ok
     logger_kraken = logging.getLogger("kraken")
-    logger_kraken.setLevel(logging.DEBUG)
+    logger_kraken.setLevel(logging.INFO)
 
     # nearly all the argparse options need to be passed to the training manager class
     # convert to a _copy_ dictionary and delete the unused parmeters
@@ -392,9 +405,17 @@ def main():
     del arg_options["mode"]  # converted to training_mode (Segment/Recognize)
 
     # initialize training manager
-    training_mgr = TrainingManager(
-        api_token=api_token, training_mode=es_model_jobs[args.mode], **arg_options
-    )
+    try:
+        training_mgr = TrainingManager(
+            api_token=api_token, training_mode=es_model_jobs[args.mode], **arg_options
+        )
+    except ConnectionError as err:
+        print(err)
+        print(
+            "Check that you have specified the correct BASE_URL and API token and confirm the eScriptorium server is available."
+        )
+        sys.exit(1)
+
     try:
         # prep data for training
         training_mgr.training_prep()

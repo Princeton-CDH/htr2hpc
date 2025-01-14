@@ -170,7 +170,7 @@ def compile_data(segmentations, output_dir):
     return output_file
 
 
-def get_model(api, model_id, training_type, output_dir):
+def get_model_file(api, model_id, training_type, output_dir):
     """Download a model file from the eScriptorium and save it to the specified
     directory. Raises a ValueError if the model is not the specified
     training type. Returns a :class:`pathlib.Path` to the downloaded file."""

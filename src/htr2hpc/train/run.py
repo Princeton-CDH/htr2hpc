@@ -301,7 +301,7 @@ def main():
     parser.add_argument(
         "-u",
         "--update",
-        help="Update the model specified in model_id with the best model trained (must --model)",
+        help="Update the specified model with the best model from training (requires --model)",
         action="store_true",
         default=False,
     )

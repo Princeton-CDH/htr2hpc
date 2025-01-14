@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from celery import shared_task
 from django.apps import apps
@@ -18,6 +19,12 @@ logger = logging.getLogger(__name__)
 # override escriptorium training tasks to run on HPC
 
 User = get_user_model()
+
+
+def directory_timestamp():
+    # use timestamps to ensure working directories for training data
+    # are unique; use human-readable date with time including microseconds
+    return datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
 
 
 @shared_task(default_retry_delay=60 * 60)
@@ -78,9 +85,9 @@ def segtrain(
 
     # create a name for an output directory based on mode and document id
     working_dir = f"/scratch/gpfs/{username}/htr2hpc"
-    # TODO: should we add a timestamp to ensure uniqueness?
+    # includes a timestamp to ensure uniqueness, since
     # script will fail if there is an existing directory
-    outdir = f"segtrain_doc{document_pk}"
+    outdir = f"segtrain_doc{document_pk}_{directory_timestamp()}"
 
     # generate the command to run
     site = Site.objects.get(pk=settings.SITE_ID)
@@ -99,7 +106,9 @@ def segtrain(
         # parse and serialize with intspan since that's what we use on the other side
         arg_options.append(f"--parts {intspan(part_pks)}")
     if model_pk:
-        arg_options.append(f"--model {model_pk}")
+        # eScriptorium behavior is to create a new model that will be
+        # updated after training, so if we have a model we always want --update
+        arg_options.append(f"--model {model_pk} --update")
     opts = " ".join(arg_options)
 
     cmd = f"htr2hpc-train segmentation {site_url} {outdir} {opts}"
@@ -113,7 +122,12 @@ def segtrain(
 
     user.notify(
         "Starting remote training; slurm portion can be monitored on mydella",
-        links=[{'text': 'Della Active Jobs', 'src': "https://mydella.princeton.edu/pun/sys/dashboard/activejobs"}],
+        links=[
+            {
+                "text": "Della Active Jobs",
+                "src": "https://mydella.princeton.edu/pun/sys/dashboard/activejobs",
+            }
+        ],
     )
     # note: may need to use tmux to keep from disconnecting
     try:
@@ -195,8 +209,9 @@ def train(
         return
 
     # create a name for an output directory based on mode and document id
-    # TODO: make this relative to scratch & username?
-    outdir = f"train_transcription{transcription_pk}"
+    # include a timestamp to ensure uniqueness, since
+    # script will fail if there is an existing directory
+    outdir = f"train_doc{document_pk}_{directory_timestamp()}"
 
     # get document from transcription
     Transcription = apps.get_model("core", "Transcription")
@@ -221,7 +236,10 @@ def train(
     ]
 
     if model_pk:
-        arg_options.append(f"--model {model_pk}")
+        # eScriptorium behavior is to create a new model that will be
+        # updated after training, so if we have a model we always want --update
+        arg_options.append(f"--model {model_pk} --update")
+
     opts = " ".join(arg_options)
 
     cmd = f"htr2hpc-train transcription {opts}"

@@ -111,9 +111,9 @@ class TrainingManager:
                 self.work_dir,
             )
 
-        # if model id is not specified and we are doing segmentation training,
-        # use the default from kraken
-        elif self.training_mode == "Segment":
+        # if model id is not specified or model id has no file
+        # and we are doing segmentation training, use the default from kraken
+        if self.training_mode == "Segment" and not self.model_file:
             self.model_file = SEGMENTATION_DEFAULT_MODEL
 
         # create a directory and path for the output model file
@@ -393,10 +393,10 @@ def main():
 
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
     logger_upscope = logging.getLogger("htr2hpc")
-    logger_upscope.setLevel(logging.DEBUG)
+    # logger_upscope.setLevel(logging.DEBUG)
     # output kraken logging details to confirm binary data looks ok
     logger_kraken = logging.getLogger("kraken")
-    logger_kraken.setLevel(logging.INFO)
+    # logger_kraken.setLevel(logging.INFO)
 
     # nearly all the argparse options need to be passed to the training manager class
     # convert to a _copy_ dictionary and delete the unused parmeters

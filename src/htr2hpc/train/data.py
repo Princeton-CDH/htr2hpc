@@ -180,6 +180,12 @@ def get_model_file(api, model_id, training_type, output_dir):
         raise ValueError(
             f"Model {model_id} is a {model_info.job} model, but {training_type} requested"
         )
+    if model_info.file is None:
+        # when eScriptorium creates a new model record, it has no file
+        # and the file url is null
+        # return None for no file
+        return None
+
     return api.download_file(model_info.file, output_dir)
 
 

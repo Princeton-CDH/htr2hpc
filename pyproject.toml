@@ -32,7 +32,8 @@ dependencies = [
   "humanize",
   "simple_slurm",
   "tqdm",
-  "intspan"
+  "intspan",
+  "fabric"
 ]
 
 [project.urls]

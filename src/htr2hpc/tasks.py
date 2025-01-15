@@ -133,7 +133,7 @@ def segtrain(
     )
 
     # create a name for an output directory based on mode and document id
-    working_dir = f"/scratch/gpfs/{username}/htr2hpc"
+    working_dir = f"/scratch/gpfs/{user.username}/htr2hpc"
     # includes a timestamp to ensure uniqueness, since
     # script will fail if there is an existing directory
     outdir = f"segtrain_doc{document_pk}_{directory_timestamp()}"
@@ -225,6 +225,8 @@ def train(
         logger.error(f"train called with invalid user_pk {user_pk}")
         return
 
+    # create a name for an output directory based on mode and document id
+    working_dir = f"/scratch/gpfs/{user.username}/htr2hpc"
     # create a name for an output directory based on mode and transcripiton id
     # include a timestamp to ensure uniqueness, since
     # script will fail if there is an existing directory
@@ -232,7 +234,9 @@ def train(
 
     # get document from transcription
     Transcription = apps.get_model("core", "Transcription")
-    # OcrModel = apps.get_model("core", "OcrModel")
+    # get the requested model from the db
+    OcrModel = apps.get_model("core", "OcrModel")
+    model = OcrModel.objects.get(pk=model_pk)
     transcription = Transcription.objects.get(pk=transcription_pk)
     document = transcription.document
 
@@ -266,7 +270,7 @@ def train(
     # for now just output the command
     logger.info(cmd)
 
-    success = start_remote_training(user, working_dir, cmd, document_pk, model.pk)
+    success = start_remote_training(user, working_dir, cmd, document.pk, model.pk)
 
     if not success:
         # escriptorium task deletes the model if there is an error;
@@ -289,7 +293,7 @@ def train(
     # send training complete event
     send_event(
         "document",
-        document_pk,
+        document.pk,
         "training:done",
         {
             "id": model.pk,

@@ -99,6 +99,9 @@ def segtrain(
     # So we may need to revise the script with an option to update
     # the specified model.
 
+    # record a timestamp of when the task starts
+    task_start_time = datetime.now()
+
     # we require both of these; are they really optional?
     if not all([user_pk, document_pk]):
         # can't proceed without both of these
@@ -172,10 +175,19 @@ def segtrain(
         # we want to do that, but check if the model was created just prior
         # to this task being kicked off so we don't delete
         # when model overwrite was requested
-        # model.delete()
-        # if not deleting, mark model as no longer being trained
-        model.training = False
-        model.save()
+
+        # how long before the task started was this model created?
+        model_age = task_start_time - model.version_created_at
+        logger.info(
+            f"model was created at {model.version_created_at}; task started at {task_start_time}; delta: {model_age}"
+        )
+
+        if model.file is None:  # or if model age is below some time delta threshold
+            model.delete()
+        else:
+            # if not deleting, mark model as no longer being trained
+            model.training = False
+            model.save()
 
         return
 

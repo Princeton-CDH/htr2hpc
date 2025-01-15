@@ -27,6 +27,61 @@ def directory_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
 
 
+def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
+    # common logic for segtrain and train to kick off remote training script
+
+    # assume we're using LDAP accounts only so usernames match here and on hpc
+    username = user.username
+    api_token = user.auth_token.key
+
+    # hostname and ssh key path set in django config
+    logger.debug(
+        f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}"
+    )
+
+    user.notify(
+        "Starting remote training; slurm portion can be monitored on mydella",
+        links=[
+            {
+                "text": "Della Active Jobs",
+                "src": "https://mydella.princeton.edu/pun/sys/dashboard/activejobs",
+            }
+        ],
+    )
+    # note: may need to use tmux to keep from disconnecting
+    try:
+        with Connection(
+            host=settings.HPC_HOSTNAME,
+            user=username,
+            connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
+        ) as conn:
+            with conn.cd(working_dir):
+                result = conn.run(
+                    f"module load anaconda3/2024.6 && conda run -n htr2hpc {train_cmd}",
+                    env={"ESCRIPTORIUM_API_TOKEN": api_token},
+                )
+                print(result)
+    except UnexpectedExit as err:
+        print(err)
+        # send training error event
+        send_event(
+            "document",
+            document_pk,
+            "training:error",
+            {
+                "id": model_pk,
+            },
+        )
+        user.notify(
+            _("Something went wrong running the training."),
+            id="training-error",
+            level="danger",
+        )
+        return False
+
+    return True
+
+
 @shared_task(default_retry_delay=60 * 60)
 def segtrain(
     model_pk=None,
@@ -77,10 +132,6 @@ def segtrain(
         },
     )
 
-    # assume we're using LDAP accounts only so usernames match here and on hpc
-    username = user.username
-    api_token = user.auth_token.key
-
     # create a name for an output directory based on mode and document id
     working_dir = f"/scratch/gpfs/{username}/htr2hpc"
     # includes a timestamp to ensure uniqueness, since
@@ -114,59 +165,19 @@ def segtrain(
     # for now just output the command
     logger.info(cmd)
 
-    # hostname and ssh key path set in django config
-    logger.debug(
-        f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}"
-    )
+    success = start_remote_training(user, working_dir, cmd, document_pk, model.pk)
 
-    user.notify(
-        "Starting remote training; slurm portion can be monitored on mydella",
-        links=[
-            {
-                "text": "Della Active Jobs",
-                "src": "https://mydella.princeton.edu/pun/sys/dashboard/activejobs",
-            }
-        ],
-    )
-    # note: may need to use tmux to keep from disconnecting
-    try:
-        with Connection(
-            host=settings.HPC_HOSTNAME,
-            user=username,
-            connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
-        ) as conn:
-            with conn.cd(working_dir):
-                result = conn.run(
-                    f"module load anaconda3/2024.6 && conda run -n htr2hpc {cmd}",
-                    env={"ESCRIPTORIUM_API_TOKEN": api_token},
-                )
-                print(result)
-        # TODO: maybe script can write job id to a  dot file in the output dir
-        # so the celery task can check the status?
-        # or do we even need that level of detail (pending/running/complete)
-    except UnexpectedExit as err:
-        print(err)
-        # send training error event
-        send_event(
-            "document",
-            document_pk,
-            "training:error",
-            {
-                "id": model.pk,
-            },
-        )
-        user.notify(
-            _("Something went wrong running the training."),
-            id="training-error",
-            level="danger",
-        )
-        # escriptorium task deletes the model if there is an error
-        # is it always safe to do that?
+    if not success:
+        # escriptorium task deletes the model if there is an error;
+        # we want to do that, but check if the model was created just prior
+        # to this task being kicked off so we don't delete
+        # when model overwrite was requested
         # model.delete()
-        return
+        # if not deleting, mark model as no longer being trained
+        model.training = False
+        model.save()
 
-    # could the celery task exit? or does it need to monitor the
-    # remote script?
+        return
 
     # when/if training completes:
     # - mark model as no longer being trained
@@ -247,3 +258,33 @@ def train(
 
     # for now just output the command
     logger.info(cmd)
+
+    success = start_remote_training(user, working_dir, cmd, document_pk, model.pk)
+
+    if not success:
+        # escriptorium task deletes the model if there is an error;
+        # we want to do that, but check if the model was created just prior
+        # to this task being kicked off so we don't delete
+        # when model overwrite was requested
+        # model.delete()
+        # if not deleting, mark model as no longer being trained
+        model.training = False
+        model.save()
+
+        return
+
+    # when/if training completes:
+    # - mark model as no longer being trained
+    model.training = False
+    model.save()
+    # - notify the user that training completed
+    user.notify(_("Training finished!"), id="training-success", level="success")
+    # send training complete event
+    send_event(
+        "document",
+        document_pk,
+        "training:done",
+        {
+            "id": model.pk,
+        },
+    )

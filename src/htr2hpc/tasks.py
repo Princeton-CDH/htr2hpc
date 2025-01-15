@@ -6,6 +6,7 @@ from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
 from django.conf import settings
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from intspan import intspan
 from fabric import Connection
@@ -100,8 +101,9 @@ def segtrain(
     # So we may need to revise the script with an option to update
     # the specified model.
 
-    # record a timestamp of when the task starts
-    task_start_time = datetime.now()
+    # timestamp of task start time;
+    # must be time-zone aware for comparison with model creation time
+    task_start_time = timezone.now()
 
     # we require both of these; are they really optional?
     if not all([user_pk, document_pk]):

@@ -207,10 +207,10 @@ def train(
         )
         return
 
-    # create a name for an output directory based on mode and document id
+    # create a name for an output directory based on mode and transcripiton id
     # include a timestamp to ensure uniqueness, since
     # script will fail if there is an existing directory
-    outdir = f"train_doc{document_pk}_{directory_timestamp()}"
+    outdir = f"train_transcription{transcription_pk}_{directory_timestamp()}"
 
     # get document from transcription
     Transcription = apps.get_model("core", "Transcription")

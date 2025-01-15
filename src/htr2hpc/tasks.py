@@ -270,6 +270,7 @@ def train(
         # model name should not be used with model id; model id should always be present
         # parse and serialize part ids with intspan
         f"--parts {intspan(part_pks)}",
+        "--no-progress",  # disable progressbar
     ]
 
     # model is technically optional for this task but it should

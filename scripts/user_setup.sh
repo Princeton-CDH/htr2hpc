@@ -6,6 +6,7 @@
 # - create htr2hpc working directory in scratch
 
 echo "Setting up your account for htr2hpc ...."
+echo "This process may take at least five minutes. Please do not exit until the process completes."
 
 # ensure ssh directory exists
 if [ ! -d "$HOME/.ssh" ]; then

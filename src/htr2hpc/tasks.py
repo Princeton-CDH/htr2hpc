@@ -62,7 +62,7 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
                 )
                 print(result)
     except UnexpectedExit as err:
-        print(err)
+        logger.error(f"Unexpected exit from remote connection: {err}")
         # send training error event
         send_event(
             "document",
@@ -79,6 +79,7 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
         )
         return False
 
+    logger.info(f"remote training succeeded")
     return True
 
 
@@ -101,6 +102,11 @@ def segtrain(
 
     # record a timestamp of when the task starts
     task_start_time = datetime.now()
+    # how long before the task started was this model created?
+    model_age = task_start_time - model.version_created_at
+    logger.info(
+        f"model was created at {model.version_created_at}; task started at {task_start_time}; delta: {model_age}"
+    )
 
     # we require both of these; are they really optional?
     if not all([user_pk, document_pk]):
@@ -165,47 +171,42 @@ def segtrain(
     opts = " ".join(arg_options)
 
     cmd = f"htr2hpc-train segmentation {site_url} {outdir} {opts}"
-    # for now just output the command
-    logger.info(cmd)
+    # log the command to be run
+    logger.info(f"remote training command: {cmd}")
 
     success = start_remote_training(user, working_dir, cmd, document_pk, model.pk)
 
-    if not success:
+    # get a fresh copy of the model from the database,
+    # since if htr2hpc-train script succeeded it should have been updated via api
+    model = OcrModel.objects.get(pk=model_pk)
+
+    if success:
+        # - notify the user that training completed sucessfully
+        user.notify(_("Training finished!"), id="training-success", level="success")
+        # send training complete event
+        send_event(
+            "document",
+            document_pk,
+            "training:done",
+            {
+                "id": model.pk,
+            },
+        )
+    else:
+        # if training did not suceeed:
+
         # escriptorium task deletes the model if there is an error;
         # we want to do that, but check if the model was created just prior
         # to this task being kicked off so we don't delete
         # when model overwrite was requested
 
-        # how long before the task started was this model created?
-        model_age = task_start_time - model.version_created_at
-        logger.info(
-            f"model was created at {model.version_created_at}; task started at {task_start_time}; delta: {model_age}"
-        )
-
         if model.file is None:  # or if model age is below some time delta threshold
             model.delete()
-        else:
-            # if not deleting, mark model as no longer being trained
-            model.training = False
-            model.save()
+            return
 
-        return
-
-    # when/if training completes:
-    # - mark model as no longer being trained
+    # mark model as no longer being trained
     model.training = False
     model.save()
-    # - notify the user that training completed
-    user.notify(_("Training finished!"), id="training-success", level="success")
-    # send training complete event
-    send_event(
-        "document",
-        document_pk,
-        "training:done",
-        {
-            "id": model.pk,
-        },
-    )
 
 
 # todo: maybe make the fab command a method that can be run for testing
@@ -279,8 +280,8 @@ def train(
 
     cmd = f"htr2hpc-train transcription {opts}"
 
-    # for now just output the command
-    logger.info(cmd)
+    # log the command to be run
+    logger.info(f"remote training command: {cmd}")
 
     success = start_remote_training(user, working_dir, cmd, document.pk, model.pk)
 

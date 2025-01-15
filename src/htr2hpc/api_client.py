@@ -360,7 +360,7 @@ class eScriptoriumAPIClient:
     def get_model_accuracy(self, model_file: pathlib.Path):
         m = coremltools.models.MLModel(str(model_file))
         meta = json.loads(m.get_spec().description.metadata.userDefined["kraken_meta"])
-        return meta["accuracy"][-1][-1] * 100
+        return meta["accuracy"][-1][-1]
 
     def document_list(self, page=None):
         """paginated list of documents"""

@@ -36,8 +36,6 @@ def segtrain(
     user_pk=None,
     **kwargs,
 ):
-    print("### running override segtrain task")
-
     # NOTE: when called from the web ui, the SegTrainForm includes
     # a field for model_name but that value is not passed to the celery task
     # HOWEVER: when a model name is specified, the form process method
@@ -97,14 +95,15 @@ def segtrain(
 
     arg_options = [
         f"--document {document_pk}",  # document id is always required
-        f"--model-name {model.name}",
         "--no-progress",  # disable progressbar
     ]
 
-    # part and model are optional
+    # part ids are optional
     if part_pks:
         # parse and serialize with intspan since that's what we use on the other side
         arg_options.append(f"--parts {intspan(part_pks)}")
+    # model is technically optional for this task but it should
+    # always be passed in by escriptorium calling code
     if model_pk:
         # eScriptorium behavior is to create a new model that will be
         # updated after training, so if we have a model we always want --update
@@ -230,11 +229,13 @@ def train(
         site_url,
         str(outdir),
         f"--document {document.pk}",  # document id is always required
-        f"--model-name train_transcription{transcription_pk}",  # TODO: get from model
+        # model name should not be used with model id; model id should always be present
         # parse and serialize part ids with intspan
         f"--parts {intspan(part_pks)}",
     ]
 
+    # model is technically optional for this task but it should
+    # always be passed in by escriptorium calling code
     if model_pk:
         # eScriptorium behavior is to create a new model that will be
         # updated after training, so if we have a model we always want --update

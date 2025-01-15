@@ -102,11 +102,6 @@ def segtrain(
 
     # record a timestamp of when the task starts
     task_start_time = datetime.now()
-    # how long before the task started was this model created?
-    model_age = task_start_time - model.version_created_at
-    logger.info(
-        f"model was created at {model.version_created_at}; task started at {task_start_time}; delta: {model_age}"
-    )
 
     # we require both of these; are they really optional?
     if not all([user_pk, document_pk]):
@@ -126,6 +121,12 @@ def segtrain(
     # get the requested model from the db
     OcrModel = apps.get_model("core", "OcrModel")
     model = OcrModel.objects.get(pk=model_pk)
+    # how long before the task started was this model created?
+    model_age = task_start_time - model.version_created_at
+    logger.info(
+        f"model was created at {model.version_created_at}; task started at {task_start_time}; delta: {model_age}"
+    )
+
     # mark the model as being in training
     # would be nice if the script could handle, but that field is listed
     # as read only in the api

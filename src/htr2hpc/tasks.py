@@ -218,6 +218,13 @@ def train(
         )
         return
 
+    try:
+        user = User.objects.get(pk=user_pk)
+    except User.DoesNotExist:
+        # error / bail out
+        logger.error(f"train called with invalid user_pk {user_pk}")
+        return
+
     # create a name for an output directory based on mode and transcripiton id
     # include a timestamp to ensure uniqueness, since
     # script will fail if there is an existing directory

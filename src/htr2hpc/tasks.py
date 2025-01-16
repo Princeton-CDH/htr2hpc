@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from celery import shared_task
 from django.apps import apps
@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 # override escriptorium training tasks to run on HPC
 
 User = get_user_model()
-
-HALF_SECOND = timedelta(seconds=0.5)
 
 
 def directory_timestamp():
@@ -123,10 +121,6 @@ def segtrain(
     # use task creation time to determine if model was created just prior to training
     TaskGroup = apps.get_model("reporting", "TaskGroup")
     task_group = TaskGroup.objects.get(pk=task_group_pk)
-    task_model_timedelta = model.version_created_at - task_group.created_at
-    logger.info(
-        f"task_group created at {task_group.created_at}; delta with model: {task_model_timedelta}"
-    )
 
     # mark the model as being in training
     # would be nice if the script could handle, but that field is listed
@@ -198,10 +192,10 @@ def segtrain(
         # if training did not suceeed:
 
         # escriptorium task deletes the model if there is an error;
-        # we want to do that, but check if the model was created just prior
-        # to this task being kicked off so we don't delete a pre-existing
-        # model when overwrite was requested
-        if model.file is None or task_model_timedelta < HALF_SECOND:
+        # we want to do that, but check if the model was created after
+        # this task started so we don't delete a pre-existing model
+        # when overwrite was requested
+        if model.file is None or task_group.created_at < model.version_created_at:
             model.delete()
             return
 
@@ -253,13 +247,9 @@ def train(
     model = OcrModel.objects.get(pk=model_pk)
     transcription = Transcription.objects.get(pk=transcription_pk)
     document = transcription.document
-    # use task creation time to determine if model was created just prior to training
+    # use task creation time to determine if model record is new
     TaskGroup = apps.get_model("reporting", "TaskGroup")
     task_group = TaskGroup.objects.get(pk=task_group_pk)
-    task_model_timedelta = model.version_created_at - task_group.created_at
-    logger.info(
-        f"task_group created at {task_group.created_at}; delta with model: {task_model_timedelta}"
-    )
 
     site = Site.objects.get(pk=settings.SITE_ID)
     site_url = site.domain
@@ -300,10 +290,10 @@ def train(
 
     if not success:
         # escriptorium task deletes the model if there is an error;
-        # we want to do that, but check if the model was created just prior
-        # to this task being kicked off so we don't delete a pre-existing
-        # model when overwrite was requested
-        if model.file is None or task_model_timedelta < HALF_SECOND:
+        # we want to do that, but check if the model was created after
+        # this task started so we don't delete a pre-existing model
+        # when overwrite was requested
+        if model.file is None or task_group.created_at < model.version_created_at:
             model.delete()
             return
 

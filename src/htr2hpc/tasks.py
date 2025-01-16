@@ -289,17 +289,18 @@ def train(
 
     success = start_remote_training(user, working_dir, cmd, document.pk, model.pk)
 
+    # get a fresh copy of the model from the database,
+    # since if htr2hpc-train script succeeded it should have been updated via api
+    model = OcrModel.objects.get(pk=model_pk)
+
     if not success:
         # escriptorium task deletes the model if there is an error;
         # we want to do that, but check if the model was created just prior
         # to this task being kicked off so we don't delete
         # when model overwrite was requested
-        # model.delete()
-        # if not deleting, mark model as no longer being trained
-        model.training = False
-        model.save()
-
-        return
+        if model.file is None:  # or if model age is below some time delta threshold
+            model.delete()
+            return
 
     # when/if training completes:
     # - mark model as no longer being trained

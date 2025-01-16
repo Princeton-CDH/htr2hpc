@@ -125,6 +125,12 @@ def segtrain(
     model = OcrModel.objects.get(pk=model_pk)
     # how long before the task started was this model created?
     model_age = task_start_time - model.version_created_at
+    TaskGroup = apps.get_model("reporting", "TaskGroup")
+    task_group = TaskGroup.objects.get(pk=task_group_pk)
+    task_delta = task_group.created_at - model.version_created_at
+    logger.info(
+        f"task_group created at {task_group.created_at}; delta with model: {task_delta}"
+    )
     logger.info(
         f"model was created at {model.version_created_at}; task started at {task_start_time}; delta: {model_age}"
     )

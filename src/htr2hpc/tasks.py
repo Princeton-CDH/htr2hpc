@@ -1,12 +1,11 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from celery import shared_task
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
 from django.conf import settings
-from django.utils import timezone
 from django.utils.translation import gettext as _
 from intspan import intspan
 from fabric import Connection
@@ -20,6 +19,8 @@ logger = logging.getLogger(__name__)
 # override escriptorium training tasks to run on HPC
 
 User = get_user_model()
+
+HALF_SECOND = timedelta(seconds=0.5)
 
 
 def directory_timestamp():
@@ -101,10 +102,6 @@ def segtrain(
     # So we may need to revise the script with an option to update
     # the specified model.
 
-    # timestamp of task start time;
-    # must be time-zone aware for comparison with model creation time
-    task_start_time = timezone.now()
-
     # we require both of these; are they really optional?
     if not all([user_pk, document_pk]):
         # can't proceed without both of these
@@ -123,16 +120,12 @@ def segtrain(
     # get the requested model from the db
     OcrModel = apps.get_model("core", "OcrModel")
     model = OcrModel.objects.get(pk=model_pk)
-    # how long before the task started was this model created?
-    model_age = task_start_time - model.version_created_at
+    # use task creation time to determine if model was created just prior to training
     TaskGroup = apps.get_model("reporting", "TaskGroup")
     task_group = TaskGroup.objects.get(pk=task_group_pk)
-    task_delta = task_group.created_at - model.version_created_at
+    task_model_timedelta = model.version_created_at - task_group.created_at
     logger.info(
-        f"task_group created at {task_group.created_at}; delta with model: {task_delta}"
-    )
-    logger.info(
-        f"model was created at {model.version_created_at}; task started at {task_start_time}; delta: {model_age}"
+        f"task_group created at {task_group.created_at}; delta with model: {task_model_timedelta}"
     )
 
     # mark the model as being in training
@@ -206,10 +199,9 @@ def segtrain(
 
         # escriptorium task deletes the model if there is an error;
         # we want to do that, but check if the model was created just prior
-        # to this task being kicked off so we don't delete
-        # when model overwrite was requested
-
-        if model.file is None:  # or if model age is below some time delta threshold
+        # to this task being kicked off so we don't delete a pre-existing
+        # model when overwrite was requested
+        if model.file is None or task_model_timedelta < HALF_SECOND:
             model.delete()
             return
 
@@ -261,6 +253,13 @@ def train(
     model = OcrModel.objects.get(pk=model_pk)
     transcription = Transcription.objects.get(pk=transcription_pk)
     document = transcription.document
+    # use task creation time to determine if model was created just prior to training
+    TaskGroup = apps.get_model("reporting", "TaskGroup")
+    task_group = TaskGroup.objects.get(pk=task_group_pk)
+    task_model_timedelta = model.version_created_at - task_group.created_at
+    logger.info(
+        f"task_group created at {task_group.created_at}; delta with model: {task_model_timedelta}"
+    )
 
     site = Site.objects.get(pk=settings.SITE_ID)
     site_url = site.domain
@@ -302,9 +301,9 @@ def train(
     if not success:
         # escriptorium task deletes the model if there is an error;
         # we want to do that, but check if the model was created just prior
-        # to this task being kicked off so we don't delete
-        # when model overwrite was requested
-        if model.file is None:  # or if model age is below some time delta threshold
+        # to this task being kicked off so we don't delete a pre-existing
+        # model when overwrite was requested
+        if model.file is None or task_model_timedelta < HALF_SECOND:
             model.delete()
             return
 

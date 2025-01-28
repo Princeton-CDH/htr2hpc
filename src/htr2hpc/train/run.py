@@ -39,6 +39,10 @@ api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
 es_model_jobs = {"segmentation": "Segment", "transcription": "Recognize"}
 
 
+class JobCancelled(Exception):
+    "Custom exception for when slurm job was cancelled"
+
+
 @dataclass
 class TrainingManager:
     base_url: str
@@ -163,6 +167,10 @@ class TrainingManager:
         )
         job_output = self.work_dir / f"train_{job_id}.out"
         print(f"Job output is in {job_output}")
+        # when cancelled via delete button on mydella web ui,
+        # statuses are COMPLETED,CANCELLED
+        if "CANCELLED" in job_status:
+            raise JobCancelled
 
     def segmentation_training(self):
         # get absolute versions of these paths _before_ changing working directory
@@ -374,6 +382,9 @@ def main():
         if error_messages:
             print(f"Error: {'; '.join(error_messages)}")
             sys.exit(1)
+    if not any([args.model_id, args.model_name]):
+        print(f"Error: one of --model or --model-name is required")
+        sys.exit(1)
 
     # make sure working directory does not already exist
     if args.work_dir.exists() and not args.existing_data:
@@ -428,8 +439,12 @@ def main():
             training_mgr.segmentation_training()
         if args.mode == "transcription":
             training_mgr.recognition_training()
-    except (NotFound, NotAllowed) as err:
+    except (NotFound, NotAllowed, JobCancelled) as err:
         print(f"Something went wrong: {err}")
+        sys.exit(1)
+    except JobCancelled as err:
+        print(f"Slurm job was cancelled")
+        sys.exit(1)
 
     # unless requested not to, clean up the working directory, which includes:
     # - downloaded training data & model to fine tune

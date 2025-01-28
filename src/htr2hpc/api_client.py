@@ -172,6 +172,13 @@ def to_namedtuple(name: str, data: Any):
         return data
 
 
+def get_model_accuracy(model_file: pathlib.Path):
+    """Get kraken model accuracy from metadata in the model file"""
+    m = coremltools.models.MLModel(str(model_file))
+    meta = json.loads(m.get_spec().description.metadata.userDefined["kraken_meta"])
+    return meta["accuracy"][-1][-1]
+
+
 class eScriptoriumAPIClient:
     def __init__(self, base_url: str, api_token: str):
         # ensure no trailing slash before combining with other urls
@@ -302,7 +309,7 @@ class eScriptoriumAPIClient:
                 # NOTE: this requires a customization to the eScriptorium api,
                 # which exposes the underlying training accuracy field
                 # as a read-write model attribute
-                "training_accuracy": self.get_model_accuracy(model_file),
+                "training_accuracy": get_model_accuracy(model_file),
             }
             resp = self._make_request(api_url, method="PUT", files=files, data=data)
         # on successful update, returns the model object
@@ -356,11 +363,6 @@ class eScriptoriumAPIClient:
             )
         # on successful update, returns the model object
         return to_namedtuple("model", resp.json())
-
-    def get_model_accuracy(self, model_file: pathlib.Path):
-        m = coremltools.models.MLModel(str(model_file))
-        meta = json.loads(m.get_spec().description.metadata.userDefined["kraken_meta"])
-        return meta["accuracy"][-1][-1]
 
     def document_list(self, page=None):
         """paginated list of documents"""

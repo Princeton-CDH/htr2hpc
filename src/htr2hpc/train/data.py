@@ -11,6 +11,7 @@ from tqdm import tqdm
 # from kraken.lib.arrow_dataset import build_binary_dataset
 from kraken.serialization import serialize
 
+from htr2hpc.api_client import get_model_accuracy
 
 logger = logging.getLogger(__name__)
 
@@ -235,9 +236,32 @@ def get_training_data(
         [serialize_segmentation(seg, part) for (seg, part) in segmentation_data]
 
 
-def get_best_model(model_dir: pathlib.Path) -> pathlib.Path | None:
+def get_best_model(
+    model_dir: pathlib.Path, original_model: pathlib.Path = None
+) -> pathlib.Path | None:
+    # kraken should normally identify the best model for us
     best = list(model_dir.glob("*_best.mlmodel"))
-    return best[0] if best else None
+    # if one was found, return it
+    if best:
+        return best[0]
+
+    # if not, try to find one based on accuracy metadata
+    best_accuracy = 0
+    # when original model is specified, initialize
+    # best accuracy value from that model
+    if original_model:
+        best = original_model
+        best_accuracy = get_model_accuracy(original_model)
+    for model in model_dir.glob("*.mlmodel"):
+        accuracy = get_model_accuracy(model)
+        # if accuracy is better than our current best, this model is new best
+        if accuracy > best_accuracy:
+            best = model
+            best_accuracy = accuracy
+
+    # if we found a model better than the original, return it
+    if best and best != original_model:
+        return best
 
 
 def upload_models(
@@ -268,13 +292,17 @@ def upload_models(
 
 
 def upload_best_model(
-    api, model_dir: pathlib.Path, model_type: str, model_id: int = None
+    api,
+    model_dir: pathlib.Path,
+    model_type: str,
+    model_id: int = None,
+    original_model: pathlib.Path = None,
 ) -> Optional[pathlib.Path]:
     """Upload the best model in the specified model directory to eScriptorium
     with the specified job type (Segment/Recognize).  If a model id is specified,
     updates that model; otherwise creates a new model. Returns :class:`pathlib.Path` object
     for best model if found and successfully uploaded; otherwise returns None."""
-    best_model = get_best_model(model_dir)
+    best_model = get_best_model(model_dir, original_model=original_model)
     if not best_model:
         return None
     # common parameters used for both create and update

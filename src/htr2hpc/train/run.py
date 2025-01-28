@@ -220,11 +220,15 @@ class TrainingManager:
             model_id = self.model_id
         else:
             model_id = None
+
+        abs_model_file = self.model_file.absolute() if self.model_file else None
+
         best_model = upload_best_model(
             self.api,
             self.output_modelfile.parent,
             self.training_mode,
             model_id=model_id,
+            original_model=abs_model_file,
         )
         if best_model:
             # TODO: revise message to include info about created/updated model id ##

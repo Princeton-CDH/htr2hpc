@@ -2,6 +2,13 @@
 
 from django.db import migrations, models
 
+# override escriptorium to allow email to be null,
+# to simplify CAS login and allow new accounts to be created with no empty
+# even if there is an existing account with an empty email in the system.
+
+# NOTE: this resolves the db constraint, but
+# it is still required to set null=True on the django model since django checks that also
+
 
 class OverrideAlterField(migrations.AlterField):
     # extend alterfield migration so we can override the app_label

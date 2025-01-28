@@ -43,7 +43,7 @@ def start_remote_training(
     )
 
     # add training command to task report
-    task_report.append(f"remote training command:\n{train_cmd}\n")
+    task_report.append(f"remote training command:\n  {train_cmd}\n")
 
     # note: may need to use tmux to keep from disconnecting
     try:
@@ -75,7 +75,7 @@ def start_remote_training(
                 )
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
-                task_report.append(result.stdout)
+                task_report.append(f"remote script output:\n\n{result.stdout}")
                 if "Slurm job was cancelled" in result.stdout:
                     task_report.cancel("(slurm cancellation)")
                     # notify the user of the error

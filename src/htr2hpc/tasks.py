@@ -216,17 +216,41 @@ def segtrain(
     model = OcrModel.objects.get(pk=model_pk)
 
     if success:
-        # - notify the user that training completed sucessfully
-        user.notify(_("Training finished!"), id="training-success", level="success")
-        # send training complete event
-        send_event(
-            "document",
-            document_pk,
-            "training:done",
-            {
-                "id": model.pk,
-            },
-        )
+        # check for case where training completed but model did not improve.
+        # i.e., no new model was uploaded or cloned model is still parent file
+        if model.file is None or model.file == model.parent.file:
+            user.notify(
+                "Training completed but did not result in an improved model",
+                id="training-warning",
+                level="warning",
+            )
+            # assuming equivalent to did not converge in escriptorium code
+            send_event(
+                "document",
+                document_pk,
+                "training:error",
+                {
+                    "id": model.pk,
+                },
+            )
+
+            # delete the empty model unless it is a pre-existing one
+            # (i.e., overwrite was requested)
+            if task_group.created_at < model.version_created_at:
+                model.delete()
+
+        else:
+            # - notify the user that training completed sucessfully
+            user.notify(_("Training finished!"), id="training-success", level="success")
+            # send training complete event
+            send_event(
+                "document",
+                document_pk,
+                "training:done",
+                {
+                    "id": model.pk,
+                },
+            )
     else:
         # if training did not suceeed:
 
@@ -329,8 +353,46 @@ def train(
     # get a fresh copy of the model from the database,
     # since if htr2hpc-train script succeeded it should have been updated via api
     model = OcrModel.objects.get(pk=model_pk)
+    if success:
+        # NOTE: duplicated code from segtrain
 
-    if not success:
+        # check for case where training completed but model did not improve.
+        # i.e., no new model was uploaded or cloned model is still parent file
+        if model.file is None or model.file == model.parent.file:
+            user.notify(
+                "Training completed but did not result in an improved model",
+                id="training-warning",
+                level="warning",
+            )
+            # assuming equivalent to did not converge in escriptorium code
+            send_event(
+                "document",
+                document_pk,
+                "training:error",
+                {
+                    "id": model.pk,
+                },
+            )
+
+            # delete the empty model unless it is a pre-existing one
+            # (i.e., overwrite was requested)
+            if task_group.created_at < model.version_created_at:
+                model.delete()
+
+        else:
+            # otherwise, notify the user that training completed sucessfully
+            user.notify(_("Training finished!"), id="training-success", level="success")
+            # send training complete event
+            send_event(
+                "document",
+                document_pk,
+                "training:done",
+                {
+                    "id": model.pk,
+                },
+            )
+
+    else:
         # escriptorium task deletes the model if there is an error;
         # we want to do that, but check if the model was created after
         # this task started so we don't delete a pre-existing model
@@ -343,14 +405,3 @@ def train(
     # - mark model as no longer being trained
     model.training = False
     model.save()
-    # - notify the user that training completed
-    user.notify(_("Training finished!"), id="training-success", level="success")
-    # send training complete event
-    send_event(
-        "document",
-        document.pk,
-        "training:done",
-        {
-            "id": model.pk,
-        },
-    )

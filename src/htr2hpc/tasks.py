@@ -72,15 +72,12 @@ def start_remote_training(
                 logger.info(
                     f"remote training script completed; exit code: {result.exited}"
                 )
-                # normal exit code is zero
-                return result.exited == 0
-
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
                 task_report.append(result.stdout)
 
-                if "Slurm job was cancelled" in result.stdout:
-                    task_report.cancel("(slurm cancellation)")
+                # normal exit code is zero
+                return result.exited == 0
 
     except (AuthenticationException, UnexpectedExit) as err:
         if isinstance(err, AuthenticationException):
@@ -89,6 +86,13 @@ def start_remote_training(
         else:
             logger.error(f"Unexpected exit from remote connection: {err}")
             error_message = "Something went wrong running the training."
+            if "Slurm job was cancelled" in err.result.stdout:
+                task_report.cancel("(slurm cancellation)")
+                error_message = "Training was cancelled"
+            # unexpected exit should have the result as a property
+            if err.result:
+                # perhaps ideally the higher level message should be first...
+                task_report.append(result.stdout)
 
         # notify the user of the error
         user.notify(

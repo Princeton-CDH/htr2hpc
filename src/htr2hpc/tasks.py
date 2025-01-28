@@ -43,7 +43,7 @@ def start_remote_training(
     )
 
     # add training command to task report
-    task_report.append(f"remote training command:\n{train_cmd}")
+    task_report.append(f"remote training command:\n{train_cmd}\n")
 
     # note: may need to use tmux to keep from disconnecting
     try:
@@ -68,6 +68,7 @@ def start_remote_training(
                 result = conn.run(
                     f"module load anaconda3/2024.6 && conda run -n htr2hpc {train_cmd}",
                     env={"ESCRIPTORIUM_API_TOKEN": api_token},
+                    warn=True,  # don't throw unexpected error on exit != 0
                 )
                 logger.info(
                     f"remote training script completed; exit code: {result.exited}"
@@ -75,8 +76,17 @@ def start_remote_training(
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
                 task_report.append(result.stdout)
+                if "Slurm job was cancelled" in result.stdout:
+                    task_report.cancel("(slurm cancellation)")
+                    # notify the user of the error
+                    user.notify(
+                        "Training was cancelled via slurm",
+                        id="training-warning",
+                        level="warning",
+                    )
 
-                # normal exit code is zero
+                # normal exit code is zero;
+                # if non-zero then training didn't succeed in some way
                 return result.exited == 0
 
     except (AuthenticationException, UnexpectedExit) as err:
@@ -86,13 +96,6 @@ def start_remote_training(
         else:
             logger.error(f"Unexpected exit from remote connection: {err}")
             error_message = "Something went wrong running the training."
-            if "Slurm job was cancelled" in err.result.stdout:
-                task_report.cancel("(slurm cancellation)")
-                error_message = "Training was cancelled"
-            # unexpected exit should have the result as a property
-            if err.result:
-                # perhaps ideally the higher level message should be first...
-                task_report.append(result.stdout)
 
         # notify the user of the error
         user.notify(

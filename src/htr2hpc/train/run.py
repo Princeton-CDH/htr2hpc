@@ -54,6 +54,7 @@ class TrainingManager:
     num_workers: int
     parts: Optional[intspan] = None
     model_id: Optional[int] = None
+    task_report_id: Optional[int] = None
     update: bool = False
     transcription_id: Optional[int] = None
     existing_data: bool = False
@@ -167,9 +168,24 @@ class TrainingManager:
         )
         job_output = self.work_dir / f"train_{job_id}.out"
         print(f"Job output is in {job_output}")
+
+        if self.task_report_id is not None:
+            with open(job_output) as job_output_file:
+                slurm_output = job_output_file.read()
+
+            # get current task report so we can add to messages
+            task_report = self.api.task_details(self.task_report_id)
+            self.api.task_update(
+                self.task_report_id,
+                task_report.label,
+                task_report.user,
+                f"{task_report.messages}\n Contents of slurm output:\n{slurm_output}",
+            )
+
         # when cancelled via delete button on mydella web ui,
         # statuses are COMPLETED,CANCELLED
-        if "CANCELLED" in job_status:
+        # if time limit ran out, status will include TIMEOUT as well as CANCELLED
+        if "CANCELLED" in job_status and "TIMEOUT" not in job_status:
             raise JobCancelled
 
     def segmentation_training(self):
@@ -231,7 +247,7 @@ class TrainingManager:
 
         abs_model_file = self.model_file.absolute() if self.model_file else None
 
-        best_model = upload_best_model(
+        model = upload_best_model(
             self.api,
             self.output_modelfile.parent,
             self.training_mode,
@@ -242,7 +258,7 @@ class TrainingManager:
             # TODO: revise message to include info about created/updated model id ##
             print(f"Uploaded {best_model} to eScriptorum")
         else:
-            # possibly best model found but uploade failed?
+            # possibly best model found but upload failed?
             print("No best model found")
 
     def upload_all_models(self):
@@ -330,6 +346,14 @@ def main():
         help="Optional list of part ids for training. Format as #,#,#  or #-##."
         + "(if not specified, uses entire document)",
         type=intspan,
+    )
+    parser.add_argument(
+        "-tr",
+        "--task-report",
+        help="Optional task report id, for reporting sbatch and slurm output",
+        type=int,
+        dest="task_report_id",
+        required=False,
     )
     parser.add_argument(
         "--existing-data",

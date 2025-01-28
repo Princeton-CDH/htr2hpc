@@ -575,3 +575,16 @@ class eScriptoriumAPIClient:
         api_url = f"tasks/{task_id}/"
         resp = self._make_request(api_url)
         return to_namedtuple("task", resp.json())
+
+    def task_update(self, task_id: int, label: str, user_id: int, messages: str = None):
+        """Update an existing task report."""
+        api_url = f"tasks/{task_id}/"
+
+        # label and user are the only required fields
+        data = {"label": label, "user": user_id}
+        # currently we only support updating messages
+        if messages:
+            data["messages"] = messages
+        resp = self._make_request(api_url, method="PUT", data=data)
+        # on successful update, returns the model object
+        return to_namedtuple("task", resp.json())

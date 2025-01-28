@@ -439,7 +439,7 @@ def main():
             training_mgr.segmentation_training()
         if args.mode == "transcription":
             training_mgr.recognition_training()
-    except (NotFound, NotAllowed, JobCancelled) as err:
+    except (NotFound, NotAllowed) as err:
         print(f"Something went wrong: {err}")
         sys.exit(1)
     except JobCancelled as err:

@@ -107,6 +107,23 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
             level="danger",
         )
         return False
+    except Exception as err:
+        logger.error(f"Error: {err} ({err.__class__}")
+        # send training error event
+        send_event(
+            "document",
+            document_pk,
+            "training:error",
+            {
+                "id": model_pk,
+            },
+        )
+        user.notify(
+            _("Something went wrong running the training."),
+            id="training-error",
+            level="danger",
+        )
+        return False
 
 
 @shared_task(default_retry_delay=60 * 60)

@@ -28,7 +28,9 @@ def directory_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
 
 
-def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
+def start_remote_training(
+    user, working_dir, train_cmd, document_pk, model_pk, task_report
+):
     # common logic for segtrain and train to kick off remote training script
 
     # assume we're using LDAP accounts only so usernames match here and on hpc
@@ -40,15 +42,6 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
         f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}"
     )
 
-    user.notify(
-        "Starting remote training; slurm portion can be monitored on mydella",
-        links=[
-            {
-                "text": "Della Active Jobs",
-                "src": "https://mydella.princeton.edu/pun/sys/dashboard/activejobs",
-            }
-        ],
-    )
     # note: may need to use tmux to keep from disconnecting
     try:
         with Connection(
@@ -57,6 +50,17 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
             connect_timeout=10,
             connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
         ) as conn:
+            # only notify once we successfully connect
+            user.notify(
+                "Starting remote training; slurm portion can be monitored on mydella",
+                links=[
+                    {
+                        "text": "Della Active Jobs",
+                        "src": "https://mydella.princeton.edu/pun/sys/dashboard/activejobs",
+                    }
+                ],
+            )
+
             with conn.cd(working_dir):
                 result = conn.run(
                     f"module load anaconda3/2024.6 && conda run -n htr2hpc {train_cmd}",
@@ -70,28 +74,23 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
 
                 # script output is stored in
                 # result.stdout/result.stderr
-    except AuthenticationException as err:
-        logger.error(f"Authentication exception to remote connction: {err}")
-        # send training error event
-        send_event(
-            "document",
-            document_pk,
-            "training:error",
-            {
-                "id": model_pk,
-            },
-        )
-        user.notify(
-            _(
-                "Authentication failed; check that your account is set up properly on della"
-            ),
-            id="training-error",
-            level="danger",
-        )
-        return False
+    except (AuthenticationException, UnexpectedExit) as err:
+        if isinstance(err, AuthenticationException):
+            logger.error(f"Authentication exception to remote connection: {err}")
+            error_message = "Authentication failed; check that your account is set up properly on della"
+        else:
+            logger.error(f"Unexpected exit from remote connection: {err}")
+            error_message = "Something went wrong running the training."
 
-    except UnexpectedExit as err:
-        logger.error(f"Unexpected exit from remote connection: {err}")
+        # notify the user of the error
+        user.notify(
+            error_message,
+            id="training-error",
+            level="danger",
+        )
+        # also store in the task report
+        task_report.error(error_message)
+
         # send training error event
         send_event(
             "document",
@@ -101,28 +100,7 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
                 "id": model_pk,
             },
         )
-        user.notify(
-            _("Something went wrong running the training."),
-            id="training-error",
-            level="danger",
-        )
-        return False
-    except Exception as err:
-        logger.error(f"Error: {err} ({err.__class__}")
-        # send training error event
-        send_event(
-            "document",
-            document_pk,
-            "training:error",
-            {
-                "id": model_pk,
-            },
-        )
-        user.notify(
-            _("Something went wrong running the training."),
-            id="training-error",
-            level="danger",
-        )
+
         return False
 
 
@@ -164,6 +142,7 @@ def segtrain(
     # use task creation time to determine if model was created just prior to training
     TaskGroup = apps.get_model("reporting", "TaskGroup")
     task_group = TaskGroup.objects.get(pk=task_group_pk)
+    task_report = task_group.taskreport_set.first()
 
     # mark the model as being in training
     # would be nice if the script could handle, but that field is listed
@@ -213,7 +192,9 @@ def segtrain(
     # log the command to be run
     logger.info(f"remote training command: {cmd}")
 
-    success = start_remote_training(user, working_dir, cmd, document_pk, model.pk)
+    success = start_remote_training(
+        user, working_dir, cmd, document_pk, model.pk, task_report
+    )
 
     # get a fresh copy of the model from the database,
     # since if htr2hpc-train script succeeded it should have been updated via api
@@ -293,6 +274,7 @@ def train(
     # use task creation time to determine if model record is new
     TaskGroup = apps.get_model("reporting", "TaskGroup")
     task_group = TaskGroup.objects.get(pk=task_group_pk)
+    task_report = task_group.taskreport_set.first()
 
     site = Site.objects.get(pk=settings.SITE_ID)
     site_url = site.domain
@@ -325,7 +307,9 @@ def train(
     # log the command to be run
     logger.info(f"remote training command: {cmd}")
 
-    success = start_remote_training(user, working_dir, cmd, document.pk, model.pk)
+    success = start_remote_training(
+        user, working_dir, cmd, document.pk, model.pk, task_report
+    )
 
     # get a fresh copy of the model from the database,
     # since if htr2hpc-train script succeeded it should have been updated via api

@@ -72,8 +72,10 @@ def start_remote_training(
                 # normal exit code is zero
                 return result.exited == 0
 
-                # script output is stored in
-                # result.stdout/result.stderr
+                # script output is stored in result.stdout/result.stderr
+                # add output to task report
+                task_report.append(result.stdout)
+
     except (AuthenticationException, UnexpectedExit) as err:
         if isinstance(err, AuthenticationException):
             logger.error(f"Authentication exception to remote connection: {err}")

@@ -53,6 +53,7 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
         with Connection(
             host=settings.HPC_HOSTNAME,
             user=username,
+            connect_timeout=10,
             connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
         ) as conn:
             with conn.cd(working_dir):
@@ -60,7 +61,14 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
                     f"module load anaconda3/2024.6 && conda run -n htr2hpc {train_cmd}",
                     env={"ESCRIPTORIUM_API_TOKEN": api_token},
                 )
-                print(result)
+                logger.info(
+                    f"remote training script completed; exit code: {result.exited}"
+                )
+                # normal exit code is zero
+                return result.exited == 0
+
+                # script output is stored in
+                # result.stdout/result.stderr
     except UnexpectedExit as err:
         logger.error(f"Unexpected exit from remote connection: {err}")
         # send training error event
@@ -78,9 +86,6 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
             level="danger",
         )
         return False
-
-    logger.info(f"remote training succeeded")
-    return True
 
 
 @shared_task(default_retry_delay=60 * 60)

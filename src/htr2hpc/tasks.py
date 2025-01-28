@@ -10,6 +10,7 @@ from django.utils.translation import gettext as _
 from intspan import intspan
 from fabric import Connection
 from invoke.exceptions import UnexpectedExit
+from paramiko.ssh_exception import AuthenticationException
 
 # imports from escriptorium
 from apps.users.consumers import send_event
@@ -69,6 +70,26 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk):
 
                 # script output is stored in
                 # result.stdout/result.stderr
+    except AuthenticationException as err:
+        logger.error(f"Authentication exception to remote connction: {err}")
+        # send training error event
+        send_event(
+            "document",
+            document_pk,
+            "training:error",
+            {
+                "id": model_pk,
+            },
+        )
+        user.notify(
+            _(
+                "Authentication failed; check that your account is set up properly on della"
+            ),
+            id="training-error",
+            level="danger",
+        )
+        return False
+
     except UnexpectedExit as err:
         logger.error(f"Unexpected exit from remote connection: {err}")
         # send training error event

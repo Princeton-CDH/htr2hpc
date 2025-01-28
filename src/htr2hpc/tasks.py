@@ -42,6 +42,9 @@ def start_remote_training(
         f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}"
     )
 
+    # add training command to task report
+    task_report.append(f"remote training command:\n{train_cmd}")
+
     # note: may need to use tmux to keep from disconnecting
     try:
         with Connection(
@@ -75,6 +78,9 @@ def start_remote_training(
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
                 task_report.append(result.stdout)
+
+                if "Slurm job was cancelled" in result.stdout:
+                    task_report.cancel("(slurm cancellation)")
 
     except (AuthenticationException, UnexpectedExit) as err:
         if isinstance(err, AuthenticationException):

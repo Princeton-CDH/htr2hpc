@@ -189,6 +189,7 @@ def segtrain(
     arg_options = [
         f"--document {document_pk}",  # document id is always required
         "--no-progress",  # disable progressbar
+        f"--task-report {task_report.pk}",  # task reporting
     ]
 
     # part ids are optional
@@ -330,6 +331,7 @@ def train(
         # parse and serialize part ids with intspan
         f"--parts {intspan(part_pks)}",
         "--no-progress",  # disable progressbar
+        f"--task-report {task_report.pk}",  # task reporting
     ]
 
     # model is technically optional for this task but it should

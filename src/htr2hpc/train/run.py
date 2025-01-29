@@ -179,7 +179,7 @@ class TrainingManager:
                 self.task_report_id,
                 task_report.label,
                 task_report.user,
-                f"{task_report.messages}\n Contents of slurm output:\n{slurm_output}",
+                f"{task_report.messages}\n Slurm job output:\n{slurm_output}",
             )
 
         # when cancelled via delete button on mydella web ui,

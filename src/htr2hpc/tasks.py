@@ -73,6 +73,9 @@ def start_remote_training(
                 logger.info(
                     f"remote training script completed; exit code: {result.exited}"
                 )
+                # refresh task report to get any messages added via api
+                task_report.refresh_from_db()
+
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
                 task_report.append(f"remote script output:\n\n{result.stdout}")
@@ -104,6 +107,8 @@ def start_remote_training(
             level="danger",
         )
         # also store in the task report
+        # but first refresh task report to get any messages added via api
+        task_report.refresh_from_db()
         task_report.error(error_message)
 
         # send training error event
@@ -212,9 +217,9 @@ def segtrain(
         user, working_dir, cmd, document_pk, model.pk, task_report
     )
 
-    # get a fresh copy of the model from the database,
+    # refresh model data from the database,
     # since if htr2hpc-train script succeeded it should have been updated via api
-    model = OcrModel.objects.get(pk=model_pk)
+    model.refresh_from_db()
 
     if success:
         # check for case where training completed but model did not improve.
@@ -352,9 +357,9 @@ def train(
         user, working_dir, cmd, document.pk, model.pk, task_report
     )
 
-    # get a fresh copy of the model from the database,
+    # refresh model data from the database,
     # since if htr2hpc-train script succeeded it should have been updated via api
-    model = OcrModel.objects.get(pk=model_pk)
+    model.refresh_from_db()
     if success:
         # NOTE: duplicated code from segtrain
 

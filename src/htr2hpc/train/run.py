@@ -204,9 +204,10 @@ class TrainingManager:
             abs_output_modelfile,
             self.num_workers,
         )
-        self.monitor_slurm_job(job_id)
         # change back to original working directory
         os.chdir(self.orig_working_dir)
+        self.monitor_slurm_job(job_id)
+
         if self.update:
             self.upload_best()
         else:
@@ -231,9 +232,9 @@ class TrainingManager:
             abs_model_file,
             self.num_workers,
         )
-        self.monitor_slurm_job(job_id)
         # change back to original working directory
         os.chdir(self.orig_working_dir)
+        self.monitor_slurm_job(job_id)
         self.upload_best()
 
     def upload_best(self):

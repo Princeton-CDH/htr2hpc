@@ -247,7 +247,7 @@ class TrainingManager:
 
         abs_model_file = self.model_file.absolute() if self.model_file else None
 
-        model = upload_best_model(
+        best_model = upload_best_model(
             self.api,
             self.output_modelfile.parent,
             self.training_mode,

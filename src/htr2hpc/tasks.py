@@ -329,7 +329,7 @@ def train(
     # send event to indicate training is starting
     send_event(
         "document",
-        document_pk,
+        document.pk,
         "training:start",
         {
             "id": model_pk,
@@ -389,7 +389,7 @@ def train(
             # assuming equivalent to did not converge in escriptorium code
             send_event(
                 "document",
-                document_pk,
+                document.pk,
                 "training:error",
                 {
                     "id": model.pk,
@@ -407,7 +407,7 @@ def train(
             # send training complete event
             send_event(
                 "document",
-                document_pk,
+                document.pk,
                 "training:done",
                 {
                     "id": model.pk,

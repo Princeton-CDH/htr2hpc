@@ -321,6 +321,21 @@ def train(
     task_group = TaskGroup.objects.get(pk=task_group_pk)
     task_report = task_group.taskreport_set.first()
 
+    # mark the model as being in training
+    # would be nice if the script could handle, but that field is listed
+    # as read only in the api
+    model.training = True
+    model.save()
+    # send event to indicate training is starting
+    send_event(
+        "document",
+        document_pk,
+        "training:start",
+        {
+            "id": model_pk,
+        },
+    )
+
     site = Site.objects.get(pk=settings.SITE_ID)
     site_url = site.domain
     if not site_url.startswith("http"):

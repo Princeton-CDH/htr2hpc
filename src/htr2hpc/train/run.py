@@ -166,7 +166,10 @@ class TrainingManager:
         print(
             f"Job {job_id} is no longer queued; ending status: {','.join(job_status)}"
         )
-        job_output = self.work_dir / f"train_{job_id}.out"
+        if self.training_mode == "Segment":
+            job_output = self.work_dir / f"segtrain_{job_id}.out"
+        else:
+            job_output = self.work_dir / f"train_{job_id}.out"
         print(f"Job output is in {job_output}")
 
         if self.task_report_id is not None:
@@ -179,7 +182,7 @@ class TrainingManager:
                 self.task_report_id,
                 task_report.label,
                 task_report.user,
-                f"{task_report.messages}\n Slurm job output:\n{slurm_output}",
+                f"{task_report.messages}\n Slurm job output:\n{slurm_output}\n\n",
             )
 
         # when cancelled via delete button on mydella web ui,

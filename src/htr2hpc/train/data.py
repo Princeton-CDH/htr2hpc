@@ -287,6 +287,7 @@ def upload_models(
 
     # segtrain creates models based on modelname with _0, _1, _2 ... _49
     # sort numerically on the latter portion of the name
+    # NOTE: this older logic breaks with new -q early option that creates a _best model
     modelfiles = sorted(
         model_dir.glob("*.mlmodel"), key=lambda path: int(path.stem.split("_")[-1])
     )

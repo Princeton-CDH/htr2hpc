@@ -78,7 +78,9 @@ def start_remote_training(
 
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
-                task_report.append(f"remote script output:\n\n{result.stdout}")
+                task_report.append(
+                    f"remote script output:\n\n{result.stdout}\n\n{result.stderr}\n\n"
+                )
                 if "Slurm job was cancelled" in result.stdout:
                     task_report.cancel("(slurm cancellation)")
                     # notify the user of the error

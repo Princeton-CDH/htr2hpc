@@ -435,8 +435,8 @@ def main():
         args.work_dir.mkdir()
 
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
-    logger_upscope = logging.getLogger("htr2hpc")
-    # logger_upscope.setLevel(logging.DEBUG)
+    logger_local = logging.getLogger("htr2hpc")
+    logger_local.setLevel(logging.INFO)
     # output kraken logging details to confirm binary data looks ok
     logger_kraken = logging.getLogger("kraken")
     # logger_kraken.setLevel(logging.INFO)

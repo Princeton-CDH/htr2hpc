@@ -112,9 +112,8 @@ def get_segmentation_data(
         for line in part.lines
     ]
 
-    logger.info(f"Document {document_id} part {part_id}: {len(baselines)} baselines")
-
-    logger.info(
+    logger.debug(f"Document {document_id} part {part_id}: {len(baselines)} baselines")
+    logger.debug(
         f"Document {document_id} part {part_id}:  {len(part.regions)} regions, {len(regions.keys())} block types"
     )
 

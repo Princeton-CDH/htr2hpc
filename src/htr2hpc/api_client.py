@@ -551,7 +551,7 @@ class eScriptoriumAPIClient:
 
             outfile = save_location / filename
             # report on filename and size based on content-length header
-            logger.info(
+            logger.debug(
                 f"Saving as {filename} ({humanize.naturalsize(content_length)})"
             )
             with outfile.open("wb") as filehandle:

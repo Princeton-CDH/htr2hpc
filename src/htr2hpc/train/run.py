@@ -469,10 +469,8 @@ def main():
             training_mgr.recognition_training()
     except (NotFound, NotAllowed) as err:
         print(f"Something went wrong: {err}")
-        sys.exit(1)
     except JobCancelled as err:
         print(f"Slurm job was cancelled")
-        sys.exit(1)
 
     # unless requested not to, clean up the working directory, which includes:
     # - downloaded training data & model to fine tune

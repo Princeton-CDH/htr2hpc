@@ -11,6 +11,7 @@ from tqdm import tqdm
 # from kraken.lib.arrow_dataset import build_binary_dataset
 from kraken.serialization import serialize
 
+from htr2hpc.api_client import get_model_accuracy
 
 logger = logging.getLogger(__name__)
 
@@ -170,16 +171,21 @@ def compile_data(segmentations, output_dir):
     return output_file
 
 
-def get_model(api, model_id, training_type, output_dir):
+def get_model_file(api, model_id, training_type, output_dir):
     """Download a model file from the eScriptorium and save it to the specified
     directory. Raises a ValueError if the model is not the specified
     training type. Returns a :class:`pathlib.Path` to the downloaded file."""
-
     model_info = api.model_details(model_id)
     if model_info.job != training_type:
         raise ValueError(
             f"Model {model_id} is a {model_info.job} model, but {training_type} requested"
         )
+    if model_info.file is None:
+        # when eScriptorium creates a new model record, it has no file
+        # and the file url is null
+        # return None for no file
+        return None
+
     return api.download_file(model_info.file, output_dir)
 
 
@@ -230,9 +236,40 @@ def get_training_data(
         [serialize_segmentation(seg, part) for (seg, part) in segmentation_data]
 
 
-def get_best_model(model_dir: pathlib.Path) -> pathlib.Path | None:
+def get_best_model(
+    model_dir: pathlib.Path, original_model: pathlib.Path = None
+) -> pathlib.Path | None:
+    # kraken should normally identify the best model for us
     best = list(model_dir.glob("*_best.mlmodel"))
-    return best[0] if best else None
+    # if one was found, return it
+    if best:
+        print(f"Using kraken identified best model {best[0].name}")
+        return best[0]
+
+    # if not, try to find one based on accuracy metadata
+    best_accuracy = 0
+    # when original model is specified, initialize
+    # best accuracy value from that model
+    print(f"Looking for best model by accuracy")
+    if original_model:
+        best = original_model
+        best_accuracy = get_model_accuracy(original_model)
+        print(
+            f"Must be better than original model {original_model.name} accuracy {best_accuracy:0.3f}"
+        )
+    for model in model_dir.glob("*.mlmodel"):
+        accuracy = get_model_accuracy(model)
+        print(f"model: {model.name} accuracy: {accuracy:0.3f}")
+        # if accuracy is better than our current best, this model is new best
+        if accuracy > best_accuracy:
+            best = model
+            best_accuracy = accuracy
+
+    # if we found a model better than the original, return it
+    if best and best != original_model:
+        return best
+    if best == original_model:
+        print("Training did not improve on original model")
 
 
 def upload_models(
@@ -263,25 +300,34 @@ def upload_models(
 
 
 def upload_best_model(
-    api, model_dir: pathlib.Path, model_type: str
+    api,
+    model_dir: pathlib.Path,
+    model_type: str,
+    model_id: int = None,
+    original_model: pathlib.Path = None,
 ) -> Optional[pathlib.Path]:
     """Upload the best model in the specified model directory to eScriptorium
-    with the specified job type (Segment/Recognize). Returns pathlib.Path
+    with the specified job type (Segment/Recognize).  If a model id is specified,
+    updates that model; otherwise creates a new model. Returns :class:`pathlib.Path` object
     for best model if found and successfully uploaded; otherwise returns None."""
-    best_model = get_best_model(model_dir)
-    if best_model:
-        created = api.model_create(
-            best_model,
-            job=model_type,
+    best_model = get_best_model(model_dir, original_model=original_model)
+    if not best_model:
+        return None
+    # common parameters used for both create and update
+    params = {
+        "model_file": best_model,
+        "job": model_type,
+    }
+    # if model id is specified, update existing model
+    if model_id:
+        model = api.model_update(model_id, **params)
+    else:
+        model = api.model_create(
             # strip off _best from file for model name in eScriptorium
             model_name=best_model.stem.replace("_best", ""),
+            **params,
         )
-        if created:
-            return best_model
-        # TODO: return something different here if model create failed?
+    if model:
+        return best_model
 
-    return None
-
-
-# use api.update_model with model id and pathlib.Path to model file
-# to update existing model record with new file
+    # TODO: return something different here if api call failed?

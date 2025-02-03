@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Utility script to delete models from eScriptorim API, for easily
 cleaning up models created and uploaded for testing.
@@ -13,6 +14,7 @@ usage:
     python src/htr2hpc/train/rm_models.py https://test-htr.lib.princeton.edu/ model_prefix
 
 """
+
 
 import os
 import argparse
@@ -53,8 +55,8 @@ def main():
     api = eScriptoriumAPIClient(args.base_url, api_token=api_token)
     rm_models = []
     # handle one or more pages of results from model list
+    model_list = api.model_list()
     while True:
-        model_list = api.model_list()
         rm_models.extend(
             [m for m in model_list.results if m.name.startswith(args.model_name)]
         )
@@ -67,8 +69,8 @@ def main():
             break
 
     if rm_models:
-        print(f"Removing {len(rm_models)} models")
-        for model in tqdm(rm_models, desc="Removing models: "):
+        print(f"Found {len(rm_models)} models to be removed")
+        for model in tqdm(rm_models, desc="Removing: "):
             api.model_delete(model.pk)
     else:
         print("No matching models")

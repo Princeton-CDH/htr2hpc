@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from celery import shared_task
 from django.apps import apps
@@ -9,6 +10,7 @@ from django.utils.translation import gettext as _
 from intspan import intspan
 from fabric import Connection
 from invoke.exceptions import UnexpectedExit
+from paramiko.ssh_exception import AuthenticationException
 
 # imports from escriptorium
 from apps.users.consumers import send_event
@@ -20,6 +22,108 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+def directory_timestamp():
+    # use timestamps to ensure working directories for training data
+    # are unique; use human-readable date with time including microseconds
+    return datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
+
+
+def start_remote_training(
+    user, working_dir, train_cmd, document_pk, model_pk, task_report
+):
+    # common logic for segtrain and train to kick off remote training script
+
+    # assume we're using LDAP accounts only so usernames match here and on hpc
+    username = user.username
+    api_token = user.auth_token.key
+
+    # hostname and ssh key path set in django config
+    logger.debug(
+        f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}"
+    )
+
+    # add training command to task report
+    task_report.append(f"remote training command:\n  {train_cmd}\n")
+
+    # note: may need to use tmux to keep from disconnecting
+    try:
+        with Connection(
+            host=settings.HPC_HOSTNAME,
+            user=username,
+            connect_timeout=10,
+            connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
+        ) as conn:
+            # only notify once we successfully connect
+            user.notify(
+                "Starting remote training; slurm portion can be monitored on mydella",
+                links=[
+                    {
+                        "text": "Della Active Jobs",
+                        "src": "https://mydella.princeton.edu/pun/sys/dashboard/activejobs",
+                    }
+                ],
+            )
+
+            with conn.cd(working_dir):
+                result = conn.run(
+                    f"module load anaconda3/2024.6 && conda run -n htr2hpc {train_cmd}",
+                    env={"ESCRIPTORIUM_API_TOKEN": api_token},
+                    warn=True,  # don't throw unexpected error on exit != 0
+                )
+                logger.info(
+                    f"remote training script completed; exit code: {result.exited}"
+                )
+                # refresh task report to get any messages added via api
+                task_report.refresh_from_db()
+
+                # script output is stored in result.stdout/result.stderr
+                # add output to task report
+                task_report.append(f"remote script output:\n\n{result.stdout}")
+                if "Slurm job was cancelled" in result.stdout:
+                    task_report.cancel("(slurm cancellation)")
+                    # notify the user of the error
+                    user.notify(
+                        "Training was cancelled via slurm",
+                        id="training-warning",
+                        level="warning",
+                    )
+
+                # normal exit code is zero;
+                # if non-zero then training didn't succeed in some way
+                return result.exited == 0
+
+    except (AuthenticationException, UnexpectedExit) as err:
+        if isinstance(err, AuthenticationException):
+            logger.error(f"Authentication exception to remote connection: {err}")
+            error_message = "Authentication failed; check that your account is set up properly on della"
+        else:
+            logger.error(f"Unexpected exit from remote connection: {err}")
+            error_message = "Something went wrong running the training."
+
+        # notify the user of the error
+        user.notify(
+            error_message,
+            id="training-error",
+            level="danger",
+        )
+        # also store in the task report
+        # but first refresh task report to get any messages added via api
+        task_report.refresh_from_db()
+        task_report.error(error_message)
+
+        # send training error event
+        send_event(
+            "document",
+            document_pk,
+            "training:error",
+            {
+                "id": model_pk,
+            },
+        )
+
+        return False
+
+
 @shared_task(default_retry_delay=60 * 60)
 def segtrain(
     model_pk=None,
@@ -29,8 +133,6 @@ def segtrain(
     user_pk=None,
     **kwargs,
 ):
-    print("### running override segtrain task")
-
     # NOTE: when called from the web ui, the SegTrainForm includes
     # a field for model_name but that value is not passed to the celery task
     # HOWEVER: when a model name is specified, the form process method
@@ -57,6 +159,11 @@ def segtrain(
     # get the requested model from the db
     OcrModel = apps.get_model("core", "OcrModel")
     model = OcrModel.objects.get(pk=model_pk)
+    # use task creation time to determine if model was created just prior to training
+    TaskGroup = apps.get_model("reporting", "TaskGroup")
+    task_group = TaskGroup.objects.get(pk=task_group_pk)
+    task_report = task_group.taskreport_set.first()
+
     # mark the model as being in training
     # would be nice if the script could handle, but that field is listed
     # as read only in the api
@@ -72,15 +179,11 @@ def segtrain(
         },
     )
 
-    # assume we're using LDAP accounts only so usernames match here and on hpc
-    username = user.username
-    api_token = user.auth_token.key
-
     # create a name for an output directory based on mode and document id
-    working_dir = f"/scratch/gpfs/{username}/htr2hpc"
-    # TODO: should we add a timestamp to ensure uniqueness?
+    working_dir = f"/scratch/gpfs/{user.username}/htr2hpc"
+    # includes a timestamp to ensure uniqueness, since
     # script will fail if there is an existing directory
-    outdir = f"segtrain_doc{document_pk}"
+    outdir = f"segtrain_doc{document_pk}_{directory_timestamp()}"
 
     # generate the command to run
     site = Site.objects.get(pk=settings.SITE_ID)
@@ -90,86 +193,84 @@ def segtrain(
 
     arg_options = [
         f"--document {document_pk}",  # document id is always required
-        f"--model-name {model.name}",
         "--no-progress",  # disable progressbar
+        f"--task-report {task_report.pk}",  # task reporting
     ]
 
-    # part and model are optional
+    # part ids are optional
     if part_pks:
         # parse and serialize with intspan since that's what we use on the other side
         arg_options.append(f"--parts {intspan(part_pks)}")
+    # model is technically optional for this task but it should
+    # always be passed in by escriptorium calling code
     if model_pk:
-        arg_options.append(f"--model {model_pk}")
+        # eScriptorium behavior is to create a new model that will be
+        # updated after training, so if we have a model we always want --update
+        arg_options.append(f"--model {model_pk} --update")
     opts = " ".join(arg_options)
 
     cmd = f"htr2hpc-train segmentation {site_url} {outdir} {opts}"
-    # for now just output the command
-    logger.info(cmd)
+    # log the command to be run
+    logger.info(f"remote training command: {cmd}")
 
-    # hostname and ssh key path set in django config
-    logger.debug(
-        f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}"
+    success = start_remote_training(
+        user, working_dir, cmd, document_pk, model.pk, task_report
     )
 
-    user.notify(
-        "Starting remote training; slurm portion can be monitored on mydella",
-        links=[{'text': 'Della Active Jobs', 'src': "https://mydella.princeton.edu/pun/sys/dashboard/activejobs"}],
-    )
-    # note: may need to use tmux to keep from disconnecting
-    try:
-        with Connection(
-            host=settings.HPC_HOSTNAME,
-            user=username,
-            connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
-        ) as conn:
-            with conn.cd(working_dir):
-                result = conn.run(
-                    f"module load anaconda3/2024.6 && conda run -n htr2hpc {cmd}",
-                    env={"ESCRIPTORIUM_API_TOKEN": api_token},
-                )
-                print(result)
-        # TODO: maybe script can write job id to a  dot file in the output dir
-        # so the celery task can check the status?
-        # or do we even need that level of detail (pending/running/complete)
-    except UnexpectedExit as err:
-        print(err)
-        # send training error event
-        send_event(
-            "document",
-            document_pk,
-            "training:error",
-            {
-                "id": model.pk,
-            },
-        )
-        user.notify(
-            _("Something went wrong running the training."),
-            id="training-error",
-            level="danger",
-        )
-        # escriptorium task deletes the model if there is an error
-        # is it always safe to do that?
-        # model.delete()
-        return
+    # refresh model data from the database,
+    # since if htr2hpc-train script succeeded it should have been updated via api
+    model.refresh_from_db()
 
-    # could the celery task exit? or does it need to monitor the
-    # remote script?
+    if success:
+        # check for case where training completed but model did not improve.
+        # i.e., no new model was uploaded or cloned model is still parent file
+        if model.file is None or model.file == model.parent.file:
+            user.notify(
+                "Training completed but did not result in an improved model",
+                id="training-warning",
+                level="warning",
+            )
+            # assuming equivalent to did not converge in escriptorium code
+            send_event(
+                "document",
+                document_pk,
+                "training:error",
+                {
+                    "id": model.pk,
+                },
+            )
 
-    # when/if training completes:
-    # - mark model as no longer being trained
+            # delete the empty model unless it is a pre-existing one
+            # (i.e., overwrite was requested)
+            if task_group.created_at < model.version_created_at:
+                model.delete()
+
+        else:
+            # - notify the user that training completed sucessfully
+            user.notify(_("Training finished!"), id="training-success", level="success")
+            # send training complete event
+            send_event(
+                "document",
+                document_pk,
+                "training:done",
+                {
+                    "id": model.pk,
+                },
+            )
+    else:
+        # if training did not suceeed:
+
+        # escriptorium task deletes the model if there is an error;
+        # we want to do that, but check if the model was created after
+        # this task started so we don't delete a pre-existing model
+        # when overwrite was requested
+        if model.file is None or task_group.created_at < model.version_created_at:
+            model.delete()
+            return
+
+    # mark model as no longer being trained
     model.training = False
     model.save()
-    # - notify the user that training completed
-    user.notify(_("Training finished!"), id="training-success", level="success")
-    # send training complete event
-    send_event(
-        "document",
-        document_pk,
-        "training:done",
-        {
-            "id": model.pk,
-        },
-    )
 
 
 # todo: maybe make the fab command a method that can be run for testing
@@ -194,15 +295,46 @@ def train(
         )
         return
 
+    try:
+        user = User.objects.get(pk=user_pk)
+    except User.DoesNotExist:
+        # error / bail out
+        logger.error(f"train called with invalid user_pk {user_pk}")
+        return
+
     # create a name for an output directory based on mode and document id
-    # TODO: make this relative to scratch & username?
-    outdir = f"train_transcription{transcription_pk}"
+    working_dir = f"/scratch/gpfs/{user.username}/htr2hpc"
+    # create a name for an output directory based on mode and transcripiton id
+    # include a timestamp to ensure uniqueness, since
+    # script will fail if there is an existing directory
+    outdir = f"train_transcription{transcription_pk}_{directory_timestamp()}"
 
     # get document from transcription
     Transcription = apps.get_model("core", "Transcription")
-    # OcrModel = apps.get_model("core", "OcrModel")
+    # get the requested model from the db
+    OcrModel = apps.get_model("core", "OcrModel")
+    model = OcrModel.objects.get(pk=model_pk)
     transcription = Transcription.objects.get(pk=transcription_pk)
     document = transcription.document
+    # use task creation time to determine if model record is new
+    TaskGroup = apps.get_model("reporting", "TaskGroup")
+    task_group = TaskGroup.objects.get(pk=task_group_pk)
+    task_report = task_group.taskreport_set.first()
+
+    # mark the model as being in training
+    # would be nice if the script could handle, but that field is listed
+    # as read only in the api
+    model.training = True
+    model.save()
+    # send event to indicate training is starting
+    send_event(
+        "document",
+        document.pk,
+        "training:start",
+        {
+            "id": model_pk,
+        },
+    )
 
     site = Site.objects.get(pk=settings.SITE_ID)
     site_url = site.domain
@@ -215,16 +347,83 @@ def train(
         site_url,
         str(outdir),
         f"--document {document.pk}",  # document id is always required
-        f"--model-name train_transcription{transcription_pk}",  # TODO: get from model
+        # model name should not be used with model id; model id should always be present
         # parse and serialize part ids with intspan
         f"--parts {intspan(part_pks)}",
+        "--no-progress",  # disable progressbar
+        f"--task-report {task_report.pk}",  # task reporting
     ]
 
+    # model is technically optional for this task but it should
+    # always be passed in by escriptorium calling code
     if model_pk:
-        arg_options.append(f"--model {model_pk}")
+        # eScriptorium behavior is to create a new model that will be
+        # updated after training, so if we have a model we always want --update
+        arg_options.append(f"--model {model_pk} --update")
+
     opts = " ".join(arg_options)
 
     cmd = f"htr2hpc-train transcription {opts}"
 
-    # for now just output the command
-    logger.info(cmd)
+    # log the command to be run
+    logger.info(f"remote training command: {cmd}")
+
+    success = start_remote_training(
+        user, working_dir, cmd, document.pk, model.pk, task_report
+    )
+
+    # refresh model data from the database,
+    # since if htr2hpc-train script succeeded it should have been updated via api
+    model.refresh_from_db()
+    if success:
+        # NOTE: duplicated code from segtrain
+
+        # check for case where training completed but model did not improve.
+        # i.e., no new model was uploaded or cloned model is still parent file
+        if model.file is None or model.file == model.parent.file:
+            user.notify(
+                "Training completed but did not result in an improved model",
+                id="training-warning",
+                level="warning",
+            )
+            # assuming equivalent to did not converge in escriptorium code
+            send_event(
+                "document",
+                document.pk,
+                "training:error",
+                {
+                    "id": model.pk,
+                },
+            )
+
+            # delete the empty model unless it is a pre-existing one
+            # (i.e., overwrite was requested)
+            if task_group.created_at < model.version_created_at:
+                model.delete()
+
+        else:
+            # otherwise, notify the user that training completed sucessfully
+            user.notify(_("Training finished!"), id="training-success", level="success")
+            # send training complete event
+            send_event(
+                "document",
+                document.pk,
+                "training:done",
+                {
+                    "id": model.pk,
+                },
+            )
+
+    else:
+        # escriptorium task deletes the model if there is an error;
+        # we want to do that, but check if the model was created after
+        # this task started so we don't delete a pre-existing model
+        # when overwrite was requested
+        if model.file is None or task_group.created_at < model.version_created_at:
+            model.delete()
+            return
+
+    # when/if training completes:
+    # - mark model as no longer being trained
+    model.training = False
+    model.save()

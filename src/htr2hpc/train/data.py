@@ -238,6 +238,12 @@ def get_training_data(
 def get_best_model(
     model_dir: pathlib.Path, original_model: pathlib.Path = None
 ) -> pathlib.Path | None:
+    """Find the best model in the specified `model_dir` directory.
+    By default, looks for a file named `*_best.mlmodel`. If no best model
+    is found by filename, looks for best model based on accuracy score
+    in kraken metadata. When `original_model` is specified, accuracy
+    must be better than the original to be considered 'best'.
+    """
     # kraken should normally identify the best model for us
     best = list(model_dir.glob("*_best.mlmodel"))
     # if one was found, return it

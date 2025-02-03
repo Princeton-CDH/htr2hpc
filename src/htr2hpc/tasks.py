@@ -166,7 +166,11 @@ def segtrain(
 
     # if the model is older than the task group, then we infer that
     # overwrite was requested on the form (update an existing model)
-    model_overwrite = model.version_created_at > task_group.created_at
+    model_overwrite = model.version_created_at < task_group.created_at
+    if model_overwrite:
+        logger.debug(
+            f"Inferring model overwrite requested based on model/task creation dates (model:{model.version_created_at} task:{task_group.created_at})"
+        )
 
     # mark the model as being in training
     # would be nice if the script could handle, but that field is listed
@@ -333,7 +337,11 @@ def train(
 
     # if the model is older than the task group, then we infer that
     # overwrite was requested on the form (update an existing model)
-    model_overwrite = model.version_created_at > task_group.created_at
+    model_overwrite = model.version_created_at < task_group.created_at
+    if model_overwrite:
+        logger.debug(
+            f"Inferring model overwrite requested based on model/task creation dates (model:{model.version_created_at} task:{task_group.created_at})"
+        )
 
     # mark the model as being in training
     # would be nice if the script could handle, but that field is listed

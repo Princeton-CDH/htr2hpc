@@ -164,6 +164,10 @@ def segtrain(
     task_group = TaskGroup.objects.get(pk=task_group_pk)
     task_report = task_group.taskreport_set.first()
 
+    # if the model is older than the task group, then we infer that
+    # overwrite was requested on the form (update an existing model)
+    model_overwrite = model.version_created_at > task_group.created_at
+
     # mark the model as being in training
     # would be nice if the script could handle, but that field is listed
     # as read only in the api
@@ -204,9 +208,15 @@ def segtrain(
     # model is technically optional for this task but it should
     # always be passed in by escriptorium calling code
     if model_pk:
+        arg_options.append(f"--model {model_pk}")
         # eScriptorium behavior is to create a new model that will be
-        # updated after training, so if we have a model we always want --update
-        arg_options.append(f"--model {model_pk} --update")
+        # updated after training, so if we have a model we always want to update
+        # the model; but when overwriting an existing model, only update if improved
+        if model_overwrite:
+            arg_options.append("--update-if-improved")
+        else:
+            arg_options.append("--update")
+
     opts = " ".join(arg_options)
 
     cmd = f"htr2hpc-train segmentation {site_url} {outdir} {opts}"
@@ -242,9 +252,8 @@ def segtrain(
                 },
             )
 
-            # delete the empty model unless it is a pre-existing one
-            # (i.e., overwrite was requested)
-            if task_group.created_at < model.version_created_at:
+            # delete the original model unless overwrite was requested
+            if not model_overwrite:
                 model.delete()
 
         else:
@@ -263,10 +272,9 @@ def segtrain(
         # if training did not suceeed:
 
         # escriptorium task deletes the model if there is an error;
-        # we want to do that, but check if the model was created after
-        # this task started so we don't delete a pre-existing model
+        # we want to do that, but don't delete a pre-existing model
         # when overwrite was requested
-        if model.file is None or task_group.created_at < model.version_created_at:
+        if not model_overwrite:
             model.delete()
             return
 
@@ -323,6 +331,10 @@ def train(
     task_group = TaskGroup.objects.get(pk=task_group_pk)
     task_report = task_group.taskreport_set.first()
 
+    # if the model is older than the task group, then we infer that
+    # overwrite was requested on the form (update an existing model)
+    model_overwrite = model.version_created_at > task_group.created_at
+
     # mark the model as being in training
     # would be nice if the script could handle, but that field is listed
     # as read only in the api
@@ -359,9 +371,14 @@ def train(
     # model is technically optional for this task but it should
     # always be passed in by escriptorium calling code
     if model_pk:
+        arg_options.append(f"--model {model_pk}")
         # eScriptorium behavior is to create a new model that will be
-        # updated after training, so if we have a model we always want --update
-        arg_options.append(f"--model {model_pk} --update")
+        # updated after training, so if we have a model we always want to update
+        # the model; but when overwriting an existing model, only update if improved
+        if model_overwrite:
+            arg_options.append("--update-if-improved")
+        else:
+            arg_options.append("--update")
 
     opts = " ".join(arg_options)
 
@@ -400,9 +417,8 @@ def train(
                 },
             )
 
-            # delete the empty model unless it is a pre-existing one
-            # (i.e., overwrite was requested)
-            if task_group.created_at < model.version_created_at:
+            # delete the original model unless overwrite was requested
+            if not model_overwrite:
                 model.delete()
 
         else:
@@ -420,10 +436,8 @@ def train(
 
     else:
         # escriptorium task deletes the model if there is an error;
-        # we want to do that, but check if the model was created after
-        # this task started so we don't delete a pre-existing model
-        # when overwrite was requested
-        if model.file is None or task_group.created_at < model.version_created_at:
+        # we want to do that, unless overwrite of an existing model was requested
+        if not model_overwrite:
             model.delete()
             return
 

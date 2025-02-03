@@ -224,7 +224,9 @@ def segtrain(
     if success:
         # check for case where training completed but model did not improve.
         # i.e., no new model was uploaded or cloned model is still parent file
-        if model.file is None or model.file == model.parent.file:
+        if model.file is None or (
+            model.parent is not None and model.file == model.parent.file
+        ):
             user.notify(
                 "Training completed but did not result in an improved model",
                 id="training-warning",
@@ -380,7 +382,9 @@ def train(
 
         # check for case where training completed but model did not improve.
         # i.e., no new model was uploaded or cloned model is still parent file
-        if model.file is None or model.file == model.parent.file:
+        if model.file is None or (
+            model.parent is not None and model.file == model.parent.file
+        ):
             user.notify(
                 "Training completed but did not result in an improved model",
                 id="training-warning",

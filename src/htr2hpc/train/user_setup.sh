@@ -34,6 +34,8 @@ else
 	conda env create -f environment_cuda.yml -n $conda_env_name
 	conda activate $conda_env_name
 	pip install -q torchvision torch==2.1 torchaudio==2.1
+	# ensure we have the most recent of htr2hpc version installed
+	pip uninstall -q htr2hpc
 	pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
 	# go back to previous directory
 	cd - 

@@ -6,7 +6,7 @@
 # - create htr2hpc working directory in scratch
 
 echo "Setting up your account for htr2hpc ...."
-echo "This process may take at least five minutes. Please do not exit until the process completes."
+echo "This process may take five minutes or more on first run. Do not exit until the process completes."
 
 # ensure ssh directory exists
 if [ ! -d "$HOME/.ssh" ]; then
@@ -25,7 +25,7 @@ fi
 
 # create conda environment named htr2hpc
 conda_env_name=htr2hpc
-module load anaconda3/2024.2
+module load anaconda3/2024.6
 if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 	echo "htr2hpc conda env already exists"
 else

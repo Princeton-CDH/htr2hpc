@@ -455,3 +455,54 @@ def train(
     # - mark model as no longer being trained
     model.training = False
     model.save()
+
+
+@shared_task(default_retry_delay=60 * 60)
+def hpc_user_setup(user_pk=None):
+    try:
+        user = User.objects.get(pk=user_pk)
+    except User.DoesNotExist:
+        # error / bail out
+        logger.error(f"hpc_user_setup called with invalid user_pk {user_pk}")
+        return
+
+    # bash setup script is included with this package
+    user_setup_script = settings.HTR2HPC_INSTALL_DIR / "train" / "user_setup.sh"
+
+    try:
+        with Connection(
+            host=settings.HPC_HOSTNAME,
+            user=user.username,
+            connect_timeout=10,
+            connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
+        ) as conn:
+            # copy setup script to server
+            conn.put(user_setup_script)
+            # run the script with options; skip ssh setup (must already be setup
+            # for this task to run) and ensure htr2hpc install is up to date
+            result = conn.run(
+                f"./{user_setup_script.name}  --skip-ssh-setup --reinstall-htr2hpc"
+            )
+            # remove the setup script from the server
+            conn.run(f"rm ./{user_setup_script.name}")
+            if "Setup complete" in result.stdout:
+                user.notify(
+                    "Remote setup completed",
+                    id="htr2hpc-setup-success",
+                    level="success",
+                )
+    except AuthenticationException as err:
+        logger.error(f"Authentication exception to remote connection: {err}")
+        # notify the user of the error
+        user.notify(
+            "Authentication failed; check that your account on della is set up for remote access",
+            id="setup-error",
+            level="danger",
+        )
+    except UnexpectedExit as err:
+        logger.error(f"Error running remote setup script: {err}")
+        user.notify(
+            "Something went wrong running remote user setup",
+            id="setup-error",
+            level="danger",
+        )

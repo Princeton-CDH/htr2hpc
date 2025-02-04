@@ -1,0 +1,16 @@
+{% extends "users/profile.html" %}
+
+{% block body %}
+{{ block.super }}
+
+<div class="container pt-5">
+    <h2>HPC account setup</h2>
+    <p>Setup or update your account on the HPC server della.</p>
+
+        <form method="post" action="{% url 'hpc-setup' %}">
+            {% csrf_token %}
+            <input type="submit" value="HPC setup" class="btn btn-success">
+        </form>
+</div>
+
+{% endblock %}

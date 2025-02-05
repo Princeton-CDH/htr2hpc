@@ -244,37 +244,43 @@ def get_best_model(
     in kraken metadata. When `original_model` is specified, accuracy
     must be better than the original to be considered 'best'.
     """
-    # kraken should normally identify the best model for us
-    best = list(model_dir.glob("*_best.mlmodel"))
-    # if one was found, return it
-    if best:
-        print(f"Using kraken identified best model {best[0].name}")
-        return best[0]
-
-    # if not, try to find one based on accuracy metadata
     best_accuracy = 0
     # when original model is specified, initialize
     # best accuracy value from that model
-    print(f"Looking for best model by accuracy")
     if original_model:
-        best = original_model
         best_accuracy = get_model_accuracy(original_model)
         print(
             f"Must be better than original model {original_model.name} accuracy {best_accuracy:0.3f}"
         )
-    for model in model_dir.glob("*.mlmodel"):
-        accuracy = get_model_accuracy(model)
-        print(f"model: {model.name} accuracy: {accuracy:0.3f}")
-        # if accuracy is better than our current best, this model is new best
+    # kraken should normally identify the best model for us
+    best = list(model_dir.glob("*_best.mlmodel"))
+    # if one was found, return it
+    if best:
+        accuracy = get_model_accuracy(best[0])
         if accuracy > best_accuracy:
-            best = model
-            best_accuracy = accuracy
+            print(f"Using kraken identified best model {best[0].name}")
+            return best[0]
+        else:
+             print("Training did not improve on original model")
 
-    # if we found a model better than the original, return it
-    if best and best != original_model:
-        return best
-    if best == original_model:
-        print("Training did not improve on original model")
+    # if not, try to find one based on accuracy metadata
+    else:
+        if original_model:
+            best = original_model
+        print(f"Looking for best model by accuracy")
+        for model in model_dir.glob("*.mlmodel"):
+            accuracy = get_model_accuracy(model)
+            print(f"model: {model.name} accuracy: {accuracy:0.3f}")
+            # if accuracy is better than our current best, this model is new best
+            if accuracy > best_accuracy:
+                best = model
+                best_accuracy = accuracy
+
+        # if we found a model better than the original, return it
+        if best and best != original_model:
+            return best
+        if best == original_model:
+            print("Training did not improve on original model")
 
 
 def upload_models(

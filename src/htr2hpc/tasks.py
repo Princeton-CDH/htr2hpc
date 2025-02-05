@@ -468,7 +468,11 @@ def hpc_user_setup(user_pk=None):
 
     # bash setup script is included with this package
     user_setup_script = settings.HTR2HPC_INSTALL_DIR / "train" / "user_setup.sh"
-
+    user.notify(
+        "Running user setup script, on first run this may take a while...",
+        id="htr2hpc-setup",
+        level="info",
+    )
     try:
         with Connection(
             host=settings.HPC_HOSTNAME,

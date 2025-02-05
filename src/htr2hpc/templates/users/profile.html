@@ -5,7 +5,15 @@
 
 <div class="container pt-5">
     <h2>HPC account setup</h2>
-    <p>Setup or update your account on the HPC server della.</p>
+
+
+    <p>If you have not already done so, enable key-based ssh access to your account
+        from the eScriptorium server. (This is a one-time step.)</p>
+
+        <code>ssh {{ request.user.username }}@della.princeton.edu 'mkdir -p ~/.ssh &amp;&amp; echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzoR8jstrofzFKVoiXSFP5jGw/WbXHxFyIaS5b4vSWC test-htr.lib.princeton.edu" >> ~/.ssh/authorized_keys'</code>
+    </p>
+
+    <p>Run HPC setup for initial environment setup or to update your account on the HPC server.</p>
 
         <form method="post" action="{% url 'hpc-setup' %}">
             {% csrf_token %}

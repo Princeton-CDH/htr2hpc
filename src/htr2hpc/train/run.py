@@ -184,8 +184,12 @@ class TrainingManager:
         print(f"Job output is in {job_output}")
 
         if self.task_report_id is not None:
-            with open(job_output) as job_output_file:
-                slurm_output = job_output_file.read()
+            try:
+                with open(job_output) as job_output_file:
+                    slurm_output = job_output_file.read()
+            except FileNotFoundError:
+                print(f"File {job_output} not found.")
+                slurm_output = ""
 
             # get current task report so we can add to messages
             task_report = self.api.task_details(self.task_report_id)

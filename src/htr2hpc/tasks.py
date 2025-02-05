@@ -475,7 +475,7 @@ def hpc_user_setup(user_pk=None):
     user_setup_script = settings.HTR2HPC_INSTALL_DIR / "train" / "user_setup.sh"
     user.notify(
         "Running user setup script, on first run this may take a while...",
-        id="htr2hpc-setup",
+        id="htr2hpc-setup-start",
         level="info",
     )
     try:
@@ -492,8 +492,9 @@ def hpc_user_setup(user_pk=None):
             result = conn.run(
                 f"./{user_setup_script.name}  --skip-ssh-setup --reinstall-htr2hpc"
             )
-            # remove the setup script from the server
-            conn.run(f"rm ./{user_setup_script.name}")
+            # remove the setup script from the server; don't error if not there
+            # (if user clicks the button twice it may already be removed)
+            conn.run(f"rm -f ./{user_setup_script.name}")
             if "Setup complete" in result.stdout:
                 user.notify(
                     "Remote setup completed",

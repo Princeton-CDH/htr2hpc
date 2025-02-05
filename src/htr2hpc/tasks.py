@@ -466,6 +466,11 @@ def hpc_user_setup(user_pk=None):
         logger.error(f"hpc_user_setup called with invalid user_pk {user_pk}")
         return
 
+    # hostname and ssh key path set in django config
+    logger.debug(
+        f"Connecting to {settings.HPC_HOSTNAME} as {user.username} with keyfile {settings.HPC_SSH_KEYFILE}"
+    )
+
     # bash setup script is included with this package
     user_setup_script = settings.HTR2HPC_INSTALL_DIR / "train" / "user_setup.sh"
     user.notify(
@@ -496,7 +501,7 @@ def hpc_user_setup(user_pk=None):
                     level="success",
                 )
             # log script output for debugging
-            logger.debug(result.stdout)
+            logger.debug(f"user setup script output:\n{result.stdout}")
     except AuthenticationException as err:
         logger.error(f"Authentication exception to remote connection: {err}")
         # notify the user of the error

@@ -491,6 +491,8 @@ def hpc_user_setup(user_pk=None):
                     id="htr2hpc-setup-success",
                     level="success",
                 )
+            # log script output for debugging
+            logger.debug(result.stdout)
     except AuthenticationException as err:
         logger.error(f"Authentication exception to remote connection: {err}")
         # notify the user of the error

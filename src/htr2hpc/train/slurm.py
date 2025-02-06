@@ -24,7 +24,7 @@ def segtrain(
         cpus_per_task=num_workers,
         mem_per_cpu="4G",
         gres=["gpu:1"],
-        job_name="segtrain",
+        job_name=f"segtrain:{output_model.name}",
         output=f"segtrain_{Slurm.JOB_ARRAY_MASTER_ID}.out",
         time=datetime.timedelta(minutes=20),
         # time=datetime.timedelta(hours=2),
@@ -39,7 +39,7 @@ def segtrain(
     segtrain_slurm.add_cmd("module purge")
     segtrain_slurm.add_cmd("module load anaconda3/2024.6")
     segtrain_slurm.add_cmd("conda activate htr2hpc")
-    logger.debug(f"sbatch file\n: {segtrain_slurm}")
+    logger.info(f"sbatch file\n: {segtrain_slurm}")
     # sbatch returns the job id for the created job
     segtrain_cmd = (
         # run with default number of epochs (50)
@@ -49,7 +49,7 @@ def segtrain(
         # + "--precision 16"  # automatic mixed precision for nvidia gpu
     )
 
-    logger.debug(f"segtrain command: {segtrain_cmd}")
+    logger.info(f"segtrain command: {segtrain_cmd}")
     return segtrain_slurm.sbatch(segtrain_cmd)
 
 
@@ -68,7 +68,7 @@ def recognition_train(
         cpus_per_task=num_workers,
         mem_per_cpu="2G",
         gres=["gpu:1"],
-        job_name="train",
+        job_name=f"train:{output_model.name}",
         output=f"train_{Slurm.JOB_ARRAY_MASTER_ID}.out",
         time=datetime.timedelta(minutes=15),
         # time=datetime.timedelta(hours=2),
@@ -76,7 +76,7 @@ def recognition_train(
     recogtrain_slurm.add_cmd("module purge")
     recogtrain_slurm.add_cmd("module load anaconda3/2024.6")
     recogtrain_slurm.add_cmd("conda activate htr2hpc")
-    logger.debug(f"sbatch file\n: {recogtrain_slurm}")
+    logger.info(f"sbatch file\n: {recogtrain_slurm}")
     # sbatch returns the job id for the created job
 
     # input model is optional; resize is only used with exesting model
@@ -87,7 +87,7 @@ def recognition_train(
         + f"-f binary {input_data_dir}/train.arrow "
     )
 
-    logger.debug(f"recognition train command: {recogtrain_cmd}")
+    logger.info(f"recognition train command: {recogtrain_cmd}")
     return recogtrain_slurm.sbatch(recogtrain_cmd)
     # TODO: calling function needs to check for best model
     # or no model improvement

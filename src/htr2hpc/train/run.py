@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+from enum import Enum
 
 import logging
 import pathlib
@@ -43,6 +44,16 @@ class JobCancelled(Exception):
     "Custom exception for when slurm job was cancelled"
 
 
+class UpdateMode(Enum):
+    NEVER = 0
+    ALWAYS = 1
+    IF_IMPROVED = 2
+
+    def __bool__(self):
+        # override so boolean check of never will evaluate to false
+        return self != UpdateMode.NEVER
+
+
 @dataclass
 class TrainingManager:
     base_url: str
@@ -55,7 +66,7 @@ class TrainingManager:
     parts: Optional[intspan] = None
     model_id: Optional[int] = None
     task_report_id: Optional[int] = None
-    update: bool = False
+    update: UpdateMode = UpdateMode.NEVER
     transcription_id: Optional[int] = None
     existing_data: bool = False
     show_progress: bool = True
@@ -173,8 +184,12 @@ class TrainingManager:
         print(f"Job output is in {job_output}")
 
         if self.task_report_id is not None:
-            with open(job_output) as job_output_file:
-                slurm_output = job_output_file.read()
+            try:
+                with open(job_output) as job_output_file:
+                    slurm_output = job_output_file.read()
+            except FileNotFoundError:
+                print(f"File {job_output} not found.")
+                slurm_output = ""
 
             # get current task report so we can add to messages
             task_report = self.api.task_details(self.task_report_id)
@@ -249,14 +264,20 @@ class TrainingManager:
         else:
             model_id = None
 
-        abs_model_file = self.model_file.absolute() if self.model_file else None
+        # in certain cases we only want to upload the model to
+        # eScriptorium if it has improved on the original model;
+        # pass in original model for minimum accuracy comparison
+        # when update mode is update-if-improved
+        compare_model_file = None
+        if self.update == UpdateMode.IF_IMPROVED and self.model_file:
+            compare_model_file = self.model_file.absolute()
 
         best_model = upload_best_model(
             self.api,
             self.output_modelfile.parent,
             self.training_mode,
             model_id=model_id,
-            original_model=abs_model_file,
+            original_model=compare_model_file,
         )
         if best_model:
             # TODO: revise message to include info about created/updated model id ##
@@ -330,12 +351,24 @@ def main():
         type=int,
         dest="model_id",
     )
-    parser.add_argument(
+    update_group = parser.add_mutually_exclusive_group()
+    update_group.add_argument(
         "-u",
         "--update",
         help="Update the specified model with the best model from training (requires --model)",
-        action="store_true",
-        default=False,
+        dest="update",
+        default=UpdateMode.NEVER,
+        action="store_const",
+        const=UpdateMode.ALWAYS,
+        required=False,
+    )
+    update_group.add_argument(
+        "--update-if-improved",
+        help="Update the specified model with the best model from training ONLY if improved on original",
+        dest="update",
+        action="store_const",
+        const=UpdateMode.IF_IMPROVED,
+        required=False,
     )
     parser.add_argument(
         "--model-name",
@@ -401,6 +434,8 @@ def main():
     )
     args = parser.parse_args()
     # validate argument combinations
+
+    # when update or update-if-modified is specified, model is required
     if args.update:
         error_messages = []
         if not args.model_id:
@@ -435,8 +470,8 @@ def main():
         args.work_dir.mkdir()
 
     logging.basicConfig(encoding="utf-8", level=logging.WARN)
-    logger_upscope = logging.getLogger("htr2hpc")
-    # logger_upscope.setLevel(logging.DEBUG)
+    logger_local = logging.getLogger("htr2hpc")
+    logger_local.setLevel(logging.INFO)
     # output kraken logging details to confirm binary data looks ok
     logger_kraken = logging.getLogger("kraken")
     # logger_kraken.setLevel(logging.INFO)

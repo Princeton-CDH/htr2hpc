@@ -112,9 +112,8 @@ def get_segmentation_data(
         for line in part.lines
     ]
 
-    logger.info(f"Document {document_id} part {part_id}: {len(baselines)} baselines")
-
-    logger.info(
+    logger.debug(f"Document {document_id} part {part_id}: {len(baselines)} baselines")
+    logger.debug(
         f"Document {document_id} part {part_id}:  {len(part.regions)} regions, {len(regions.keys())} block types"
     )
 
@@ -239,37 +238,49 @@ def get_training_data(
 def get_best_model(
     model_dir: pathlib.Path, original_model: pathlib.Path = None
 ) -> pathlib.Path | None:
-    # kraken should normally identify the best model for us
-    best = list(model_dir.glob("*_best.mlmodel"))
-    # if one was found, return it
-    if best:
-        print(f"Using kraken identified best model {best[0].name}")
-        return best[0]
-
-    # if not, try to find one based on accuracy metadata
+    """Find the best model in the specified `model_dir` directory.
+    By default, looks for a file named `*_best.mlmodel`. If no best model
+    is found by filename, looks for best model based on accuracy score
+    in kraken metadata. When `original_model` is specified, accuracy
+    must be better than the original to be considered 'best'.
+    """
     best_accuracy = 0
     # when original model is specified, initialize
     # best accuracy value from that model
-    print(f"Looking for best model by accuracy")
     if original_model:
-        best = original_model
         best_accuracy = get_model_accuracy(original_model)
         print(
             f"Must be better than original model {original_model.name} accuracy {best_accuracy:0.3f}"
         )
-    for model in model_dir.glob("*.mlmodel"):
-        accuracy = get_model_accuracy(model)
-        print(f"model: {model.name} accuracy: {accuracy:0.3f}")
-        # if accuracy is better than our current best, this model is new best
+    # kraken should normally identify the best model for us
+    best = list(model_dir.glob("*_best.mlmodel"))
+    # if one was found, return it
+    if best:
+        accuracy = get_model_accuracy(best[0])
         if accuracy > best_accuracy:
-            best = model
-            best_accuracy = accuracy
+            print(f"Using kraken identified best model {best[0].name}")
+            return best[0]
+        else:
+             print("Training did not improve on original model")
 
-    # if we found a model better than the original, return it
-    if best and best != original_model:
-        return best
-    if best == original_model:
-        print("Training did not improve on original model")
+    # if not, try to find one based on accuracy metadata
+    else:
+        if original_model:
+            best = original_model
+        print(f"Looking for best model by accuracy")
+        for model in model_dir.glob("*.mlmodel"):
+            accuracy = get_model_accuracy(model)
+            print(f"model: {model.name} accuracy: {accuracy:0.3f}")
+            # if accuracy is better than our current best, this model is new best
+            if accuracy > best_accuracy:
+                best = model
+                best_accuracy = accuracy
+
+        # if we found a model better than the original, return it
+        if best and best != original_model:
+            return best
+        if best == original_model:
+            print("Training did not improve on original model")
 
 
 def upload_models(
@@ -282,6 +293,7 @@ def upload_models(
 
     # segtrain creates models based on modelname with _0, _1, _2 ... _49
     # sort numerically on the latter portion of the name
+    # NOTE: this older logic breaks with new -q early option that creates a _best model
     modelfiles = sorted(
         model_dir.glob("*.mlmodel"), key=lambda path: int(path.stem.split("_")[-1])
     )

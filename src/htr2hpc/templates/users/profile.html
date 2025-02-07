@@ -4,21 +4,29 @@
 {{ block.super }}
 
 <div class="container pt-5">
-    <h2>HPC account setup</h2>
+    <h2>HPC account management</h2>
+        <h3>First time setup</h3>
+        <ol>
+            <li>Enable key-based ssh access to your account from the eScriptorium server. 
+                (This is a one-time step.) Open Terminal or Command Line on your computer, 
+                paste in the below code, and press enter. You will be prompted for your NetID password.<br>
+                <code>ssh {{ request.user.username }}@della.princeton.edu 'mkdir -p ~/.ssh &amp;&amp; echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzoR8jstrofzFKVoiXSFP5jGw/WbXHxFyIaS5b4vSWC test-htr.lib.princeton.edu" >> ~/.ssh/authorized_keys'</code>
+            </li>
 
-
-    <p>If you have not already done so, enable key-based ssh access to your account
-        from the eScriptorium server. (This is a one-time step.)</p>
-
-        <code>ssh {{ request.user.username }}@della.princeton.edu 'mkdir -p ~/.ssh &amp;&amp; echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzoR8jstrofzFKVoiXSFP5jGw/WbXHxFyIaS5b4vSWC test-htr.lib.princeton.edu" >> ~/.ssh/authorized_keys'</code>
-    </p>
-
-    <p>Run HPC setup for initial environment setup or to update your account on the HPC server.</p>
-
-        <form method="post" action="{% url 'hpc-setup' %}">
-            {% csrf_token %}
-            <input type="submit" value="HPC setup" class="btn btn-success">
-        </form>
+            <li>Click the "HPC setup" button below for initial environment setup. This step may take
+                a few minutes to complete -- a notification should appear when it has finished.
+                After this, your account will be prepared to run training tasks on Princeton's HPC.
+                <br>
+                <form method="post" action="{% url 'hpc-setup' %}">
+                    {% csrf_token %}
+                    <input type="submit" value="HPC setup" class="btn btn-success">
+                </form>
+            </li>
+        </ol>
+    <h3>HPC account updates</h3>
+    <p>This instance of eScriptorium is currently being tested and occasional updates might be necessary. 
+        When prompted to update your HPC account, simply click the "HPC setup" button above to automatically 
+        run the update process.</p>
 </div>
 
 {% endblock %}

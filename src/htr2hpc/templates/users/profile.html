@@ -6,9 +6,13 @@
 <div class="container pt-5">
     <h2>HPC account management</h2>
         <h3>First time setup</h3>
+        <p>To enable key-based ssh access to your account from the eScriptorium server, follow
+            the below three steps. (This is a one-time process.)</p>
         <ol>
-            <li>Enable key-based ssh access to your account from the eScriptorium server. 
-                (This is a one-time step.) Open Terminal or Command Line on your computer, 
+            <li>Ensure that you are either on-campus connected to the University wifi or
+                that you are connected to the Princeton network through the VPN 
+                <a href="https://informationsecurity.princeton.edu/connecting-to-princeton-n">like so</a>.</li>
+            <li>Open Terminal or Command Line on your computer, 
                 paste in the below code, and press enter. You will be prompted for your NetID password.<br>
                 <code>ssh {{ request.user.username }}@della.princeton.edu 'mkdir -p ~/.ssh &amp;&amp; echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzoR8jstrofzFKVoiXSFP5jGw/WbXHxFyIaS5b4vSWC test-htr.lib.princeton.edu" >> ~/.ssh/authorized_keys'</code>
             </li>

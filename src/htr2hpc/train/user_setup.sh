@@ -44,9 +44,9 @@ fi
 
 # create conda environment named htr2hpc
 conda_env_name=htr2hpc
-module load anaconda3/2024.6
+module load anaconda3/2024.2
 if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
-	echo "htr2hpc conda env already exists"
+	echo "conda env $conda_env_name already exists"
 
 	# when conda env already exists, if requested
 	# uninstall and reinstall htr2hpc
@@ -58,7 +58,7 @@ if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 	fi
 
 else
-	echo "Creating conda environment and installing dependencies"
+	echo "Creating conda environment $conda_env_name and installing dependencies"
 	cd /scratch/gpfs/rkoeser/htr2hpc_setup/kraken
 	conda env create -f environment_cuda.yml -n $conda_env_name
 	conda activate $conda_env_name

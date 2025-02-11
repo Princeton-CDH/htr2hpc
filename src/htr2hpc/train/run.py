@@ -71,6 +71,7 @@ class TrainingManager:
     existing_data: bool = False
     show_progress: bool = True
     model_file: pathlib.Path = None
+    training_data_counts: Optional[dict] = None
 
     def __post_init__(self):
         if self.update and not self.model_id:
@@ -99,7 +100,9 @@ class TrainingManager:
         self.training_data_dir = self.work_dir / "parts"
         if not self.existing_data:
             self.training_data_dir.mkdir()
-        get_training_data(
+
+        # get training data and store the counts of number of parts, regions, lines
+        self.training_data_counts = get_training_data(
             self.api,
             self.training_data_dir,
             self.document_id,
@@ -220,6 +223,7 @@ class TrainingManager:
             abs_training_data_dir,
             abs_model_file,
             abs_output_modelfile,
+            self.training_data_counts,
             self.num_workers,
         )
         # change back to original working directory

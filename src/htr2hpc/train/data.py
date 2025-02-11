@@ -2,6 +2,8 @@ import logging
 import pathlib
 from typing import Optional
 from collections import defaultdict
+from dataclasses import dataclass
+
 
 from kraken.containers import BaselineLine, Region, Segmentation
 from kraken.lib.arrow_dataset import build_binary_dataset
@@ -204,9 +206,16 @@ def get_document_parts(api, document_id):
     return part_ids
 
 
+@dataclass
+class TrainingDataCounts:
+    parts: int = 0
+    lines: int = 0
+    regions: int = 0
+
+
 def get_training_data(
     api, output_dir, document_id, part_ids=None, transcription_id=None
-):
+) -> TrainingDataCounts:
     # if part ids are not specified, get all parts
     if part_ids is None:
         part_ids = get_document_parts(api, document_id)
@@ -221,6 +230,12 @@ def get_training_data(
         )
         for part_id in part_ids
     ]
+    # get counts of data for reporting and scaling slurm request
+    counts = TrainingDataCounts(parts=len(segmentation_data))
+    # segmentation data is a list of tuples of segment, part
+    for seg, _ in segmentation_data:
+        counts.lines += len(seg.lines)
+        counts.regions += len(seg.regions)
 
     # if transcription id is specified, compile as binary dataset
     # for recognition training
@@ -233,6 +248,9 @@ def get_training_data(
     else:
         # serialize each of the parts that were downloaded
         [serialize_segmentation(seg, part) for (seg, part) in segmentation_data]
+
+    # return the total counts for various pieces of training data
+    return counts
 
 
 def get_best_model(
@@ -261,7 +279,7 @@ def get_best_model(
             print(f"Using kraken identified best model {best[0].name}")
             return best[0]
         else:
-             print("Training did not improve on original model")
+            print("Training did not improve on original model")
 
     # if not, try to find one based on accuracy metadata
     else:

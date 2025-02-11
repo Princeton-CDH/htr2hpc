@@ -62,6 +62,16 @@ def recognition_train(
 ) -> int:
     """Run ketos recognition training as a slurm job.
     Returns the slurm job id for the queued job."""
+
+    # we expect training data to be a binary arrow file in the data dir
+    training_data_file = input_data_dir / "train.arrow"
+    training_data_size = training_data_file.stat().st_size
+    # set training time here based on file size; can be any number of minutes
+    training_time = datetime.timedelta(minutes=15)
+    logger.info(
+        f"training data file {training_data_file} size is {training_data_size}; requesting {training_time}"
+    )
+
     recogtrain_slurm = Slurm(
         nodes=1,
         ntasks=1,
@@ -70,8 +80,7 @@ def recognition_train(
         gres=["gpu:1"],
         job_name=f"train:{output_model.name}",
         output=f"train_{Slurm.JOB_ARRAY_MASTER_ID}.out",
-        time=datetime.timedelta(minutes=15),
-        # time=datetime.timedelta(hours=2),
+        time=training_time,
     )
     recogtrain_slurm.add_cmd("module purge")
     recogtrain_slurm.add_cmd("module load anaconda3/2024.6")

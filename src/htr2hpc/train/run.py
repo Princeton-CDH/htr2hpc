@@ -30,6 +30,7 @@ from htr2hpc.train.slurm import (
     segtrain,
     slurm_job_status,
     slurm_job_queue_status,
+    slurm_job_stats,
     recognition_train,
 )
 
@@ -208,6 +209,11 @@ class TrainingManager:
         # if time limit ran out, status will include TIMEOUT as well as CANCELLED
         if "CANCELLED" in job_status and "TIMEOUT" not in job_status:
             raise JobCancelled
+            
+        # get stats on slurm resource usage
+        job_stats = slurm_job_stats(job_id)
+        print(job_stats)
+        print('='*80)
 
     def segmentation_training(self):
         # get absolute versions of these paths _before_ changing working directory

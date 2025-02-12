@@ -140,3 +140,15 @@ def slurm_job_status(job_id: int) -> set:
     # sacct returns a table with status for each portion of the job;
     # return all unique status codes for now
     return set(result.stdout.split())
+    
+def slurm_job_stats(job_id: int) -> str:
+    """Use `jobstats` to get Slurm Job Statistics, to track resource usage"""
+    result = subprocess.run(
+        ["jobstats", str(job_id)],
+        capture_output=True,
+        text=True,
+    )
+    # raise subprocess.CalledProcessError if return code indicates an error
+    result.check_returncode()
+    # return task status without any whitespace
+    return result.stdout.strip()

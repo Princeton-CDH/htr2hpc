@@ -482,7 +482,7 @@ def hpc_user_setup(self, user_pk=None):
     user.notify(
         "Running user setup script, on first run this may take a while...",
         id="htr2hpc-setup-start",
-        level="info",
+        #level="info",
     )
     try:
         with Connection(

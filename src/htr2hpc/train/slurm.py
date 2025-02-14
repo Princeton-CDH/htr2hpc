@@ -5,6 +5,7 @@ import subprocess
 
 from simple_slurm import Slurm
 
+from htr2hpc.train.data import TrainingDataCounts
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +14,20 @@ def segtrain(
     input_data_dir: pathlib.Path,
     input_model: pathlib.Path,
     output_model: pathlib.Path,
+    input_data_counts: TrainingDataCounts,
     num_workers: int = 8,
     # optional param to specify name based on document? include date?
 ) -> int:
     """Run ketos segmentation training as a slurm job.
     Returns the slurm job id for the queued job."""
+
+    logger.info(
+        f"training data: {input_data_counts.parts:,} parts, {input_data_counts.regions:,} regions, {input_data_counts.lines:,} lines"
+    )
+    # set training time here based on input data size; can be any number of minutes
+    training_time = datetime.timedelta(minutes=15)
+    logger.info(f"requesting {training_time}")
+
     segtrain_slurm = Slurm(
         nodes=1,
         ntasks=1,
@@ -26,8 +36,7 @@ def segtrain(
         gres=["gpu:1"],
         job_name=f"segtrain:{output_model.name}",
         output=f"segtrain_{Slurm.JOB_ARRAY_MASTER_ID}.out",
-        time=datetime.timedelta(minutes=20),
-        # time=datetime.timedelta(hours=2),
+        time=training_time,
     )
     # do we want to use CUDA Multi-Process Service (MPS) ?
     # della documentation says to specify with --gpu-mps,
@@ -62,6 +71,15 @@ def recognition_train(
 ) -> int:
     """Run ketos recognition training as a slurm job.
     Returns the slurm job id for the queued job."""
+
+    # we expect training data to be a binary arrow file in the data dir
+    training_data_file = input_data_dir / "train.arrow"
+    training_data_size = training_data_file.stat().st_size
+    logger.info(f"training data file {training_data_file} size is {training_data_size}")
+    # set training time here based on file size; can be any number of minutes
+    training_time = datetime.timedelta(minutes=15)
+    logger.info(f"requesting {training_time}")
+
     recogtrain_slurm = Slurm(
         nodes=1,
         ntasks=1,
@@ -70,8 +88,7 @@ def recognition_train(
         gres=["gpu:1"],
         job_name=f"train:{output_model.name}",
         output=f"train_{Slurm.JOB_ARRAY_MASTER_ID}.out",
-        time=datetime.timedelta(minutes=15),
-        # time=datetime.timedelta(hours=2),
+        time=training_time,
     )
     recogtrain_slurm.add_cmd("module purge")
     recogtrain_slurm.add_cmd("module load anaconda3/2024.6")
@@ -123,3 +140,15 @@ def slurm_job_status(job_id: int) -> set:
     # sacct returns a table with status for each portion of the job;
     # return all unique status codes for now
     return set(result.stdout.split())
+    
+def slurm_job_stats(job_id: int) -> str:
+    """Use `jobstats` to get Slurm Job Statistics, to track resource usage"""
+    result = subprocess.run(
+        ["jobstats", str(job_id)],
+        capture_output=True,
+        text=True,
+    )
+    # raise subprocess.CalledProcessError if return code indicates an error
+    result.check_returncode()
+    # return task status without any whitespace
+    return result.stdout.strip()

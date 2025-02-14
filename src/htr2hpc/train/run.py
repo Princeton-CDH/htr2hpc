@@ -30,6 +30,7 @@ from htr2hpc.train.slurm import (
     segtrain,
     slurm_job_status,
     slurm_job_queue_status,
+    slurm_job_stats,
     recognition_train,
 )
 
@@ -71,6 +72,7 @@ class TrainingManager:
     existing_data: bool = False
     show_progress: bool = True
     model_file: pathlib.Path = None
+    training_data_counts: Optional[dict] = None
 
     def __post_init__(self):
         if self.update and not self.model_id:
@@ -99,7 +101,9 @@ class TrainingManager:
         self.training_data_dir = self.work_dir / "parts"
         if not self.existing_data:
             self.training_data_dir.mkdir()
-        get_training_data(
+
+        # get training data and store the counts of number of parts, regions, lines
+        self.training_data_counts = get_training_data(
             self.api,
             self.training_data_dir,
             self.document_id,
@@ -205,6 +209,11 @@ class TrainingManager:
         # if time limit ran out, status will include TIMEOUT as well as CANCELLED
         if "CANCELLED" in job_status and "TIMEOUT" not in job_status:
             raise JobCancelled
+            
+        # get stats on slurm resource usage
+        job_stats = slurm_job_stats(job_id)
+        print(job_stats)
+        print('='*80)
 
     def segmentation_training(self):
         # get absolute versions of these paths _before_ changing working directory
@@ -220,6 +229,7 @@ class TrainingManager:
             abs_training_data_dir,
             abs_model_file,
             abs_output_modelfile,
+            self.training_data_counts,
             self.num_workers,
         )
         # change back to original working directory

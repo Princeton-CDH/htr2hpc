@@ -21,12 +21,9 @@
                 a few minutes to complete -- a notification should appear when it has finished.
                 After this, your account will be prepared to run training tasks on Princeton's HPC.
                 <br>
-                <form method="post" action="{% url 'hpc-setup' %}" onsubmit="hideButton(event)">
+                <form method="post" action="{% url 'hpc-setup' %}">
                     {% csrf_token %}
-                    <input id="setup-button" type="submit" value="HPC setup" class="btn btn-success">
-                    <span id="setup-message" style="display: none;">Submitted! Please wait for the setup to complete.
-                        You can monitor the HPC setup task in the <a href="/quotas">task reports list</a>.
-                    </span>
+                    <input type="submit" value="HPC setup" class="btn btn-success">
                 </form>
             </li>
         </ol>
@@ -35,12 +32,5 @@
         When prompted to update your HPC account, simply click the "HPC setup" button above to automatically 
         run the update process.</p>
 </div>
-
-<script>
-    function hideButton(event) {
-        document.getElementById("setup-button").style.display = "none";
-        document.getElementById("setup-message").style.display = "inline";
-    }
-</script>
 
 {% endblock %}

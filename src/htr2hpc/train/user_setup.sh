@@ -59,13 +59,16 @@ if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 
 else
 	echo "Creating conda environment $conda_env_name and installing dependencies"
-	cd /scratch/gpfs/rkoeser/htr2hpc_setup/kraken
+	mkdir /scratch/gpfs/$USER/setup_htr2hpc
+	cp -r /scratch/gpfs/rkoeser/htr2hpc_setup/kraken /scratch/gpfs/$USER/setup_htr2hpc
+	cd /scratch/gpfs/$USER/setup_htr2hpc/kraken
 	conda env create -f environment_cuda.yml -n $conda_env_name
 	conda activate $conda_env_name
-	pip install -q torchvision torch==2.1 torchaudio==2.1
 	pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
-	# go back to previous directory
-	cd -
+	pip install -q torchvision torch==2.1 torchaudio==2.1
+	# go back to scratch and delete temp directory
+	cd /scratch/gpfs/$USER
+	rm -rf /scratch/gpfs/$USER/setup_htr2hpc
 fi
 
 htrworkingdir=/scratch/gpfs/$USER/htr2hpc

@@ -393,7 +393,11 @@ class eScriptoriumAPIClient:
         """details for one part of a document"""
         api_url = f"documents/{document_id}/parts/{part_id}/"
         resp = self._make_request(api_url)
-        return to_namedtuple("part", resp.json())
+        try:
+            return to_namedtuple("part", resp.json())
+        except Exception as e:
+            print(f"Error in part {part_id}: '{e}'. Skipping...")
+            return None
 
     def document_part_transcription_list(
         self, document_id: int, part_id: int, transcription_id: Optional[int] = None

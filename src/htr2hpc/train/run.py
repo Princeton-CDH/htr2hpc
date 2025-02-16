@@ -95,6 +95,15 @@ class TrainingManager:
         # store the path to original working directory before changing directory
         self.orig_working_dir = pathlib.Path.cwd()
 
+    def training_validate(self):
+        broken = []
+        for part_id in self.parts:
+            part = self.api.document_part_details(self.document_id, part_id)
+            if part == None:
+                broken.append(part_id)
+        for part_id in broken:
+            self.parts.remove(part_id)
+
     def training_prep(self):
         # create necessary directories and download training data and model file
 
@@ -505,6 +514,8 @@ def main():
         sys.exit(1)
 
     try:
+        # validate data for training
+        training_mgr.training_validate()
         # prep data for training
         training_mgr.training_prep()
         # run training for requested mode

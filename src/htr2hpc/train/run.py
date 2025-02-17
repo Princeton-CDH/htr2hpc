@@ -98,7 +98,7 @@ class TrainingManager:
     def training_validate(self):
         broken = []
         for part_id in self.parts:
-            part = self.api.document_part_details(self.document_id, part_id)
+            part = self.api.document_part_validate(self.document_id, part_id)
             if part == None:
                 broken.append(part_id)
         for part_id in broken:

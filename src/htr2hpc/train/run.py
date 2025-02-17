@@ -33,6 +33,11 @@ from htr2hpc.train.slurm import (
     slurm_job_stats,
     recognition_train,
 )
+from htr2hpc.train.calculate import (
+    slurm_get_max_acc,
+    slurm_get_avg_epoch,
+    stats_get_max_cpu,
+)
 
 
 api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
@@ -73,6 +78,8 @@ class TrainingManager:
     show_progress: bool = True
     model_file: pathlib.Path = None
     training_data_counts: Optional[dict] = None
+    slurm_output: str = ""
+    job_stats: str = None
 
     def __post_init__(self):
         if self.update and not self.model_id:
@@ -190,18 +197,20 @@ class TrainingManager:
         if self.task_report_id is not None:
             try:
                 with open(job_output) as job_output_file:
-                    slurm_output = job_output_file.read()
+                    self.slurm_output = job_output_file.read()
             except FileNotFoundError:
                 print(f"File {job_output} not found.")
-                slurm_output = ""
+                self.slurm_output = ""
 
+            self.job_stats = slurm_job_stats(job_id)
+            
             # get current task report so we can add to messages
             task_report = self.api.task_details(self.task_report_id)
             self.api.task_update(
                 self.task_report_id,
                 task_report.label,
                 task_report.user,
-                f"{task_report.messages}\n Slurm job output:\n{slurm_output}\n\n",
+                f"{task_report.messages}\n Slurm job output:\n{self.slurm_output}\n\n{self.job_stats}\n{'='*80}",
             )
 
         # when cancelled via delete button on mydella web ui,
@@ -209,11 +218,6 @@ class TrainingManager:
         # if time limit ran out, status will include TIMEOUT as well as CANCELLED
         if "CANCELLED" in job_status and "TIMEOUT" not in job_status:
             raise JobCancelled
-            
-        # get stats on slurm resource usage
-        job_stats = slurm_job_stats(job_id)
-        print(job_stats)
-        print('='*80)
 
     def segmentation_training(self):
         # get absolute versions of these paths _before_ changing working directory
@@ -235,6 +239,12 @@ class TrainingManager:
         # change back to original working directory
         os.chdir(self.orig_working_dir)
         self.monitor_slurm_job(job_id)
+        
+        # check exit status first
+        
+        epoch_max_acc, max_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
+        avg_epoch = slurm_get_avg_epoch(self.slurm_output)
+        max_cpu = stats_get_max_cpu(self.job_stats)
 
         if self.update:
             self.upload_best()
@@ -263,6 +273,17 @@ class TrainingManager:
         # change back to original working directory
         os.chdir(self.orig_working_dir)
         self.monitor_slurm_job(job_id)
+        
+        # check exit status first
+        
+        epoch_max_acc, max_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
+        avg_epoch = slurm_get_avg_epoch(self.slurm_output)
+        max_cpu = stats_get_max_cpu(self.job_stats)
+        
+        print(f"""The max CPU usage per node was {max_cpu} GB.
+        The average epoch time was {avg_epoch} seconds.
+        The epoch with the highest accuracy was {epoch_max_acc} with {max_acc}.""")
+        
         self.upload_best()
 
     def upload_best(self):

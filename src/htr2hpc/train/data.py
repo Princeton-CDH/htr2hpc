@@ -1,5 +1,6 @@
 import logging
 import pathlib
+import shutil
 from typing import Optional
 from collections import defaultdict
 from dataclasses import dataclass
@@ -251,6 +252,15 @@ def get_training_data(
 
     # return the total counts for various pieces of training data
     return counts
+    
+
+def get_prelim_model(input_model: pathlib.Path):
+    """Copies the input model to a file with suffix `_prelim.mlmodel`, 
+    then returns the path to that newly created file.
+    """
+    prelim_model = input_model.parent / ('_'.join(input_model.name.split('_')[:-1]) + '_prelim.mlmodel')
+    shutil.copy(input_model, prelim_model)
+    return prelim_model
 
 
 def get_best_model(

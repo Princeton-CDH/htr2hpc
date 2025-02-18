@@ -25,6 +25,7 @@ from htr2hpc.train.data import (
     get_model_file,
     upload_models,
     upload_best_model,
+    get_prelim_model,
 )
 from htr2hpc.train.slurm import (
     segtrain,
@@ -252,6 +253,13 @@ class TrainingManager:
         os.chdir(self.orig_working_dir)
         self.monitor_slurm_job(job_id)
         
+        # need to check if there is a _best.mlmodel
+        prelim_best = list(self.output_model_dir.glob("*_best.mlmodel"))
+        if prelim_best:
+            self.upload_best()
+            print("Best model already found.")
+            return
+        
         # check exit status first
         job_status = slurm_job_status(job_id)
         if "OUT_OF_MEMORY" in job_status:
@@ -261,6 +269,13 @@ class TrainingManager:
             self.upload_best()
             
         else:
+        
+            # find preliminary model with highest accuracy to use as input for next train job
+            best_epoch_acc = slurm_get_max_acc(self.slurm_output, self.job_stats)
+            if best_epoch_acc:
+                prelim_best_model = list(self.output_model_dir.glob(f"*_{best_epoch_acc[0]}.mlmodel"))[0]
+                prelim_model_file = get_prelim_model(prelim_best_model)
+                print(f"Preliminary best model: {prelim_model_file}.")
         
             epoch_max_acc, max_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
             full_duration = calc_full_duration(self.slurm_output, self.job_stats)
@@ -290,6 +305,7 @@ class TrainingManager:
         
         training_data_file = abs_training_data_dir / "train.arrow"
         training_data_size = training_data_file.stat().st_size
+        print(f"Training data size: {training_data_size}")
         
         prelim_cpu_mem = estimate_cpu_mem(training_data_size, self.training_mode)
         prelim_train_time = estimate_duration(training_data_size, self.training_mode)
@@ -308,6 +324,13 @@ class TrainingManager:
         os.chdir(self.orig_working_dir)
         self.monitor_slurm_job(job_id)
         
+        # need to check if there is a _best.mlmodel
+        prelim_best = list(self.output_model_dir.glob("*_best.mlmodel"))
+        if prelim_best:
+            self.upload_best()
+            print("Best model already found.")
+            return
+        
         # check exit status first
         job_status = slurm_job_status(job_id)
         if "OUT_OF_MEMORY" in job_status:
@@ -318,7 +341,12 @@ class TrainingManager:
             
         else:
         
-            # check for best model. if best model, no need to continue.
+            # find preliminary model with highest accuracy to use as input for next train job
+            best_epoch_acc = slurm_get_max_acc(self.slurm_output, self.job_stats)
+            if best_epoch_acc:
+                prelim_best_model = list(self.output_model_dir.glob(f"*_{best_epoch_acc[0]}.mlmodel"))[0]
+                prelim_model_file = get_prelim_model(prelim_best_model)
+                print(f"Preliminary best model: {prelim_model_file}.")
         
             epoch_max_acc, max_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
             full_duration = calc_full_duration(self.slurm_output, self.job_stats)

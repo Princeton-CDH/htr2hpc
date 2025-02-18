@@ -213,7 +213,7 @@ class TrainingManager:
                 self.task_report_id,
                 task_report.label,
                 task_report.user,
-                f"{task_report.messages}\n Slurm job output:\n{self.slurm_output}\n\n{self.job_stats}\n{'='*80}",
+                f"{task_report.messages}\n\n{'='*80}\nSlurm job output:\n{self.slurm_output}\n\n{self.job_stats}\n{'='*80}",
             )
 
         # when cancelled via delete button on mydella web ui,
@@ -269,20 +269,21 @@ class TrainingManager:
             
         else:
         
-            # find preliminary model with highest accuracy to use as input for next train job
-            best_epoch_acc = slurm_get_max_acc(self.slurm_output, self.job_stats)
-            if best_epoch_acc:
-                prelim_best_model = list(self.output_model_dir.glob(f"*_{best_epoch_acc[0]}.mlmodel"))[0]
-                prelim_model_file = get_prelim_model(prelim_best_model)
-                print(f"Preliminary best model: {prelim_model_file}.")
-        
-            epoch_max_acc, max_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
-            full_duration = calc_full_duration(self.slurm_output, self.job_stats)
-            mem_per_cpu = calc_cpu_mem(self.job_stats)
+            abs_prelim_model_file, full_duration, mem_per_cpu = self.calc_updated_params(abs_model_file)
             
-            print(f"""The recommended mem per cpu is {mem_per_cpu}.
-            The recommended duration time is {full_duration}.
-            The epoch with the highest accuracy was {epoch_max_acc} with {max_acc}.""")
+            # run a second slurm task, refining on the preliminary model and using the new duration / cpu requests
+            os.chdir(self.work_dir)
+                
+            job_id = segtrain(
+                abs_training_data_dir,
+                abs_output_modelfile,
+                abs_prelim_model_file,
+                self.num_workers,
+                mem_per_cpu = mem_per_cpu,
+                training_time = full_duration,
+            )
+            os.chdir(self.orig_working_dir)
+            self.monitor_slurm_job(job_id)
 
         if self.update:
             self.upload_best()
@@ -340,22 +341,57 @@ class TrainingManager:
             
         else:
         
-            # find preliminary model with highest accuracy to use as input for next train job
-            best_epoch_acc = slurm_get_max_acc(self.slurm_output, self.job_stats)
-            if best_epoch_acc:
-                prelim_best_model = list(self.output_model_dir.glob(f"*_{best_epoch_acc[0]}.mlmodel"))[0]
-                prelim_model_file = get_prelim_model(prelim_best_model)
-                print(f"Preliminary best model: {prelim_model_file}.")
-        
-            epoch_max_acc, max_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
-            full_duration = calc_full_duration(self.slurm_output, self.job_stats)
-            mem_per_cpu = calc_cpu_mem(self.job_stats)
+            abs_prelim_model_file, full_duration, mem_per_cpu = self.calc_updated_params(abs_model_file)
             
-            print(f"""The recommended mem per cpu is {mem_per_cpu}.
-            The recommended duration time is {full_duration}.
-            The epoch with the highest accuracy was {epoch_max_acc} with {max_acc}.""")
+            # run a second slurm task, refining on the preliminary model and using the new duration / cpu requests
+            os.chdir(self.work_dir)
+            
+            job_id = recognition_train(
+                abs_training_data_dir,
+                abs_output_modelfile,
+                abs_prelim_model_file,
+                self.num_workers,
+                mem_per_cpu = mem_per_cpu,
+                training_time = full_duration,
+            )
+            os.chdir(self.orig_working_dir)
+            self.monitor_slurm_job(job_id)
+            
             
             self.upload_best()
+            
+    
+    def calc_updated_params(self, abs_model_file):
+        # find preliminary model with highest accuracy to use as input for next train job
+        best_epoch_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
+        if best_epoch_acc:
+            prelim_best_model = list(self.output_model_dir.glob(f"*_{best_epoch_acc[0]}.mlmodel"))[0]
+            prelim_model_file = get_prelim_model(prelim_best_model)
+            abs_prelim_model_file = prelim_model_file.absolute()
+        
+        # if there was no preliminary best model, use old `abs_model_file` in case train task was
+        # refining upon an input model.
+        if not abs_prelim_model_file:
+            abs_prelim_model_file = abs_model_file
+
+        full_duration = calc_full_duration(self.slurm_output, self.job_stats)
+        mem_per_cpu = calc_cpu_mem(self.job_stats)
+        
+        task_report = self.api.task_details(self.task_report_id)
+        self.api.task_update(
+            self.task_report_id,
+            task_report.label,
+            task_report.user,
+            f"""{task_report.messages}
+            
+            Preliminary train task to calibrate requirements completed.
+            - The recommended mem per cpu is {mem_per_cpu}
+            - The recommended duration time is {full_duration}
+            - The epoch with the highest accuracy was {best_epoch_acc[0]} with {best_epoch_acc[1]}.
+            Submitting next slurm job...""",
+        )
+        return abs_prelim_model_file, full_duration, mem_per_cpu
+    
 
     def upload_best(self):
         # look for and upload best model

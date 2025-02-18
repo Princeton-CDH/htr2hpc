@@ -14,7 +14,6 @@ def segtrain(
     input_data_dir: pathlib.Path,
     input_model: pathlib.Path,
     output_model: pathlib.Path,
-    input_data_counts: TrainingDataCounts,
     num_workers: int = 8,
     mem_per_cpu: str = "4G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),

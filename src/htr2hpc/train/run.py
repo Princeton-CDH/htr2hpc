@@ -244,7 +244,6 @@ class TrainingManager:
             abs_training_data_dir,
             abs_model_file,
             abs_output_modelfile,
-            self.training_data_counts,
             self.num_workers,
             mem_per_cpu = prelim_cpu_mem,
             training_time = prelim_train_time,

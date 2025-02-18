@@ -15,6 +15,6 @@ def remote_user_setup(request):
     # queue the celery setup task
     hpc_user_setup.delay(user_pk=request.user.pk)
     # redirect back to the profile page
-    redirect = HttpResponseRedirect(reverse("profile"))
+    redirect = HttpResponseRedirect(reverse("profile-api-key"))
     redirect.status_code = 303  # See other
     return redirect

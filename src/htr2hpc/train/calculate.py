@@ -56,7 +56,7 @@ def calc_full_duration(slurm_output, job_stats):
         job_duration = datetime.timedelta(hours=t.hour, minutes=t.minute, seconds=t.second).seconds
         setup_time = job_duration - ( epoch_avg * epoch_count )
         
-        return datetime.timedelta(seconds=(setup_time + ( epoch_avg * 50 * 1.1 )))
+        return datetime.timedelta(minutes=math.ceil((setup_time + ( epoch_avg * 50 * 1.1 )) / 60))
     
 
 def calc_cpu_mem(job_stats):

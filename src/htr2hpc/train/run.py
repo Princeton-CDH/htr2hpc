@@ -37,6 +37,8 @@ from htr2hpc.train.calculate import (
     slurm_get_max_acc,
     slurm_get_avg_epoch,
     stats_get_max_cpu,
+    calc_full_duration,
+    calc_cpu_mem,
 )
 
 
@@ -241,10 +243,26 @@ class TrainingManager:
         self.monitor_slurm_job(job_id)
         
         # check exit status first
+        job_status = slurm_job_status(job_id)
+        if "CANCELLED" in job_status and "TIMEOUT" not in job_status:
+            # cancelled by user, do run another train task, do not upload a model
+            return
+            
+        elif "OUT_OF_MEMORY" in job_status:
+            # might want to split up handling here more. OUT_OF_MEMORY might indicate
+            # odd cases like a seg train task with no regions, or it might indicate
+            # that the memory should be raised and the train task attempted again.
+            self.upload_best()
+            
+        else:
         
-        epoch_max_acc, max_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
-        avg_epoch = slurm_get_avg_epoch(self.slurm_output)
-        max_cpu = stats_get_max_cpu(self.job_stats)
+            epoch_max_acc, max_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
+            full_duration = calc_full_duration(self.slurm_output, self.job_stats)
+            mem_per_cpu = calc_cpu_mem(self.job_stats)
+            
+            print(f"""The recommended mem per cpu is {mem_per_cpu}.
+            The recommended duration time is {full_duration}.
+            The epoch with the highest accuracy was {epoch_max_acc} with {max_acc}.""")
 
         if self.update:
             self.upload_best()
@@ -275,16 +293,30 @@ class TrainingManager:
         self.monitor_slurm_job(job_id)
         
         # check exit status first
+        job_status = slurm_job_status(job_id)
+        if "CANCELLED" in job_status and "TIMEOUT" not in job_status:
+            # cancelled by user, do run another train task, do not upload a model
+            return
+            
+        elif "OUT_OF_MEMORY" in job_status:
+            # might want to split up handling here more. OUT_OF_MEMORY might indicate
+            # odd cases like a seg train task with no regions, or it might indicate
+            # that the memory should be raised and the train task attempted again.
+            self.upload_best()
+            
+        else:
         
-        epoch_max_acc, max_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
-        avg_epoch = slurm_get_avg_epoch(self.slurm_output)
-        max_cpu = stats_get_max_cpu(self.job_stats)
+            # check for best model. if best model, no need to continue.
         
-        print(f"""The max CPU usage per node was {max_cpu} GB.
-        The average epoch time was {avg_epoch} seconds.
-        The epoch with the highest accuracy was {epoch_max_acc} with {max_acc}.""")
-        
-        self.upload_best()
+            epoch_max_acc, max_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
+            full_duration = calc_full_duration(self.slurm_output, self.job_stats)
+            mem_per_cpu = calc_cpu_mem(self.job_stats)
+            
+            print(f"""The recommended mem per cpu is {mem_per_cpu}.
+            The recommended duration time is {full_duration}.
+            The epoch with the highest accuracy was {epoch_max_acc} with {max_acc}.""")
+            
+            self.upload_best()
 
     def upload_best(self):
         # look for and upload best model

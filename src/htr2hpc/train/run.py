@@ -35,10 +35,10 @@ from htr2hpc.train.slurm import (
 )
 from htr2hpc.train.calculate import (
     slurm_get_max_acc,
-    slurm_get_avg_epoch,
-    stats_get_max_cpu,
     calc_full_duration,
     calc_cpu_mem,
+    estimate_duration,
+    estimate_cpu_mem,
 )
 
 
@@ -230,6 +230,14 @@ class TrainingManager:
         # change directory to working directory, since by default,
         # slurm executes the job from the directory where it was submitted
         os.chdir(self.work_dir)
+        
+        training_data_size = sum(f.stat().st_size for f in abs_training_data_dir.glob('*[!.xml]') if f.is_file())
+        print(f"Training data size: {training_data_size}")
+        
+        prelim_cpu_mem = estimate_cpu_mem(training_data_size, self.training_mode)
+        prelim_train_time = estimate_duration(training_data_size, self.training_mode)
+        
+        print(f"Requesting {prelim_cpu_mem} at {prelim_train_time}.")
 
         job_id = segtrain(
             abs_training_data_dir,
@@ -237,6 +245,8 @@ class TrainingManager:
             abs_output_modelfile,
             self.training_data_counts,
             self.num_workers,
+            mem_per_cpu = prelim_cpu_mem,
+            training_time = prelim_train_time,
         )
         # change back to original working directory
         os.chdir(self.orig_working_dir)
@@ -277,12 +287,22 @@ class TrainingManager:
         # change directory to working directory, since by default,
         # slurm executes the job from the directory where it was submitted
         os.chdir(self.work_dir)
+        
+        training_data_file = abs_training_data_dir / "train.arrow"
+        training_data_size = training_data_file.stat().st_size
+        
+        prelim_cpu_mem = estimate_cpu_mem(training_data_size, self.training_mode)
+        prelim_train_time = estimate_duration(training_data_size, self.training_mode)
+        
+        print(f"Requesting {prelim_cpu_mem} at {prelim_train_time}.")
 
         job_id = recognition_train(
             abs_training_data_dir,
             abs_output_modelfile,
             abs_model_file,
             self.num_workers,
+            mem_per_cpu = prelim_cpu_mem,
+            training_time = prelim_train_time,
         )
         # change back to original working directory
         os.chdir(self.orig_working_dir)

@@ -66,3 +66,37 @@ def calc_cpu_mem(job_stats):
     if gb_used:
         return f"{math.ceil(gb_used + 0.3)}G"
         
+
+def estimate_duration(training_data_size, training_mode):
+    """Use files in input data dir to come up with estimate of prelim train duration."""
+    
+    if training_mode == "Segment":
+        job_duration = datetime.timedelta(minutes=5) if training_data_size < 20000000 else datetime.timedelta(minutes=15)
+    else:
+        job_duration = datetime.timedelta(minutes=5) if training_data_size < 5000000 else datetime.timedelta(minutes=15)
+        
+    return job_duration
+    
+
+def estimate_cpu_mem(training_data_size, training_mode):
+    """Use files in input data dir to come up with estimate of prelim mem per cpu."""
+    
+    if training_mode == "Segment":
+        if training_data_size < 5000000:
+            mem_per_cpu = "1G"
+        elif training_data_size < 20000000:
+            mem_per_cpu = "2G"
+        elif training_data_size < 40000000:
+            mem_per_cpu = "3G"
+        elif training_data_size < 120000000:
+            mem_per_cpu = "4G"
+        elif training_data_size < 200000000:
+            mem_per_cpu = "5G"
+        else:
+            mem_per_cpu = f"{6 + (training_data_size - 200000000) // 100000000}G"
+    else:
+        mem_per_cpu = "1G" if training_data_size < 50000000 else "2G"
+        
+    return mem_per_cpu
+
+        

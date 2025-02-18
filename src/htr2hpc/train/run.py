@@ -242,8 +242,8 @@ class TrainingManager:
 
         job_id = segtrain(
             abs_training_data_dir,
-            abs_model_file,
             abs_output_modelfile,
+            abs_model_file,
             self.num_workers,
             mem_per_cpu = prelim_cpu_mem,
             training_time = prelim_train_time,

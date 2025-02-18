@@ -81,7 +81,7 @@ class TrainingManager:
     model_file: pathlib.Path = None
     training_data_counts: Optional[dict] = None
     slurm_output: str = ""
-    job_stats: str = None
+    job_stats: str = ""
 
     def __post_init__(self):
         if self.update and not self.model_id:
@@ -244,11 +244,7 @@ class TrainingManager:
         
         # check exit status first
         job_status = slurm_job_status(job_id)
-        if "CANCELLED" in job_status and "TIMEOUT" not in job_status:
-            # cancelled by user, do run another train task, do not upload a model
-            return
-            
-        elif "OUT_OF_MEMORY" in job_status:
+        if "OUT_OF_MEMORY" in job_status:
             # might want to split up handling here more. OUT_OF_MEMORY might indicate
             # odd cases like a seg train task with no regions, or it might indicate
             # that the memory should be raised and the train task attempted again.
@@ -294,11 +290,7 @@ class TrainingManager:
         
         # check exit status first
         job_status = slurm_job_status(job_id)
-        if "CANCELLED" in job_status and "TIMEOUT" not in job_status:
-            # cancelled by user, do run another train task, do not upload a model
-            return
-            
-        elif "OUT_OF_MEMORY" in job_status:
+        if "OUT_OF_MEMORY" in job_status:
             # might want to split up handling here more. OUT_OF_MEMORY might indicate
             # odd cases like a seg train task with no regions, or it might indicate
             # that the memory should be raised and the train task attempted again.

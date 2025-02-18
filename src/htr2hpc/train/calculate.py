@@ -44,9 +44,10 @@ def stats_get_max_cpu(job_stats):
 
 
 def calc_full_duration(slurm_output, job_stats):
-    """Given a preliminary slurm job output, return duration estimate:""" 
-    """Setup time, plus 50 times the average epoch plus 10% for wiggle room."""
-    """Assumes the train task will take 50 epochs."""
+    """Given a preliminary slurm job output, return duration estimate:
+    Setup time, plus 50 times the average epoch plus 10% for wiggle room.
+    Assumes the train task will take 50 epochs.
+    """
     job_duration = re.findall('Run Time: (\d+:\d\d:\d\d)', job_stats)
     epoch_avg = slurm_get_avg_epoch(slurm_output)
     epoch_count = slurm_count_epoch(slurm_output)
@@ -73,7 +74,7 @@ def estimate_duration(training_data_size, training_mode):
     if training_mode == "Segment":
         job_duration = datetime.timedelta(minutes=5) if training_data_size < 20000000 else datetime.timedelta(minutes=15)
     else:
-        job_duration = datetime.timedelta(minutes=5) if training_data_size < 5000000 else datetime.timedelta(minutes=15)
+        job_duration = datetime.timedelta(minutes=5) if training_data_size < 50000000 else datetime.timedelta(minutes=15)
         
     return job_duration
     
@@ -82,7 +83,7 @@ def estimate_cpu_mem(training_data_size, training_mode):
     """Use files in input data dir to come up with estimate of prelim mem per cpu."""
     
     if training_mode == "Segment":
-        if training_data_size < 5000000:
+        if training_data_size < 10000000:
             mem_per_cpu = "1G"
         elif training_data_size < 20000000:
             mem_per_cpu = "2G"

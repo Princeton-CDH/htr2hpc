@@ -361,11 +361,20 @@ class TrainingManager:
         
         # if there was no preliminary best model, use old `abs_model_file` in case train task was
         # refining upon an input model.
-        if not abs_prelim_model_file:
+        else:
             abs_prelim_model_file = abs_model_file
 
         full_duration = calc_full_duration(self.slurm_output, self.job_stats)
         mem_per_cpu = calc_cpu_mem(self.job_stats)
+        
+        try:
+            best_epoch, best_acc = best_epoch_acc
+        except:
+            best_epoch, best_acc = None, None
+        if [mem_per_cpu, full_duration, best_epoch_acc] == [None, None, None]:
+            msg = "Encountered errors. Ending script..."
+        else:
+            msg = "Submitting next slurm job..."
         
         task_report = self.api.task_details(self.task_report_id)
         self.api.task_update(
@@ -377,8 +386,8 @@ class TrainingManager:
             Preliminary train task to calibrate requirements completed.
             - The recommended mem per cpu is {mem_per_cpu}
             - The recommended duration time is {full_duration}
-            - The epoch with the highest accuracy was {best_epoch_acc[0]} with {best_epoch_acc[1]}.
-            Submitting next slurm job...""",
+            - The epoch with the highest accuracy was {best_epoch} with {best_acc}.
+            {msg}""",
         )
         return abs_prelim_model_file, full_duration, mem_per_cpu
     

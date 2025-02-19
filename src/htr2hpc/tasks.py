@@ -455,3 +455,93 @@ def train(
     # - mark model as no longer being trained
     model.training = False
     model.save()
+
+
+@shared_task(default_retry_delay=60 * 60, bind=True)
+def hpc_user_setup(self, user_pk=None):
+    try:
+        user = User.objects.get(pk=user_pk)
+    except User.DoesNotExist:
+        # error / bail out
+        logger.error(f"hpc_user_setup called with invalid user_pk {user_pk}")
+        return
+
+    # by default, escriptorium reporting code attaches signal handlers
+    # that should create a task group and task report for this task id
+    TaskReport = apps.get_model("reporting", "TaskReport")
+    # don't error if the task report can't be found
+    task_report = TaskReport.objects.filter(task_id=self.request.id).first()
+
+    # hostname and ssh key path set in django config
+    logger.debug(
+        f"Connecting to {settings.HPC_HOSTNAME} as {user.username} with keyfile {settings.HPC_SSH_KEYFILE}"
+    )
+
+    # bash setup script is included with this package
+    user_setup_script = settings.HTR2HPC_INSTALL_DIR / "train" / "user_setup.sh"
+    user.notify(
+        "Running user setup script, on first run this may take a while...",
+        id="htr2hpc-setup-start",
+        #level="info",
+    )
+    try:
+        with Connection(
+            host=settings.HPC_HOSTNAME,
+            user=user.username,
+            connect_timeout=10,
+            connect_kwargs={"key_filename": settings.HPC_SSH_KEYFILE},
+        ) as conn:
+            # copy setup script to server
+            conn.put(user_setup_script)
+            # run the script with options; skip ssh setup (must already be setup
+            # for this task to run) and ensure htr2hpc install is up to date
+
+            setup_cmd = (
+                f"./{user_setup_script.name}  --skip-ssh-setup --reinstall-htr2hpc"
+            )
+            # document setup command options in task report
+            if task_report:
+                task_report.append(f"Running setup script:\n  {setup_cmd}\n\n")
+
+            result = conn.run(setup_cmd)
+            # remove the setup script from the server; don't error if not there
+            # (if user clicks the button twice it may already be removed)
+            conn.run(f"rm -f ./{user_setup_script.name}")
+
+            # add script output to task report
+            if task_report:
+                # script output is stored in result.stdout/result.stderr
+                task_report.append(
+                    f"\n\nsetup script output:\n\n{result.stdout}\n\n{result.stderr}\n\n"
+                )
+
+            if "Setup complete" in result.stdout:
+                user.notify(
+                    "Remote setup completed",
+                    id="htr2hpc-setup-success",
+                    level="success",
+                )
+            # log script output for debugging
+            logger.debug(f"user setup script output:\n{result.stdout}")
+    except AuthenticationException as err:
+        error_message = f"Authentication exception to remote connection: {err}"
+        logger.error(error_message)
+        if task_report:
+            task_report.append(error_message)
+        # notify the user of the error
+        user.notify(
+            "Authentication failed; check that your account on della is set up for remote access",
+            id="setup-error",
+            level="danger",
+        )
+    except UnexpectedExit as err:
+        error_message = f"Error running remote setup script: {err}"
+        logger.error(error_message)
+        if task_report:
+            task_report.append(error_message)
+        logger.error(error_message)
+        user.notify(
+            "Something went wrong running remote user setup",
+            id="setup-error",
+            level="danger",
+        )

@@ -46,7 +46,7 @@ def segtrain(
 
     # add commands for setup steps
     segtrain_slurm.add_cmd("module purge")
-    segtrain_slurm.add_cmd("module load anaconda3/2024.6")
+    segtrain_slurm.add_cmd("module load anaconda3/2024.2")
     segtrain_slurm.add_cmd("conda activate htr2hpc")
     logger.info(f"sbatch file\n: {segtrain_slurm}")
     # sbatch returns the job id for the created job
@@ -91,7 +91,7 @@ def recognition_train(
         time=training_time,
     )
     recogtrain_slurm.add_cmd("module purge")
-    recogtrain_slurm.add_cmd("module load anaconda3/2024.6")
+    recogtrain_slurm.add_cmd("module load anaconda3/2024.2")
     recogtrain_slurm.add_cmd("conda activate htr2hpc")
     logger.info(f"sbatch file\n: {recogtrain_slurm}")
     # sbatch returns the job id for the created job

@@ -261,7 +261,7 @@ class TrainingManager:
         
         # otherwise prepare to run a second task, 
         # refining on the preliminary model and using the new duration / cpu requests
-        abs_prelim_model_file, full_duration, mem_per_cpu = self.calc_updated_params(abs_model_file)
+        abs_prelim_model_file, full_duration, mem_per_cpu, epoch_request = self.calc_updated_params(abs_model_file)
         
         # if values for parameters were found, then the previous train task ran without errors
         # and the second one can be submitted
@@ -276,6 +276,7 @@ class TrainingManager:
                 self.num_workers,
                 mem_per_cpu = mem_per_cpu,
                 training_time = full_duration,
+                epochs = epoch_request,
             )
             os.chdir(self.orig_working_dir)
             self.monitor_slurm_job(job_id)
@@ -328,7 +329,7 @@ class TrainingManager:
         
         # otherwise prepare to run a second task, 
         # refining on the preliminary model and using the new duration / cpu requests
-        abs_prelim_model_file, full_duration, mem_per_cpu = self.calc_updated_params(abs_model_file)
+        abs_prelim_model_file, full_duration, mem_per_cpu, epoch_request = self.calc_updated_params(abs_model_file)
         
         # if values for parameters were found, then the previous train task ran without errors
         # and the second one can be submitted
@@ -343,6 +344,7 @@ class TrainingManager:
                 self.num_workers,
                 mem_per_cpu = mem_per_cpu,
                 training_time = full_duration,
+                epochs = epoch_request,
             )
             os.chdir(self.orig_working_dir)
             self.monitor_slurm_job(job_id)
@@ -364,7 +366,7 @@ class TrainingManager:
         else:
             abs_prelim_model_file = abs_model_file
 
-        full_duration = calc_full_duration(self.slurm_output, self.job_stats)
+        epoch_request, full_duration = calc_full_duration(self.slurm_output, self.job_stats)
         mem_per_cpu = calc_cpu_mem(self.job_stats)
         
         try:
@@ -385,11 +387,11 @@ class TrainingManager:
             
             Preliminary train task to calibrate requirements completed.
             - The recommended mem per cpu is {mem_per_cpu}
-            - The recommended duration time is {full_duration}
-            - The epoch with the highest accuracy was {best_epoch} with {best_acc}.
+            - The recommended duration time is {full_duration} for {epoch_request} epochs.
+            - The prelim epoch with the highest accuracy was {best_epoch} with {best_acc}.
             {msg}""",
         )
-        return abs_prelim_model_file, full_duration, mem_per_cpu
+        return abs_prelim_model_file, full_duration, mem_per_cpu, epoch_request
     
 
     def upload_best(self):

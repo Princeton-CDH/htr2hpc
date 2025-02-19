@@ -17,18 +17,26 @@ def segtrain(
     num_workers: int = 8,
     mem_per_cpu: str = "4G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),
+    epochs: int = None,
     # optional param to specify name based on document? include date?
 ) -> int:
     """Run ketos segmentation training as a slurm job.
     Returns the slurm job id for the queued job."""
 
+    # no epochs are passed for prelim train task.
+    if not epochs:
+        epochs = 50
+        prelim_opt = "calibrate_"
+    else:
+        prelim_opt = ""
+        
     segtrain_slurm = Slurm(
         nodes=1,
         ntasks=1,
         cpus_per_task=num_workers,
         mem_per_cpu=mem_per_cpu,
         gres=["gpu:1"],
-        job_name=f"segtrain:{output_model.name}",
+        job_name=f"{prelim_opt}segtrain:{output_model.name}",
         output=f"segtrain_{Slurm.JOB_ARRAY_MASTER_ID}.out",
         time=training_time,
     )
@@ -45,8 +53,7 @@ def segtrain(
     logger.info(f"sbatch file\n: {segtrain_slurm}")
     # sbatch returns the job id for the created job
     segtrain_cmd = (
-        # run with default number of epochs (50)
-        f"ketos segtrain --resize both -i {input_model} -q early"
+        f"ketos segtrain --min-epochs {epochs} --resize both -i {input_model} -q early"
         + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f xml -t {input_data_dir}/train.txt -e {input_data_dir}/validate.txt"
         # + "--precision 16"  # automatic mixed precision for nvidia gpu
@@ -63,10 +70,18 @@ def recognition_train(
     num_workers: int = 8,
     mem_per_cpu: str = "2G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),
+    epochs: int = None,
     # optional param to specify name based on document? include date?
 ) -> int:
     """Run ketos recognition training as a slurm job.
     Returns the slurm job id for the queued job."""
+    
+    # no epochs are passed for prelim train task.
+    if not epochs:
+        epochs = 50
+        prelim_opt = "calibrate_"
+    else:
+        prelim_opt = ""
 
     recogtrain_slurm = Slurm(
         nodes=1,
@@ -74,7 +89,7 @@ def recognition_train(
         cpus_per_task=num_workers,
         mem_per_cpu=mem_per_cpu,
         gres=["gpu:1"],
-        job_name=f"train:{output_model.name}",
+        job_name=f"{prelim_opt}train:{output_model.name}",
         output=f"train_{Slurm.JOB_ARRAY_MASTER_ID}.out",
         time=training_time,
     )
@@ -87,7 +102,7 @@ def recognition_train(
     # input model is optional; resize is only used with exesting model
     input_model_opt = f"--resize new -i {input_model}" if input_model else ""
     recogtrain_cmd = (
-        f"ketos train {input_model_opt}"
+        f"ketos train --min-epochs {epochs} {input_model_opt}"
         + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f binary {input_data_dir}/train.arrow "
     )

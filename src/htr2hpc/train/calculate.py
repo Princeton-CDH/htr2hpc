@@ -45,8 +45,9 @@ def stats_get_max_cpu(job_stats):
 
 def calc_full_duration(slurm_output, job_stats):
     """Given a preliminary slurm job output, return duration estimate:
-    Setup time, plus 50 times the average epoch plus 10% for wiggle room.
-    Assumes the train task will take 50 epochs.
+    Setup time, plus N times the average epoch plus 10% for wiggle room.
+    Assumes the train task will take 50 epochs. N = 50 - count of completed
+    epochs from prelim train task.
     """
     job_duration = re.findall('Run Time: (\d+:\d\d:\d\d)', job_stats)
     epoch_avg = slurm_get_avg_epoch(slurm_output)
@@ -59,15 +60,24 @@ def calc_full_duration(slurm_output, job_stats):
         if epoch_avg:
             setup_time = job_duration - ( epoch_avg * epoch_count )
             
-            return datetime.timedelta(minutes=math.ceil((setup_time + ( epoch_avg * 50 * 1.1 )) / 60))
+            epoch_request = 50 - epoch_count
+            # if prelim train task already came close to 50 epochs or overshot it, run second train task
+            # so that --lag 10 is immediately active (epoch_request -> --min-epochs 5) and so that the 
+            # estimated job time request allows room for 15 more epochs.
+            epoch_time_est = 15 if epoch_request < 11 else epoch_time_est
+            epoch_request = 5 if epoch_request < 11 else epoch_request
+            
+            return epoch_request, datetime.timedelta(minutes=math.ceil((setup_time + ( epoch_avg * epoch_time_est * 1.1 )) / 60))
     
         elif job_duration > datetime.timedelta(minutes=14):
             # if epoch_avg returns as None (no epochs completed during the first train task),
+            # but job did not error out early, assume that more time is needed per epoch.
             # assume 15min per epoch and 15min setup time.
             # this means max train time should be ~14 hrs.
             # note the calc_full_duration function should run only when the first train job does not crash.
+            epoch_request = 50
             
-            return datetime.timedelta(minutes=( 15 * 51 * 1.1 ))
+            return epoch_request, datetime.timedelta(minutes=( 15 * 51 * 1.1 ))
     
 
 def calc_cpu_mem(job_stats):

@@ -136,7 +136,5 @@ def slurm_job_stats(job_id: int) -> str:
         capture_output=True,
         text=True,
     )
-    # raise subprocess.CalledProcessError if return code indicates an error
-    result.check_returncode()
     # return task status without any whitespace
     return result.stdout.strip()

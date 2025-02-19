@@ -155,6 +155,24 @@ def serialize_segmentation(segmentation: Segmentation, part):
     segmentation.imagename = pathlib.Path(segmentation.imagename).name
     logger.debug(f"Serializing segmentation as {xml_path}")
     xml_path.open("w").write(serialize(segmentation, image_size=part.image.size))
+    
+    
+def split_segmentation(training_data_dir):
+    """Takes as input directory containing ALTO XML files and creates
+    a train.txt and validate.txt file which define the train/validation
+    split. This allows consistency across the multiple train tasks.
+    """
+    files_xml = list(training_data_dir.glob("*.xml"))
+    files_validate = [f"parts/{f.name}" for f in files_xml[::10]]
+    files_train = [f"parts/{f.name}" for f in files_xml if f"parts/{f.name}" not in files_validate]
+    
+    print(files_validate)
+    print(files_train)
+    
+    train_path = training_data_dir / "train.txt"
+    validate_path = training_data_dir / "validate.txt"
+    train_path.open("w").write("\n".join(files_train))
+    validate_path.open("w").write("\n".join(files_validate))
 
 
 def compile_data(segmentations, output_dir):
@@ -169,6 +187,7 @@ def compile_data(segmentations, output_dir):
         files=segmentations,
         format_type=None,  # None = kraken Segmentation objects
         output_file=str(output_file),
+        random_split=(0.9, 0.1, 0), # predefine train/validation split for consistency across mult train tasks
     )
     return output_file
 
@@ -249,6 +268,8 @@ def get_training_data(
     else:
         # serialize each of the parts that were downloaded
         [serialize_segmentation(seg, part) for (seg, part) in segmentation_data]
+        # define train/validation split
+        split_segmentation(output_dir)
 
     # return the total counts for various pieces of training data
     return counts

@@ -52,12 +52,22 @@ def calc_full_duration(slurm_output, job_stats):
     epoch_avg = slurm_get_avg_epoch(slurm_output)
     epoch_count = slurm_count_epoch(slurm_output)
     
-    if epoch_avg and job_duration:
+    if job_duration:
         t = datetime.datetime.strptime(job_duration[0], '%H:%M:%S')
         job_duration = datetime.timedelta(hours=t.hour, minutes=t.minute, seconds=t.second).seconds
-        setup_time = job_duration - ( epoch_avg * epoch_count )
-        
-        return datetime.timedelta(minutes=math.ceil((setup_time + ( epoch_avg * 50 * 1.1 )) / 60))
+    
+        if epoch_avg:
+            setup_time = job_duration - ( epoch_avg * epoch_count )
+            
+            return datetime.timedelta(minutes=math.ceil((setup_time + ( epoch_avg * 50 * 1.1 )) / 60))
+    
+        elif job_duration > datetime.timedelta(minutes=14):
+            # if epoch_avg returns as None (no epochs completed during the first train task),
+            # assume 15min per epoch and 15min setup time.
+            # this means max train time should be ~14 hrs.
+            # note the calc_full_duration function should run only when the first train job does not crash.
+            
+            return datetime.timedelta(minutes=( 15 * 51 * 1.1 ))
     
 
 def calc_cpu_mem(job_stats):

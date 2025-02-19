@@ -259,19 +259,14 @@ class TrainingManager:
             print("Best model already found.")
             return
         
-        # check exit status first
-        job_status = slurm_job_status(job_id)
-        if "OUT_OF_MEMORY" in job_status:
-            # might want to split up handling here more. OUT_OF_MEMORY might indicate
-            # odd cases like a seg train task with no regions, or it might indicate
-            # that the memory should be raised and the train task attempted again.
-            self.upload_best()
-            
-        else:
+        # otherwise prepare to run a second task, 
+        # refining on the preliminary model and using the new duration / cpu requests
+        abs_prelim_model_file, full_duration, mem_per_cpu = self.calc_updated_params(abs_model_file)
         
-            abs_prelim_model_file, full_duration, mem_per_cpu = self.calc_updated_params(abs_model_file)
-            
-            # run a second slurm task, refining on the preliminary model and using the new duration / cpu requests
+        # if values for parameters were found, then the previous train task ran without errors
+        # and the second one can be submitted
+        if full_duration and mem_per_cpu:
+            print(f"Requesting {mem_per_cpu} at {full_duration}.")
             os.chdir(self.work_dir)
                 
             job_id = segtrain(
@@ -331,19 +326,14 @@ class TrainingManager:
             print("Best model already found.")
             return
         
-        # check exit status first
-        job_status = slurm_job_status(job_id)
-        if "OUT_OF_MEMORY" in job_status:
-            # might want to split up handling here more. OUT_OF_MEMORY might indicate
-            # odd cases like a seg train task with no regions, or it might indicate
-            # that the memory should be raised and the train task attempted again.
-            self.upload_best()
-            
-        else:
+        # otherwise prepare to run a second task, 
+        # refining on the preliminary model and using the new duration / cpu requests
+        abs_prelim_model_file, full_duration, mem_per_cpu = self.calc_updated_params(abs_model_file)
         
-            abs_prelim_model_file, full_duration, mem_per_cpu = self.calc_updated_params(abs_model_file)
-            
-            # run a second slurm task, refining on the preliminary model and using the new duration / cpu requests
+        # if values for parameters were found, then the previous train task ran without errors
+        # and the second one can be submitted
+        if full_duration and mem_per_cpu:
+            print(f"Requesting {mem_per_cpu} at {full_duration}.")
             os.chdir(self.work_dir)
             
             job_id = recognition_train(
@@ -356,9 +346,9 @@ class TrainingManager:
             )
             os.chdir(self.orig_working_dir)
             self.monitor_slurm_job(job_id)
-            
-            
-            self.upload_best()
+        
+        
+        self.upload_best()
             
     
     def calc_updated_params(self, abs_model_file):

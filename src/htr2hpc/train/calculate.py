@@ -31,7 +31,10 @@ def slurm_get_avg_epoch(slurm_output):
     if epoch_times:
         epoch_times = [datetime.datetime.strptime(t, '%H:%M:%S') for t in epoch_times]
         epoch_times = [datetime.timedelta(hours=t.hour, minutes=t.minute, seconds=t.second).seconds for t in epoch_times]
-        return math.ceil(sum(epoch_times) / len(epoch_times))
+        epoch_avg = math.ceil(sum(epoch_times) / len(epoch_times))
+        if epoch_avg == 0:
+            epoch_avg = 1
+        return epoch_avg
     
 
 def stats_get_max_cpu(job_stats):
@@ -69,7 +72,7 @@ def calc_full_duration(slurm_output, job_stats):
             
             return epoch_request, datetime.timedelta(minutes=math.ceil((setup_time + ( epoch_avg * epoch_time_est * 1.1 )) / 60))
     
-        elif job_duration > datetime.timedelta(minutes=14):
+        elif datetime.timedelta(seconds=job_duration) > datetime.timedelta(minutes=14):
             # if epoch_avg returns as None (no epochs completed during the first train task),
             # but job did not error out early, assume that more time is needed per epoch.
             # assume 15min per epoch and 15min setup time.

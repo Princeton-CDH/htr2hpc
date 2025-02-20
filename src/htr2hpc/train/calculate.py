@@ -95,11 +95,11 @@ def estimate_duration(training_data_size, training_mode):
     """Use files in input data dir to come up with estimate of prelim train duration."""
     
     if training_mode == "Segment":
-        job_duration = datetime.timedelta(minutes=5) if training_data_size < 20000000 else datetime.timedelta(minutes=15)
+        job_minutes = 5 if training_data_size < 20000000 else 15
     else:
-        job_duration = datetime.timedelta(minutes=5) if training_data_size < 50000000 else datetime.timedelta(minutes=15)
+        job_minutes = 5 if training_data_size < 50000000 else 15
         
-    return job_duration
+    return datetime.timedelta(minutes=job_minutes)
     
 
 def estimate_cpu_mem(training_data_size, training_mode):

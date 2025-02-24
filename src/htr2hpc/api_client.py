@@ -407,13 +407,17 @@ class eScriptoriumAPIClient:
         
         # skip lines with missing baseline or mask coords
         broken_lines = []
+        valid_lines = []
         resp_json = resp.json()
-        for i, line in enumerate(resp_json["lines"]):
+        for line in resp_json["lines"]:
             if line["mask"] == None or line["baseline"] == None:
-                print(f"Warning: line {line['pk']} is missing a mask or baseline. Skipping...")
-                broken_lines.append(i)
-        for i in broken_lines:
-            resp_json["lines"].pop(i)
+                broken_lines.append(line)
+            else:
+               valid_lines.append(line)
+        # if there are any broken lines, update record with valid lines and report on skipped lines
+        if broken_lines:
+           resp_json["lines"] = valid_lines
+            logger.warn("Skipping {len(broken_lines)} lines due to missing mask or baseline: {','.join([line['pk'] for line in broken_lines])} (document {document_id}, part {part_id})")
             
         return to_namedtuple("part", resp_json)
 

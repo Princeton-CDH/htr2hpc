@@ -81,6 +81,10 @@ def calc_full_duration(slurm_output, job_stats):
             epoch_request = 50
             
             return epoch_request, datetime.timedelta(minutes=( 15 * 51 * 1.1 ))
+        else:
+            return None, None
+    else:
+        return None, None
     
 
 def calc_cpu_mem(job_stats):

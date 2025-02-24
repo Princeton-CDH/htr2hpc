@@ -67,7 +67,7 @@ def calc_full_duration(slurm_output, job_stats):
             # if prelim train task already came close to 50 epochs or overshot it, run second train task
             # so that --lag 10 is immediately active (epoch_request -> --min-epochs 5) and so that the 
             # estimated job time request allows room for 15 more epochs.
-            epoch_time_est = 15 if epoch_request < 11 else epoch_time_est
+            epoch_time_est = 15 if epoch_request < 11 else epoch_request
             epoch_request = 5 if epoch_request < 11 else epoch_request
             
             return epoch_request, datetime.timedelta(minutes=math.ceil((setup_time + ( epoch_avg * epoch_time_est * 1.1 )) / 60))

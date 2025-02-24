@@ -166,8 +166,8 @@ def split_segmentation(training_data_dir):
     files_validate = [f"parts/{f.name}" for f in files_xml[::10]]
     files_train = [f"parts/{f.name}" for f in files_xml if f"parts/{f.name}" not in files_validate]
     
-    print(files_validate)
-    print(files_train)
+    logger.info(f"Files in train set:\n {files_train}")
+    logger.info(f"Files in validation set:\n {files_validate}")
     
     train_path = training_data_dir / "train.txt"
     validate_path = training_data_dir / "validate.txt"

@@ -107,20 +107,20 @@ def estimate_cpu_mem(training_data_size, training_mode):
     
     if training_mode == "Segment":
         if training_data_size < 10000000:
-            mem_per_cpu = "1G"
+            mem_per_cpu = 1
         elif training_data_size < 20000000:
-            mem_per_cpu = "2G"
+            mem_per_cpu = 2
         elif training_data_size < 40000000:
-            mem_per_cpu = "3G"
+            mem_per_cpu = 3
         elif training_data_size < 120000000:
-            mem_per_cpu = "4G"
+            mem_per_cpu = 4
         elif training_data_size < 200000000:
-            mem_per_cpu = "5G"
+            mem_per_cpu = 5
         else:
-            mem_per_cpu = f"{6 + (training_data_size - 200000000) // 100000000}G"
+            mem_per_cpu = 6 + (training_data_size - 200000000) // 100000000
     else:
-        mem_per_cpu = "1G" if training_data_size < 50000000 else "2G"
+        mem_per_cpu = 1 if training_data_size < 50000000 else 2
         
-    return mem_per_cpu
+    return f"{mem_per_cpu}G"
 
         

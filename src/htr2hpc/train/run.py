@@ -25,6 +25,7 @@ from htr2hpc.train.data import (
     get_model_file,
     upload_models,
     upload_best_model,
+    get_prelim_model,
 )
 from htr2hpc.train.slurm import (
     segtrain,
@@ -32,6 +33,13 @@ from htr2hpc.train.slurm import (
     slurm_job_queue_status,
     slurm_job_stats,
     recognition_train,
+)
+from htr2hpc.train.calculate import (
+    slurm_get_max_acc,
+    calc_full_duration,
+    calc_cpu_mem,
+    estimate_duration,
+    estimate_cpu_mem,
 )
 
 
@@ -73,6 +81,8 @@ class TrainingManager:
     show_progress: bool = True
     model_file: pathlib.Path = None
     training_data_counts: Optional[dict] = None
+    slurm_output: str = ""
+    job_stats: str = ""
 
     def __post_init__(self):
         if self.update and not self.model_id:
@@ -190,18 +200,20 @@ class TrainingManager:
         if self.task_report_id is not None:
             try:
                 with open(job_output) as job_output_file:
-                    slurm_output = job_output_file.read()
+                    self.slurm_output = job_output_file.read()
             except FileNotFoundError:
                 print(f"File {job_output} not found.")
-                slurm_output = ""
+                self.slurm_output = ""
 
+            self.job_stats = slurm_job_stats(job_id)
+            
             # get current task report so we can add to messages
             task_report = self.api.task_details(self.task_report_id)
             self.api.task_update(
                 self.task_report_id,
                 task_report.label,
                 task_report.user,
-                f"{task_report.messages}\n Slurm job output:\n{slurm_output}\n\n",
+                f"{task_report.messages}\n\n{'='*80}\nSlurm job output:\n{self.slurm_output}\n\n{self.job_stats}\n{'='*80}",
             )
 
         # when cancelled via delete button on mydella web ui,
@@ -209,11 +221,6 @@ class TrainingManager:
         # if time limit ran out, status will include TIMEOUT as well as CANCELLED
         if "CANCELLED" in job_status and "TIMEOUT" not in job_status:
             raise JobCancelled
-            
-        # get stats on slurm resource usage
-        job_stats = slurm_job_stats(job_id)
-        print(job_stats)
-        print('='*80)
 
     def segmentation_training(self):
         # get absolute versions of these paths _before_ changing working directory
@@ -224,17 +231,55 @@ class TrainingManager:
         # change directory to working directory, since by default,
         # slurm executes the job from the directory where it was submitted
         os.chdir(self.work_dir)
+        
+        training_data_size = sum(f.stat().st_size for f in abs_training_data_dir.glob('*[!.xml]') if f.is_file())
+        print(f"Training data size: {training_data_size}")
+        
+        prelim_cpu_mem = estimate_cpu_mem(training_data_size, self.training_mode)
+        prelim_train_time = estimate_duration(training_data_size, self.training_mode)
+        
+        print(f"Requesting {prelim_cpu_mem} at {prelim_train_time}.")
 
         job_id = segtrain(
             abs_training_data_dir,
-            abs_model_file,
             abs_output_modelfile,
-            self.training_data_counts,
+            abs_model_file,
             self.num_workers,
+            mem_per_cpu = prelim_cpu_mem,
+            training_time = prelim_train_time,
         )
         # change back to original working directory
         os.chdir(self.orig_working_dir)
         self.monitor_slurm_job(job_id)
+        
+        # need to check if there is a _best.mlmodel
+        prelim_best = list(self.output_model_dir.glob("*_best.mlmodel"))
+        if prelim_best:
+            self.upload_best()
+            print("Best model already found.")
+            return
+        
+        # otherwise prepare to run a second task, 
+        # refining on the preliminary model and using the new duration / cpu requests
+        abs_prelim_model_file, full_duration, mem_per_cpu, epoch_request = self.calc_updated_params(abs_model_file)
+        
+        # if values for parameters were found, then the previous train task ran without errors
+        # and the second one can be submitted
+        if full_duration and mem_per_cpu:
+            print(f"Requesting {mem_per_cpu} at {full_duration}.")
+            os.chdir(self.work_dir)
+                
+            job_id = segtrain(
+                abs_training_data_dir,
+                abs_output_modelfile,
+                abs_prelim_model_file,
+                self.num_workers,
+                mem_per_cpu = mem_per_cpu,
+                training_time = full_duration,
+                epochs = epoch_request,
+            )
+            os.chdir(self.orig_working_dir)
+            self.monitor_slurm_job(job_id)
 
         if self.update:
             self.upload_best()
@@ -253,17 +298,101 @@ class TrainingManager:
         # change directory to working directory, since by default,
         # slurm executes the job from the directory where it was submitted
         os.chdir(self.work_dir)
+        
+        training_data_file = abs_training_data_dir / "train.arrow"
+        training_data_size = training_data_file.stat().st_size
+        print(f"Training data size: {training_data_size}")
+        
+        prelim_cpu_mem = estimate_cpu_mem(training_data_size, self.training_mode)
+        prelim_train_time = estimate_duration(training_data_size, self.training_mode)
+        
+        print(f"Requesting {prelim_cpu_mem} at {prelim_train_time}.")
 
         job_id = recognition_train(
             abs_training_data_dir,
             abs_output_modelfile,
             abs_model_file,
             self.num_workers,
+            mem_per_cpu = prelim_cpu_mem,
+            training_time = prelim_train_time,
         )
         # change back to original working directory
         os.chdir(self.orig_working_dir)
         self.monitor_slurm_job(job_id)
+        
+        # need to check if there is a _best.mlmodel
+        prelim_best = list(self.output_model_dir.glob("*_best.mlmodel"))
+        if prelim_best:
+            self.upload_best()
+            print("Best model already found.")
+            return
+        
+        # otherwise prepare to run a second task, 
+        # refining on the preliminary model and using the new duration / cpu requests
+        abs_prelim_model_file, full_duration, mem_per_cpu, epoch_request = self.calc_updated_params(abs_model_file)
+        
+        # if values for parameters were found, then the previous train task ran without errors
+        # and the second one can be submitted
+        if full_duration and mem_per_cpu:
+            print(f"Requesting {mem_per_cpu} at {full_duration}.")
+            os.chdir(self.work_dir)
+            
+            job_id = recognition_train(
+                abs_training_data_dir,
+                abs_output_modelfile,
+                abs_prelim_model_file,
+                self.num_workers,
+                mem_per_cpu = mem_per_cpu,
+                training_time = full_duration,
+                epochs = epoch_request,
+            )
+            os.chdir(self.orig_working_dir)
+            self.monitor_slurm_job(job_id)
+        
+        
         self.upload_best()
+            
+    
+    def calc_updated_params(self, abs_model_file):
+        # find preliminary model with highest accuracy to use as input for next train job
+        best_epoch_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
+        if best_epoch_acc:
+            prelim_best_model = list(self.output_model_dir.glob(f"*_{best_epoch_acc[0]}.mlmodel"))[0]
+            prelim_model_file = get_prelim_model(prelim_best_model)
+            abs_prelim_model_file = prelim_model_file.absolute()
+        
+        # if there was no preliminary best model, use old `abs_model_file` in case train task was
+        # refining upon an input model.
+        else:
+            abs_prelim_model_file = abs_model_file
+
+        epoch_request, full_duration = calc_full_duration(self.slurm_output, self.job_stats)
+        mem_per_cpu = calc_cpu_mem(self.job_stats)
+        
+        try:
+            best_epoch, best_acc = best_epoch_acc
+        except:
+            best_epoch, best_acc = None, None
+        if [mem_per_cpu, full_duration, best_epoch_acc] == [None, None, None]:
+            msg = "Encountered errors. Ending script..."
+        else:
+            msg = "Submitting next slurm job..."
+        
+        task_report = self.api.task_details(self.task_report_id)
+        self.api.task_update(
+            self.task_report_id,
+            task_report.label,
+            task_report.user,
+            f"""{task_report.messages}
+            
+            Preliminary train task to calibrate requirements completed.
+            - The recommended mem per cpu is {mem_per_cpu}
+            - The recommended duration time is {full_duration} for {epoch_request} epochs.
+            - The prelim epoch with the highest accuracy was {best_epoch} with {best_acc}.
+            {msg}""",
+        )
+        return abs_prelim_model_file, full_duration, mem_per_cpu, epoch_request
+    
 
     def upload_best(self):
         # look for and upload best model

@@ -1,5 +1,6 @@
 import logging
 import pathlib
+import shutil
 from typing import Optional
 from collections import defaultdict
 from dataclasses import dataclass
@@ -156,6 +157,24 @@ def serialize_segmentation(segmentation: Segmentation, part):
     segmentation.imagename = pathlib.Path(segmentation.imagename).name
     logger.debug(f"Serializing segmentation as {xml_path}")
     xml_path.open("w").write(serialize(segmentation, image_size=part.image.size))
+    
+    
+def split_segmentation(training_data_dir):
+    """Takes as input directory containing ALTO XML files and creates
+    a train.txt and validate.txt file which define the train/validation
+    split. This allows consistency across the multiple train tasks.
+    """
+    files_xml = list(training_data_dir.glob("*.xml"))
+    files_validate = [f"parts/{f.name}" for f in files_xml[::10]]
+    files_train = [f"parts/{f.name}" for f in files_xml if f"parts/{f.name}" not in files_validate]
+    
+    logger.info(f"Files in train set:\n {files_train}")
+    logger.info(f"Files in validation set:\n {files_validate}")
+    
+    train_path = training_data_dir / "train.txt"
+    validate_path = training_data_dir / "validate.txt"
+    train_path.open("w").write("\n".join(files_train))
+    validate_path.open("w").write("\n".join(files_validate))
 
 
 def compile_data(segmentations, output_dir):
@@ -170,6 +189,7 @@ def compile_data(segmentations, output_dir):
         files=segmentations,
         format_type=None,  # None = kraken Segmentation objects
         output_file=str(output_file),
+        random_split=(0.9, 0.1, 0), # predefine train/validation split for consistency across mult train tasks
     )
     return output_file
 
@@ -254,9 +274,20 @@ def get_training_data(
     else:
         # serialize each of the parts that were downloaded
         [serialize_segmentation(seg, part) for (seg, part) in segmentation_data]
+        # define train/validation split
+        split_segmentation(output_dir)
 
     # return the total counts for various pieces of training data
     return counts
+    
+
+def get_prelim_model(input_model: pathlib.Path):
+    """Copies the input model to a file with suffix `_prelim.mlmodel`, 
+    then returns the path to that newly created file.
+    """
+    prelim_model = input_model.parent / ('_'.join(input_model.name.split('_')[:-1]) + '_prelim.mlmodel')
+    shutil.copy(input_model, prelim_model)
+    return prelim_model
 
 
 def get_best_model(

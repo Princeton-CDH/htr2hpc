@@ -64,6 +64,8 @@ def get_segmentation_data(
     # same for block types (used for regions)
     block_types = {btype.pk: btype.name for btype in document_details.valid_block_types}
     part = api.document_part_details(document_id, part_id)
+    if not part:
+        return ( None, None )
 
     # adapted from escriptorium.app.core.tasks.make_segmentation_training_data
     # and  make_recognition_segmentation
@@ -230,6 +232,10 @@ def get_training_data(
         )
         for part_id in part_ids
     ]
+    # if any parts are broken, get_segmentation_data should return None, None.
+    # filter these out.
+    segmentation_data = [d for d in segmentation_data if d != (None, None)]
+    
     # get counts of data for reporting and scaling slurm request
     counts = TrainingDataCounts(parts=len(segmentation_data))
     # segmentation data is a list of tuples of segment, part

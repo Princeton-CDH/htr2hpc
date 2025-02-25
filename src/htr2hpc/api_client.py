@@ -393,7 +393,26 @@ class eScriptoriumAPIClient:
         """details for one part of a document"""
         api_url = f"documents/{document_id}/parts/{part_id}/"
         resp = self._make_request(api_url)
-        return to_namedtuple("part", resp.json())
+        
+        # skip lines with missing baseline or mask coords
+        broken_lines = []
+        valid_lines = []
+        resp_json = resp.json()
+        for line in resp_json["lines"]:
+            if line["mask"] == None or line["baseline"] == None:
+                broken_lines.append(line)
+            else:
+               valid_lines.append(line)
+        # if there are any broken lines, update record with valid lines and report on skipped lines
+        if broken_lines:
+            resp_json["lines"] = valid_lines
+            logger.warn("Skipping {len(broken_lines)} lines due to missing mask or baseline: {','.join([line['pk'] for line in broken_lines])} (document {document_id}, part {part_id})")
+            
+        try:
+            return to_namedtuple("part", resp_json)
+        except Exception as e:
+            print(f"Error in part {part_id}: '{e}'. Skipping...")
+            return None
 
     def document_part_transcription_list(
         self, document_id: int, part_id: int, transcription_id: Optional[int] = None

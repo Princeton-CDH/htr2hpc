@@ -105,6 +105,7 @@ def recognition_train(
         f"ketos train --min-epochs {epochs} {input_model_opt}"
         + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f binary {input_data_dir}/train.arrow "
+        + f"-w 0 -s '[1,120,0,1 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 S1(1x0)1,3 Lbx200 Do0.1,2 Lbx200 Do.1,2 Lbx200 Do]' -r 0.0001"
     )
 
     logger.info(f"recognition train command: {recogtrain_cmd}")

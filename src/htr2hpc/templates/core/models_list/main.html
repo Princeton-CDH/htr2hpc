@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block body %}
+
+<style>
+.pretrained, .pretrained th, .pretrained td {
+  border: 1px solid #dcdcdc;
+  padding: 5px;
+}
+.pretrained th, .pretrained td {
+  vertical-align:top;
+}
+th.pretrained_name {
+  width: 24%;
+}
+th.pretrained_lang, th.pretrained_script {
+  width: 13%;
+}
+th.pretrained_source {
+  width: 50%;
+}
+</style>
+<div class="container">
+  <details>
+    <summary><span style="font-weight:bold;">Click here for information on <code>pretrained_</code> models.</span></summary>
+
+  <p>All users of this beta test should have access to a series of models 
+  with <code>pretrained_</code> at the start of their names, covering several
+  languages and scripts. The sources of these models are detailed below. Please refer to the citations
+  there when citing use of these models in your work.</p>
+
+    <p><table class="pretrained">
+      <tr>
+        <th class="pretrained_name">Model Name</th>
+        <th class="pretrained_lang">Language(s)</th>
+        <th class="pretrained_script">Script(s)</th>
+        <th class="pretrained_source">Sources</th>
+      </tr>
+      <tr>
+        <td><code>pretrained_french</code></td>
+        <td>French</td>
+        <td>Latin</td>
+        <td>
+          <details>
+          <summary>Click for model citation.</summary>
+          The model file comes from the following source:
+          <ul>
+            <li>Gabay, S., Chagué, A., & Clérice, T. (2024). HTR-United - Manu Mc Fondue (Manuscripts of Modern and Contemporaneous French - Manu McFrench v4) (Version v4). Zenodo. <a href="https://doi.org/10.5281/zenodo.10886224">https://doi.org/10.5281/zenodo.10886224</a>.</li>
+          </ul>
+        </details>
+        </td>
+      </tr>
+      <tr>
+        <td><code>pretrained_german</code></td>
+        <td>German</td>
+        <td>Latin</td>
+        <td>
+          <details>
+          <summary>Click for model citation.</summary>
+          The model file comes from the following source:
+          <ul>
+            <li>Weil, S. (2023). HTR model for German manuscripts trained from several datasets. Zenodo. <a href="https://doi.org/10.5281/zenodo.7933463">https://doi.org/10.5281/zenodo.7933463</a>.</li>
+          </ul>
+          </details>
+        </td>
+      </tr>
+      <tr><td><code>pretrained_greek</code></td>
+        <td>Greek</td>
+        <td>Greek (minuscule)</td>
+        <td>
+          <details>
+          <summary>Click for model citation.</summary>
+          The model file comes from the following source:
+          <ul>
+            <li>Guénette, M., Verstraete, M., Chagué, A., & Vitali-Rosati, M. (2024). HTR Model Palatinus graecus 23 (Meleagre-NFC). Zenodo. <a href="https://doi.org/10.5281/zenodo.10932711">https://doi.org/10.5281/zenodo.10932711</a>.</li>
+          </ul>
+          </details>
+        </td>
+      </tr>
+      <tr><td><code>pretrained_hebrew</code></td>
+        <td>Hebrew</td>
+        <td>Hebrew (Ashkenazi, Italian, and Sephardi)</td>
+        <td>
+          <details>
+          <summary>Click for model citation.</summary>
+          The model file comes from the following source:
+          <ul>
+            <li>Daniel STOEKL BEN EZRA. (2021). Medieval Hebrew manuscripts version 1.0. Zenodo. <a href="https://doi.org/10.5281/zenodo.5468286">https://doi.org/10.5281/zenodo.5468286</a>.</li>
+          </ul>
+          </details>
+        </td>
+      </tr>
+    </table></p>
+  <br>
+  <p>To find further models, one starting point is the 
+    <a href="https://zenodo.org/communities/ocr_models">OCR/HTR 
+    model repository</a> on Zenodo. To find further transcription datasets, see the
+    <a href="https://htr-united.github.io/">HTR-United catalogue</a> of
+    published training data for a starting point.</p>
+  </details>
+
+</div>
+
+<a href="{% url 'model-upload' %}" class="btn btn-success float-sm-right">{% trans "Upload a model" %}</a>
+<h1>{% trans "Models" %}</h1>
+{% include 'core/models_list/table.html' %}
+{% endblock %}
+{% block scripts %}
+    {{ block.super }}
+    {% include 'core/models_list/scripts.html' %}
+{% endblock %}

@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = ''
 readme = "README.md"
 requires-python = ">=3.8"
-license = "Apache-2"
+license = { text = "Apache-2"}
 keywords = []
 authors = [
   { name = "rlskoeser", email = "rebecca.s.koeser@princeton.edu" },
@@ -25,15 +25,24 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pucas @ git+https://github.com/Princeton-CDH/django-pucas.git@release/0.9",
-# "pucas>=0.9",  # after next release
-  "psutil"
+  "pucas>=0.9",    # TODO: move to an optional group for webapp integration only?
+  "psutil",
+  "requests",
+  "kraken",
+  "humanize",
+  "simple_slurm",
+  "tqdm",
+  "intspan",
+  "fabric"
 ]
 
 [project.urls]
 Documentation = "https://github.com/Princeton-CDH/htr2hpc#readme"
 Issues = "https://github.com/Princeton-CDH/htr2hpc/issues"
 Source = "https://github.com/Princeton-CDH/htr2hpc"
+
+[project.scripts]
+htr2hpc-train = "htr2hpc.train.run:main"
 
 [tool.hatch.version]
 path = "src/htr2hpc/__init__.py"

@@ -6,10 +6,7 @@ from escriptorium.settings import INSTALLED_APPS, TEMPLATES, LOGIN_REDIRECT_URL
 HTR2HPC_INSTALL_DIR = Path(__file__).parent
 
 
-INSTALLED_APPS += [
-    "django_cas_ng",
-    "pucas",
-]
+INSTALLED_APPS += ["django_cas_ng", "pucas", "htr2hpc"]
 AUTHENTICATION_BACKENDS = (
     "django.contrib.auth.backends.ModelBackend",
     "django_cas_ng.backends.CASBackend",

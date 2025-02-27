@@ -8,18 +8,18 @@ We recommend installing git-flow. On OSX, you can install with brew:
 brew install git-flow
 ```
 
-In your local checkout of htr2hpc code, run `git flow init` to initialize the repository with git-flow and accept all the defaults.
+In your local checkout of htr2hpc code, run `git flow init` to initialize the repository with git-flow and accept all the defaults. (This is a one-time step.)
 
 ## Creating a new release
 
-Use git flow to create a release candidate. Specify the version number of the new release you are planning to create; e.g., for version 0.5:
+Use git flow to create a branch to prep a new release. Specify the version number of the new release you are planning to create; e.g., for version 0.5:
 
 ```sh
 git flow release start 0.5
 ```
 
 1. Update the version number in `src/htr2hpc/__init__.py`
-2. Update the change log (`CHANGELOG.md`) to document changes in the new version.
+2. Update `CHANGELOG.md` to document changes in the new version.
 
 Do any checking you want to do to verify the changes (e.g., git diff against `main` or previous release, or creating a pull request on GitHub to review the changes).
 

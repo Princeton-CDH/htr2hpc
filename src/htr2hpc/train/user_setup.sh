@@ -20,6 +20,17 @@ for arg in "$@"; do
   fi
 done
 
+# create a lock file to prevent multiple instances of this script from running
+if { set -C; 2>/dev/null >$HOME/htr2hpc.lock; }; then
+    trap "rm -f $HOME/htr2hpc.lock" EXIT
+else
+    echo "Lock file exists... another instance of the script may already be running. Exiting."
+    exit
+fi
+
+echo "Setting up your account for htr2hpc ...."
+echo "This process may take five minutes or more on first run. Do not exit until the process completes."
+
 echo "Setting up your account for htr2hpc ...."
 echo "This process may take five minutes or more on first run. Do not exit until the process completes."
 

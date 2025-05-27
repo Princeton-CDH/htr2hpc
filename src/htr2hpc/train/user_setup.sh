@@ -31,9 +31,6 @@ fi
 echo "Setting up your account for htr2hpc ...."
 echo "This process may take five minutes or more on first run. Do not exit until the process completes."
 
-echo "Setting up your account for htr2hpc ...."
-echo "This process may take five minutes or more on first run. Do not exit until the process completes."
-
 
 # skip ssh setup if --skip-ssh-setup is specified
 if $ssh_setup; then

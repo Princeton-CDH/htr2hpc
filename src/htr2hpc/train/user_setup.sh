@@ -8,13 +8,17 @@
 # defaults
 ssh_setup=true
 reinstall_htr2hpc=false
+repair_install=false
 
 # supported options:
 #   --skip-ssh-setup
 #   --reinstall-htr2hpc
+#   --repair-install
 for arg in "$@"; do
   if [[ "$arg" == "--skip-ssh-setup" ]]; then
     ssh_setup=false
+  elif [[ "$arg" == "--repair-install" ]]; then
+	repair_install=true
   elif [[ "$arg" == "--reinstall-htr2hpc" ]]; then
 	reinstall_htr2hpc=true
   fi
@@ -53,6 +57,22 @@ fi
 # create conda environment named htr2hpc
 conda_env_name=htr2hpc
 module load anaconda3/2024.2
+
+# when installation fix requested, remove htr2hpc from all possible locations
+if $repair_install; then
+    echo "Removing old htr2hpc environment setup"
+
+    conda remove -n $conda_env_name --all -y
+    rm -rf /home/$USER/.conda/envs/$conda_env_name
+    rm -rf /scratch/gpfs/$USER/.conda/envs/$conda_env_name
+    conda clean -a -y
+
+    # remove htr2hpc pip package installation, if it lingers
+    python -m pip uninstall htr2hpc -y
+    pip cache purge
+
+fi
+
 if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 	echo "conda env $conda_env_name already exists"
 

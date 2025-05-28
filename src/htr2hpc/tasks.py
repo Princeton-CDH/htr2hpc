@@ -494,10 +494,10 @@ def hpc_user_setup(self, user_pk=None):
             # copy setup script to server
             conn.put(user_setup_script)
             # run the script with options; skip ssh setup (must already be setup
-            # for this task to run) and ensure htr2hpc install is up to date
+            # for this task to run) and remove existing htr2hpc environment, then reinstall
 
             setup_cmd = (
-                f"./{user_setup_script.name}  --skip-ssh-setup --reinstall-htr2hpc"
+                f"./{user_setup_script.name}  --skip-ssh-setup --repair-install"
             )
             # document setup command options in task report
             if task_report:

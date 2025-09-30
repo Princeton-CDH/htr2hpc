@@ -10,10 +10,11 @@ The project goal is integrating the [eScriptorium handwritten text recognition (
 
 ## Table of Contents
 
-- [Installation](#installation)
+- [Installation](#installation-and-usage)
+- [Architecture](#architecture)
 - [License](#license)
 
-## Installation and usage
+## Installation and usage 
 
 This package can be installed directly from GitHub using `pip`:
 
@@ -61,6 +62,39 @@ PUCAS_LDAP.update(
 )
 ```
 
+## Architecture 
+
+This architecture chart shows how the eScriptorium test instance was deployed on Princeton hardware during the testing phase. 
+
+
+```mermaid
+flowchart TB
+ subgraph hpc["HPC"]
+        remote[["remote task"]]
+  end
+ subgraph htrvm["eScriptorium VM"]
+        Django["Django"]
+        nginx["NGINX"]
+        redis[("redis")]
+        supervisord["supervisord"]
+        celery["celery"]
+        local[["local task"]]
+  end
+ subgraph pul["PUL infrastructure"]
+        db[("PostgreSQL")]
+        nfs[/"NFS"\]
+        htrvm
+  end
+    nginx -- serves --> Django
+    Django --> db
+    Django -- queues tasks --> redis
+    supervisord -- manages --> celery
+    celery -- monitors --> redis
+    celery -- runs --> local & remote
+    htrvm --> nfs
+```
+
+For simplicity, we omit the second VM and load balancer; the two VMs are provisioned and deployed in the same way, and use shared PUL and HPC resources.
 
 ## License
 

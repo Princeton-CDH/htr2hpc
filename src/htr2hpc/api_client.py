@@ -292,7 +292,7 @@ class eScriptoriumAPIClient:
         """Update an existing model record with a new model file."""
         api_url = f"models/{model_id}/"
         # if job or name is not specified, set it based on
-        # infoormation retrieved from the api
+        # information retrieved from the api
         if job is None or model_name is None:
             model_info = self.model_details(model_id)
             # use value passed in if set; otherwise use value from current model
@@ -316,7 +316,7 @@ class eScriptoriumAPIClient:
         return to_namedtuple("model", resp.json())
 
     def model_delete(self, model_id: int):
-        """Delete an existing model record from eScriptorum."""
+        """Delete an existing model record from eScriptorium."""
         api_url = f"models/{model_id}/"
         # eScriptorium returns a 204 No Content response on success
         self._make_request(

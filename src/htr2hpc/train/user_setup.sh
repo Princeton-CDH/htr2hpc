@@ -67,19 +67,19 @@ if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 
 else
 	echo "Creating conda environment $conda_env_name and installing dependencies"
-	mkdir /scratch/gpfs/$USER/setup_htr2hpc
-	cp -r /scratch/gpfs/rkoeser/htr2hpc_setup/kraken /scratch/gpfs/$USER/setup_htr2hpc
-	cd /scratch/gpfs/$USER/setup_htr2hpc/kraken
+	mkdir /scratch/network/$USER/setup_htr2hpc
+	cp -r /scratch/network/rkoeser/htr2hpc_setup/kraken /scratch/network/$USER/setup_htr2hpc
+	cd /scratch/network/$USER/setup_htr2hpc/kraken
 	conda env create -f environment_cuda.yml -n $conda_env_name
 	conda activate $conda_env_name
 	pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
 	pip install -q torchvision torch==2.1 torchaudio==2.1
 	# go back to scratch and delete temp directory
-	cd /scratch/gpfs/$USER
-	rm -rf /scratch/gpfs/$USER/setup_htr2hpc
+	cd /scratch/network/$USER
+	rm -rf /scratch/network/$USER/setup_htr2hpc
 fi
 
-htrworkingdir=/scratch/gpfs/$USER/htr2hpc
+htrworkingdir=/scratch/network/$USER/htr2hpc
 # create working directory
 if [ ! -d $htrworkingdir ]; then
 	echo "Creating htr2hpc working directory in scratch: $htrworkingdir"

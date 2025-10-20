@@ -68,7 +68,7 @@ if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 else
 	echo "Creating conda environment $conda_env_name and installing dependencies"
 	mkdir /scratch/network/$USER/setup_htr2hpc
-	cp -r /scratch/network/rkoeser/htr2hpc_setup/kraken /scratch/network/$USER/setup_htr2hpc
+	cp -r /scratch/network/croughan/htr2hpc_setup/kraken /scratch/network/$USER/setup_htr2hpc
 	cd /scratch/network/$USER/setup_htr2hpc/kraken
 	conda env create -f environment_cuda.yml -n $conda_env_name
 	conda activate $conda_env_name

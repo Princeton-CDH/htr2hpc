@@ -104,7 +104,7 @@ For simplicity, we omit the second VM and load balancer; the two VMs are provisi
 This sequence diagram shows the flow of operations between eScriptorium instance, htr2hpc installation on the HPC system, and Slurm. 
 
 The task is triggered via ssh, then training data and optionally a model are retrieved via REST API. The htr2hpc training task uses a 
-two-job workflow with a preliminary calibration job before requesting second training job with resources and time requested based on the training job.
+two-job workflow with a preliminary calibration job before requesting second training job with resources and time requested based on the results of the calibration job.
 
 ```mermaid
 sequenceDiagram

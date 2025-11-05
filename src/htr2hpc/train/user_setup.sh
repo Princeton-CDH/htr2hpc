@@ -50,6 +50,25 @@ if $ssh_setup; then
 	fi
 fi
 
+# htr2hpc conda environment is too large for default adroit home.
+# move .conda to scratch and create a symlink, if one does not already exist
+CONDA_SYM="/scratch/network/$USER/.conda"
+if [ -L "$HOME/.conda" ] && [ $(readlink -f $HOME/.conda) = $CONDA_SYM ]; then
+	echo ".conda already relocated to user scratch"
+elif [ -L "$HOME/.conda" ]; then
+	CONDA_SYM=$(readlink -f $HOME/.conda)
+	echo ".conda has existing sym link $CONDA_SYM"
+else 
+	echo "Porting .conda to scratch and creating symlink in home"
+	rsync -avu $HOME/.conda /scratch/network/$USER/
+	rm -Rf $HOME/.conda
+	if [ ! -d "/scratch/network/$USER/.conda" ]; then
+		echo "Creating /scratch/network/$USER/.conda directory"
+		mkdir /scratch/network/$USER/.conda
+	fi
+	cd $HOME && ln -s /scratch/network/$USER/.conda .conda
+fi
+
 # create conda environment named htr2hpc
 conda_env_name=htr2hpc
 module load anaconda3/2024.2

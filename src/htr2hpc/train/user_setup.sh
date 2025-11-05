@@ -93,6 +93,7 @@ else
 	conda activate $conda_env_name
 	pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
 	pip install -q torchvision torch==2.1 torchaudio==2.1
+	pip install -q -U "rich<14.1.0"
 	# go back to scratch and delete temp directory
 	cd /scratch/network/$USER
 	rm -rf /scratch/network/$USER/setup_htr2hpc

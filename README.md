@@ -133,3 +133,6 @@ sequenceDiagram
 ## License
 
 `htr2hpc` is distributed under the terms of the Apache 2 license.
+
+
+<!-- Fix #70 -->

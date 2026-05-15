@@ -6,7 +6,7 @@ from escriptorium.settings import INSTALLED_APPS, TEMPLATES, LOGIN_REDIRECT_URL
 HTR2HPC_INSTALL_DIR = Path(__file__).parent
 
 
-INSTALLED_APPS += ["django_cas_ng", "pucas", "htr2hpc"]
+INSTALLED_APPS += ["django_cas_ng", "pucas", "htr2hpc.apps.Htr2HpcConfig"]
 AUTHENTICATION_BACKENDS = (
     "django.contrib.auth.backends.ModelBackend",
     "django_cas_ng.backends.CASBackend",
@@ -23,6 +23,8 @@ PUCAS_LDAP = {
         "last_name": "sn",
         "email": "mail",
     },
+    # new CAS accounts are inactive by default; admins must activate them
+    "EXTRA_USER_INIT": "htr2hpc.users.init_new_user",
 }
 
 # default django-cas behavior is to redirect back to the referrer,

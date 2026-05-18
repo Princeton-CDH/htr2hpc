@@ -72,7 +72,7 @@ def get_segmentation_data(
 
     # gather regions in a dictionary keyed on type name for
     # the segmentation object (name -> list of regions)
-    # and also a lookup by id, for assocating lines with regions
+    # and also a lookup by id, for associating lines with regions
     regions = defaultdict(list)
     region_pk_to_id = {}
     for region in part.regions:

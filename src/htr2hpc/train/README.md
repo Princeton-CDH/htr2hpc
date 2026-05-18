@@ -1,6 +1,6 @@
 # How to use `htr2hpc.train`
 
-This submodule provides fucntionality for running HTR segmentation and transcription model training and fine-tuning tasks on an HPC system using content and models downloaded from an eScriptorium instance.
+This submodule provides functionality for running HTR segmentation and transcription model training and fine-tuning tasks on an HPC system using content and models downloaded from an eScriptorium instance.
 
 The `htr2hpc-train` script will download document parts and optionally a model file and then start a slurm job to run the appropriate training task.
 

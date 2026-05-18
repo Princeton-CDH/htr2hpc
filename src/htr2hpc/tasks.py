@@ -249,7 +249,7 @@ def segtrain(
                 model.delete()
 
         else:
-            # - notify the user that training completed sucessfully
+            # - notify the user that training completed successfully
             user.notify(_("Training finished!"), id="training-success", level="success")
             # send training complete event
             send_event(
@@ -415,7 +415,7 @@ def train(
                 model.delete()
 
         else:
-            # otherwise, notify the user that training completed sucessfully
+            # otherwise, notify the user that training completed successfully
             user.notify(_("Training finished!"), id="training-success", level="success")
             # send training complete event
             send_event(

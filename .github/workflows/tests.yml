@@ -1,0 +1,56 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Check out htr2hpc
+        uses: actions/checkout@v4
+        with:
+          path: htr2hpc
+
+      - name: Check out eScriptorium
+        uses: actions/checkout@v4
+        with:
+          repository: UB-Mannheim/escriptorium
+          path: escriptorium
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install htr2hpc with test dependencies
+        run: pip install -e "./htr2hpc[test]"
+
+      - name: Install eScriptorium dependencies needed for import resolution
+        run: |
+          pip install \
+            celery \
+            django-simple-captcha \
+            djangorestframework \
+            django-prometheus \
+            easy-thumbnails
+
+      - name: Run tests with coverage
+        working-directory: htr2hpc
+        env:
+          ESCRIPTORIUM_ROOT: ${{ github.workspace }}/escriptorium
+        run: pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./htr2hpc/coverage.xml
+          flags: unittests
+          token: ${{ secrets.CODECOV_TOKEN }}

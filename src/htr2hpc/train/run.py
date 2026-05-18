@@ -359,23 +359,23 @@ class TrainingManager:
 
         epoch_request, full_duration = calc_full_duration(self.slurm_output, self.job_stats)
         mem_per_cpu = calc_cpu_mem(self.job_stats)
-        
+
         try:
             best_epoch, best_acc = best_epoch_acc
-        except:
+        except TypeError:
             best_epoch, best_acc = None, None
         if [mem_per_cpu, full_duration, best_epoch_acc] == [None, None, None]:
             msg = "Encountered errors. Ending script..."
         else:
             msg = "Submitting next slurm job..."
-        
+
         task_report = self.api.task_details(self.task_report_id)
         self.api.task_update(
             self.task_report_id,
             task_report.label,
             task_report.user,
             f"""{task_report.messages}
-            
+
             Preliminary train task to calibrate requirements completed.
             - The recommended mem per cpu is {mem_per_cpu}
             - The recommended duration time is {full_duration} for {epoch_request} epochs.

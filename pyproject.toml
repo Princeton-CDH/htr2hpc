@@ -41,6 +41,11 @@ Documentation = "https://github.com/Princeton-CDH/htr2hpc#readme"
 Issues = "https://github.com/Princeton-CDH/htr2hpc/issues"
 Source = "https://github.com/Princeton-CDH/htr2hpc"
 
+[project.optional-dependencies]
+dev = [
+  "pre-commit",
+]
+
 [project.scripts]
 htr2hpc-train = "htr2hpc.train.run:main"
 
@@ -73,3 +78,16 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.codespell]
+skip = "*.egg-info"
+
+[tool.mdformat]
+wrap = "no"

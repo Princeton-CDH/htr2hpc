@@ -2,6 +2,7 @@ import datetime
 import logging
 import pathlib
 import subprocess
+from typing import Optional
 
 from simple_slurm import Slurm
 
@@ -15,7 +16,7 @@ def segtrain(
     num_workers: int = 8,
     mem_per_cpu: str = "4G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),
-    epochs: int = None,
+    epochs: Optional[int] = None,
     # optional param to specify name based on document? include date?
 ) -> int:
     """Run ketos segmentation training as a slurm job.
@@ -64,11 +65,11 @@ def segtrain(
 def recognition_train(
     input_data_dir: pathlib.Path,
     output_model: pathlib.Path,
-    input_model: pathlib.Path = None,
+    input_model: Optional[pathlib.Path] = None,
     num_workers: int = 8,
     mem_per_cpu: str = "2G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),
-    epochs: int = None,
+    epochs: Optional[int] = None,
     # optional param to specify name based on document? include date?
 ) -> int:
     """Run ketos recognition training as a slurm job.
@@ -103,7 +104,7 @@ def recognition_train(
         f"ketos train --min-epochs {epochs} {input_model_opt}"
         + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f binary {input_data_dir}/train.arrow "
-        + "-w 0 -s '[1,120,0,1 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 S1(1x0)1,3 Lbx200 Do0.1,2 Lbx200 Do.1,2 Lbx200 Do]' -r 0.0001"  # noqa: E501
+        + "-w 0 -s '[1,120,0,1 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 S1(1x0)1,3 Lbx200 Do0.1,2 Lbx200 Do.1,2 Lbx200 Do]' -r 0.0001"
     )
 
     logger.info(f"recognition train command: {recogtrain_cmd}")

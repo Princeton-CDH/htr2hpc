@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
@@ -20,7 +22,7 @@ class CasUserInitForm(forms.Form):
 
     netids = forms.CharField(
         label="NetIDs",
-        help_text="Enter one or more Princeton NetIDs, separated by spaces or newlines.",  # noqa: E501
+        help_text="Enter one or more Princeton NetIDs, separated by spaces or newlines.",
         widget=forms.Textarea(attrs={"rows": 4}),
     )
 
@@ -31,7 +33,7 @@ class CasUserInitForm(forms.Form):
 class Htr2HpcUserAdmin(MyUserAdmin):
     """Extends eScriptorium's UserAdmin with CAS user management."""
 
-    actions = MyUserAdmin.actions + ["activate"]
+    actions: ClassVar = [*MyUserAdmin.actions, "activate"]
 
     def activate(self, request, queryset):
         """Admin action to activate selected user accounts."""
@@ -77,11 +79,11 @@ class Htr2HpcUserAdmin(MyUserAdmin):
                         # verify netid exists in LDAP before creating a DB record
                         ldap.find_user(netid)
                         user, created = User.objects.get_or_create(username=netid)
-                        # only init new users; skip existing to avoid resetting is_active  # noqa: E501
+                        # only init new users; skip existing to avoid resetting is_active
                         if created:
                             user_info_from_ldap(user)
                         created_users.append((netid, created))
-                    except LDAPSearchException:
+                    except LDAPSearchException:  # noqa: PERF203
                         errors.append(netid)
 
                 if created_users:
@@ -90,19 +92,19 @@ class Htr2HpcUserAdmin(MyUserAdmin):
                     if created:
                         self.message_user(
                             request,
-                            "Created accounts: %s" % ", ".join(created),
+                            "Created accounts: {}".format(", ".join(created)),
                             messages.SUCCESS,
                         )
                     if existing:
                         self.message_user(
                             request,
-                            "Already exists: %s" % ", ".join(existing),
+                            "Already exists: {}".format(", ".join(existing)),
                             messages.INFO,
                         )
                 if errors:
                     self.message_user(
                         request,
-                        "NetIDs not found in LDAP: %s" % ", ".join(errors),
+                        "NetIDs not found in LDAP: {}".format(", ".join(errors)),
                         messages.ERROR,
                     )
 

@@ -301,7 +301,7 @@ def get_prelim_model(input_model: pathlib.Path):
 
 
 def get_best_model(
-    model_dir: pathlib.Path, original_model: pathlib.Path = None
+    model_dir: pathlib.Path, original_model: Optional[pathlib.Path] = None
 ) -> pathlib.Path | None:
     """Find the best model in the specified `model_dir` directory.
     By default, looks for a file named `*_best.mlmodel`. If no best model
@@ -381,8 +381,8 @@ def upload_best_model(
     api,
     model_dir: pathlib.Path,
     model_type: str,
-    model_id: int = None,
-    original_model: pathlib.Path = None,
+    model_id: Optional[int] = None,
+    original_model: Optional[pathlib.Path] = None,
 ) -> Optional[pathlib.Path]:
     """Upload the best model in the specified model directory to eScriptorium
     with the specified job type (Segment/Recognize).  If a model id is specified,

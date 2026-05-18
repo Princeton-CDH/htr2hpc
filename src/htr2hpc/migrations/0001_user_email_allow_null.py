@@ -7,7 +7,7 @@ from django.db import migrations, models
 # even if there is an existing account with an empty email in the system.
 
 # NOTE: this resolves the db constraint, but
-# it is still required to set null=True on the django model since django checks that also  # noqa: E501
+# it is still required to set null=True on the django model since django checks that also
 
 
 class OverrideAlterField(migrations.AlterField):
@@ -29,11 +29,11 @@ class OverrideAlterField(migrations.AlterField):
 
 
 class Migration(migrations.Migration):
-    dependencies = [
+    dependencies = [  # noqa: RUF012
         ("users", "0021_alter_user_legacy_mode"),
     ]
 
-    operations = [
+    operations = [  # noqa: RUF012
         OverrideAlterField(
             model_name="User",
             name="email",

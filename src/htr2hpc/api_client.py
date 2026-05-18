@@ -5,7 +5,7 @@ import pathlib
 from collections import namedtuple
 from dataclasses import dataclass
 from time import sleep
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 import coremltools
 import humanize
@@ -209,10 +209,7 @@ class eScriptoriumAPIClient:
         """
         # support absolute urls for retrieving paged results,
         # but only urls within the configured eScriptorium instance
-        if url.startswith(self.api_root):
-            rqst_url = url
-        else:
-            rqst_url = f"{self.api_root}/{url}"
+        rqst_url = url if url.startswith(self.api_root) else f"{self.api_root}/{url}"
         rqst_opts = {}
         if params:
             rqst_opts["params"] = params.copy()
@@ -299,7 +296,7 @@ class eScriptoriumAPIClient:
             job = job or model_info.job
             model_name = model_name or model_info.name
 
-        with open(model_file, "rb") as mfile:
+        with model_file.open("rb") as mfile:
             files = {"file": mfile}
             data = {
                 "name": model_name,
@@ -339,7 +336,7 @@ class eScriptoriumAPIClient:
         if model_name is None:
             model_name = model_file.stem
 
-        with open(model_file, "rb") as mfile:
+        with model_file.open("rb") as mfile:
             files = {"file": mfile}
             data = {
                 # NOTE: could optionally infer model name from filename
@@ -458,7 +455,7 @@ class eScriptoriumAPIClient:
         return to_namedtuple("status", resp.json())
 
     # API provides types for these items
-    types = ["block", "line", "annotations", "part"]
+    types: ClassVar = ["block", "line", "annotations", "part"]
 
     def list_types(self, item):
         """list of available types"""
@@ -486,7 +483,7 @@ class eScriptoriumAPIClient:
         # import.export.BaseExporter logic
         # NOTE2: escriptorium code uses datetime.now() so there's no guarantee
         # this will match the completion time of the task...
-        base_filename = "export_doc%d_%s_%s_%s" % (
+        base_filename = "export_doc{}_{}_{}_{}".format(
             document_id,
             slugify(document_name).replace("-", "_")[:32],
             file_format,
@@ -600,7 +597,9 @@ class eScriptoriumAPIClient:
         resp = self._make_request(api_url)
         return to_namedtuple("task", resp.json())
 
-    def task_update(self, task_id: int, label: str, user_id: int, messages: str = None):
+    def task_update(
+        self, task_id: int, label: str, user_id: int, messages: Optional[str] = None
+    ):
         """Update an existing task report."""
         api_url = f"tasks/{task_id}/"
 

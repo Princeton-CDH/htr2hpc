@@ -133,7 +133,7 @@ def start_remote_training(
 @shared_task(default_retry_delay=60 * 60)
 def segtrain(
     model_pk=None,
-    part_pks=[],
+    part_pks=None,
     document_pk=None,
     task_group_pk=None,  # do train/segtrain update task status anywhere?
     user_pk=None,
@@ -148,6 +148,8 @@ def segtrain(
     # the specified model.
 
     # we require both of these; are they really optional?
+    if part_pks is None:
+        part_pks = []
     if not all([user_pk, document_pk]):
         # can't proceed without both of these
         logger.error(

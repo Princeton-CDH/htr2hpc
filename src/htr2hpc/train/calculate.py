@@ -89,11 +89,11 @@ def calc_full_duration(slurm_output, job_stats):
             )
 
         elif datetime.timedelta(seconds=job_duration) > datetime.timedelta(minutes=14):
-            # if epoch_avg returns as None (no epochs completed during the first train task),  # noqa: E501
-            # but job did not error out early, assume that more time is needed per epoch.  # noqa: E501
+            # if epoch_avg returns as None (no epochs completed during the first train task),
+            # but job did not error out early, assume that more time is needed per epoch.
             # assume 15min per epoch and 15min setup time.
             # this means max train time should be ~14 hrs.
-            # note the calc_full_duration function should run only when the first train job  # noqa: E501
+            # note the calc_full_duration function should run only when the first train job
             # does not crash.
             epoch_request = 50
 

@@ -97,7 +97,7 @@ class TrainingManager:
         except (requests.exceptions.ConnectionError, NotFound, NotAllowed) as err:
             # invalid hostname raises a connection error
             # wrong hostname (no API endpoint) raises not found api error
-            raise ConnectionError(f"Error connecting to eScriptorium: {err}")
+            raise ConnectionError(f"Error connecting to eScriptorium: {err}") from err
 
         # store the path to original working directory before changing directory
         self.orig_working_dir = pathlib.Path.cwd()
@@ -196,7 +196,7 @@ class TrainingManager:
 
         if self.task_report_id is not None:
             try:
-                with open(job_output) as job_output_file:
+                with job_output.open() as job_output_file:
                     self.slurm_output = job_output_file.read()
             except FileNotFoundError:
                 print(f"File {job_output} not found.")
@@ -267,7 +267,7 @@ class TrainingManager:
             self.calc_updated_params(abs_model_file)
         )
 
-        # if values for parameters were found, then the previous train task ran without errors  # noqa: E501
+        # if values for parameters were found, then the previous train task ran without errors
         # and the second one can be submitted
         if full_duration and mem_per_cpu:
             print(f"Requesting {mem_per_cpu} at {full_duration}.")
@@ -337,7 +337,7 @@ class TrainingManager:
             self.calc_updated_params(abs_model_file)
         )
 
-        # if values for parameters were found, then the previous train task ran without errors  # noqa: E501
+        # if values for parameters were found, then the previous train task ran without errors
         # and the second one can be submitted
         if full_duration and mem_per_cpu:
             print(f"Requesting {mem_per_cpu} at {full_duration}.")
@@ -358,12 +358,12 @@ class TrainingManager:
         self.upload_best()
 
     def calc_updated_params(self, abs_model_file):
-        # find preliminary model with highest accuracy to use as input for next train job  # noqa: E501
+        # find preliminary model with highest accuracy to use as input for next train job
         best_epoch_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
         if best_epoch_acc:
-            prelim_best_model = list(
-                self.output_model_dir.glob(f"*_{best_epoch_acc[0]}.mlmodel")
-            )[0]
+            prelim_best_model = next(
+                iter(self.output_model_dir.glob(f"*_{best_epoch_acc[0]}.mlmodel"))
+            )
             prelim_model_file = get_prelim_model(prelim_best_model)
             abs_prelim_model_file = prelim_model_file.absolute()
 
@@ -407,10 +407,7 @@ class TrainingManager:
         # look for and upload best model
 
         # when update is requested, specify model id to be updated
-        if self.update:
-            model_id = self.model_id
-        else:
-            model_id = None
+        model_id = self.model_id if self.update else None
 
         # in certain cases we only want to upload the model to
         # eScriptorium if it has improved on the original model;

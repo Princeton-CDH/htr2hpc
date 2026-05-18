@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from escriptorium.settings import INSTALLED_APPS, TEMPLATES, LOGIN_REDIRECT_URL
+from escriptorium.settings import INSTALLED_APPS, LOGIN_REDIRECT_URL, TEMPLATES
 
 # base directory for this package where it is installed
 HTR2HPC_INSTALL_DIR = Path(__file__).parent
@@ -42,9 +42,7 @@ TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "templates")
 # template directory and put it first in the list.
 
 # add custom context processor to display VM status
-TEMPLATES[0]["OPTIONS"]["context_processors"].append(
-    "htr2hpc.context_processors.vm_status"
-)
+TEMPLATES[0]["OPTIONS"]["context_processors"].append("htr2hpc.context_processors.vm_status")
 
 
 CUSTOM_HOME = True

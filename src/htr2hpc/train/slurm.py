@@ -5,8 +5,6 @@ import subprocess
 
 from simple_slurm import Slurm
 
-from htr2hpc.train.data import TrainingDataCounts
-
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +27,7 @@ def segtrain(
         prelim_opt = "calibrate_"
     else:
         prelim_opt = ""
-        
+
     segtrain_slurm = Slurm(
         nodes=1,
         ntasks=1,
@@ -75,7 +73,7 @@ def recognition_train(
 ) -> int:
     """Run ketos recognition training as a slurm job.
     Returns the slurm job id for the queued job."""
-    
+
     # no epochs are passed for prelim train task.
     if not epochs:
         epochs = 50
@@ -144,7 +142,8 @@ def slurm_job_status(job_id: int) -> set:
     # sacct returns a table with status for each portion of the job;
     # return all unique status codes for now
     return set(result.stdout.split())
-    
+
+
 def slurm_job_stats(job_id: int) -> str:
     """Use `jobstats` to get Slurm Job Statistics, to track resource usage"""
     result = subprocess.run(

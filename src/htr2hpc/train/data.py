@@ -1,18 +1,17 @@
 import logging
 import pathlib
 import shutil
-from typing import Optional
 from collections import defaultdict
 from dataclasses import dataclass
-
+from typing import Optional
 
 from kraken.containers import BaselineLine, Region, Segmentation
 from kraken.lib.arrow_dataset import build_binary_dataset
-from tqdm import tqdm
 
 # skip import, syntax error in current kraken
 # from kraken.lib.arrow_dataset import build_binary_dataset
 from kraken.serialization import serialize
+from tqdm import tqdm
 
 from htr2hpc.api_client import get_model_accuracy
 
@@ -27,9 +26,7 @@ def get_transcription_lines(api, document_id, part_id, transcription_id):
     # loop until all pages of results are consumed
     text_lines = {}
     # get the first page of results
-    transcription_lines = api.document_part_transcription_list(
-        document_id, part_id, transcription_id
-    )
+    transcription_lines = api.document_part_transcription_list(document_id, part_id, transcription_id)
     while True:
         # gather lines of text from the current page
         for text_line in transcription_lines.results:
@@ -66,7 +63,7 @@ def get_segmentation_data(
     block_types = {btype.pk: btype.name for btype in document_details.valid_block_types}
     part = api.document_part_details(document_id, part_id)
     if not part:
-        return ( None, None )
+        return (None, None)
 
     # adapted from escriptorium.app.core.tasks.make_segmentation_training_data
     # and  make_recognition_segmentation
@@ -83,18 +80,12 @@ def get_segmentation_data(
         region_pk_to_id[region.pk] = region.external_id
         # get region type and create a kraken region object
         region_type = block_types.get(region.typology, "default")
-        regions[region_type].append(
-            Region(
-                id=region.external_id, boundary=region.box, tags={"type": region_type}
-            )
-        )
+        regions[region_type].append(Region(id=region.external_id, boundary=region.box, tags={"type": region_type}))
 
     # recognition training requires transcription text content
     # if a transcription id is specified, retrieve transcription content
     if transcription_id:
-        text_lines = get_transcription_lines(
-            api, document_id, part_id, transcription_id
-        )
+        text_lines = get_transcription_lines(api, document_id, part_id, transcription_id)
     else:
         text_lines = {}
 
@@ -124,9 +115,7 @@ def get_segmentation_data(
 
     image_uri = f"{api.base_url}{part.image.uri}"
     # download the file and save in the image dir; name based on url without media prefix
-    image_file = api.download_file(
-        image_uri, image_dir, part.image.uri.replace("/media/", "").replace("/", "-")
-    )
+    image_file = api.download_file(image_uri, image_dir, part.image.uri.replace("/media/", "").replace("/", "-"))
 
     seg = Segmentation(
         # eS task code has text-direction hardcoded as horizontal-lr
@@ -157,8 +146,8 @@ def serialize_segmentation(segmentation: Segmentation, part):
     segmentation.imagename = pathlib.Path(segmentation.imagename).name
     logger.debug(f"Serializing segmentation as {xml_path}")
     xml_path.open("w").write(serialize(segmentation, image_size=part.image.size))
-    
-    
+
+
 def split_segmentation(training_data_dir):
     """Takes as input directory containing ALTO XML files and creates
     a train.txt and validate.txt file which define the train/validation
@@ -167,10 +156,10 @@ def split_segmentation(training_data_dir):
     files_xml = list(training_data_dir.glob("*.xml"))
     files_validate = [f"parts/{f.name}" for f in files_xml[::10]]
     files_train = [f"parts/{f.name}" for f in files_xml if f"parts/{f.name}" not in files_validate]
-    
+
     logger.info(f"Files in train set:\n {files_train}")
     logger.info(f"Files in validation set:\n {files_validate}")
-    
+
     train_path = training_data_dir / "train.txt"
     validate_path = training_data_dir / "validate.txt"
     train_path.open("w").write("\n".join(files_train))
@@ -189,7 +178,11 @@ def compile_data(segmentations, output_dir):
         files=segmentations,
         format_type=None,  # None = kraken Segmentation objects
         output_file=str(output_file),
-        random_split=(0.9, 0.1, 0), # predefine train/validation split for consistency across mult train tasks
+        random_split=(
+            0.9,
+            0.1,
+            0,
+        ),  # predefine train/validation split for consistency across mult train tasks
     )
     return output_file
 
@@ -200,9 +193,7 @@ def get_model_file(api, model_id, training_type, output_dir):
     training type. Returns a :class:`pathlib.Path` to the downloaded file."""
     model_info = api.model_details(model_id)
     if model_info.job != training_type:
-        raise ValueError(
-            f"Model {model_id} is a {model_info.job} model, but {training_type} requested"
-        )
+        raise ValueError(f"Model {model_id} is a {model_info.job} model, but {training_type} requested")
     if model_info.file is None:
         # when eScriptorium creates a new model record, it has no file
         # and the file url is null
@@ -235,9 +226,7 @@ class TrainingDataCounts:
     regions: int = 0
 
 
-def get_training_data(
-    api, output_dir, document_id, part_ids=None, transcription_id=None
-) -> TrainingDataCounts:
+def get_training_data(api, output_dir, document_id, part_ids=None, transcription_id=None) -> TrainingDataCounts:
     # if part ids are not specified, get all parts
     if part_ids is None:
         part_ids = get_document_parts(api, document_id)
@@ -247,15 +236,12 @@ def get_training_data(
 
     # get segmentation data for each part of the document that is requested
     segmentation_data = [
-        get_segmentation_data(
-            api, document_details, part_id, output_dir, transcription_id
-        )
-        for part_id in part_ids
+        get_segmentation_data(api, document_details, part_id, output_dir, transcription_id) for part_id in part_ids
     ]
     # if any parts are broken, get_segmentation_data should return None, None.
     # filter these out.
     segmentation_data = [d for d in segmentation_data if d != (None, None)]
-    
+
     # get counts of data for reporting and scaling slurm request
     counts = TrainingDataCounts(parts=len(segmentation_data))
     # segmentation data is a list of tuples of segment, part
@@ -279,20 +265,18 @@ def get_training_data(
 
     # return the total counts for various pieces of training data
     return counts
-    
+
 
 def get_prelim_model(input_model: pathlib.Path):
-    """Copies the input model to a file with suffix `_prelim.mlmodel`, 
+    """Copies the input model to a file with suffix `_prelim.mlmodel`,
     then returns the path to that newly created file.
     """
-    prelim_model = input_model.parent / ('_'.join(input_model.name.split('_')[:-1]) + '_prelim.mlmodel')
+    prelim_model = input_model.parent / ("_".join(input_model.name.split("_")[:-1]) + "_prelim.mlmodel")
     shutil.copy(input_model, prelim_model)
     return prelim_model
 
 
-def get_best_model(
-    model_dir: pathlib.Path, original_model: pathlib.Path = None
-) -> pathlib.Path | None:
+def get_best_model(model_dir: pathlib.Path, original_model: pathlib.Path = None) -> pathlib.Path | None:
     """Find the best model in the specified `model_dir` directory.
     By default, looks for a file named `*_best.mlmodel`. If no best model
     is found by filename, looks for best model based on accuracy score
@@ -304,9 +288,7 @@ def get_best_model(
     # best accuracy value from that model
     if original_model:
         best_accuracy = get_model_accuracy(original_model)
-        print(
-            f"Must be better than original model {original_model.name} accuracy {best_accuracy:0.3f}"
-        )
+        print(f"Must be better than original model {original_model.name} accuracy {best_accuracy:0.3f}")
     # kraken should normally identify the best model for us
     best = list(model_dir.glob("*_best.mlmodel"))
     # if one was found, return it
@@ -322,7 +304,7 @@ def get_best_model(
     else:
         if original_model:
             best = original_model
-        print(f"Looking for best model by accuracy")
+        print("Looking for best model by accuracy")
         for model in model_dir.glob("*.mlmodel"):
             accuracy = get_model_accuracy(model)
             print(f"model: {model.name} accuracy: {accuracy:0.3f}")
@@ -338,9 +320,7 @@ def get_best_model(
             print("Training did not improve on original model")
 
 
-def upload_models(
-    api, model_dir: pathlib.Path, model_type: str, show_progress=True
-) -> int:
+def upload_models(api, model_dir: pathlib.Path, model_type: str, show_progress=True) -> int:
     """Upload all model files in the specified model directory to eScriptorum
     with the specified job type (Segment/Recognize). Returns a count of the
     number of models created."""
@@ -349,9 +329,7 @@ def upload_models(
     # segtrain creates models based on modelname with _0, _1, _2 ... _49
     # sort numerically on the latter portion of the name
     # NOTE: this older logic breaks with new -q early option that creates a _best model
-    modelfiles = sorted(
-        model_dir.glob("*.mlmodel"), key=lambda path: int(path.stem.split("_")[-1])
-    )
+    modelfiles = sorted(model_dir.glob("*.mlmodel"), key=lambda path: int(path.stem.split("_")[-1]))
     for model_file in tqdm(
         modelfiles,
         desc=f"Uploading {model_type} models",

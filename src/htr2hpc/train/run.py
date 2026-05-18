@@ -1,47 +1,43 @@
 #!/usr/bin/env python
 import argparse
-import os
-import sys
-from enum import Enum
-
 import logging
+import os
 import pathlib
+import sys
 import time
 from dataclasses import dataclass
+from enum import Enum
 from shutil import rmtree
 from typing import Optional
 
+import requests
 from intspan import intspan
 from kraken.kraken import SEGMENTATION_DEFAULT_MODEL
-import requests
 from tqdm import tqdm
-from urllib3.exceptions import HTTPError
 
 # from urllib3.exceptions import ConnectionError
-
-from htr2hpc.api_client import eScriptoriumAPIClient, NotFound, NotAllowed
+from htr2hpc.api_client import NotAllowed, NotFound, eScriptoriumAPIClient
+from htr2hpc.train.calculate import (
+    calc_cpu_mem,
+    calc_full_duration,
+    estimate_cpu_mem,
+    estimate_duration,
+    slurm_get_max_acc,
+)
 from htr2hpc.train.data import (
-    get_training_data,
     get_model_file,
-    upload_models,
-    upload_best_model,
     get_prelim_model,
+    get_training_data,
+    upload_best_model,
+    upload_models,
 )
 from htr2hpc.train.slurm import (
+    recognition_train,
     segtrain,
-    slurm_job_status,
     slurm_job_queue_status,
     slurm_job_stats,
-    recognition_train,
+    slurm_job_status,
 )
-from htr2hpc.train.calculate import (
-    slurm_get_max_acc,
-    calc_full_duration,
-    calc_cpu_mem,
-    estimate_duration,
-    estimate_cpu_mem,
-)
-
 
 api_token_env_var = "ESCRIPTORIUM_API_TOKEN"
 
@@ -94,9 +90,7 @@ class TrainingManager:
         # This also serves as a configuration check before going further.
         try:
             current_user = self.api.get_current_user()
-            print(
-                f"Connecting to eScriptorium as {current_user.username} ({current_user.email})"
-            )
+            print(f"Connecting to eScriptorium as {current_user.username} ({current_user.email})")
         except (requests.exceptions.ConnectionError, NotFound, NotAllowed) as err:
             # invalid hostname raises a connection error
             # wrong hostname (no API endpoint) raises not found api error
@@ -188,9 +182,7 @@ class TrainingManager:
 
         # check the completed status
         job_status = slurm_job_status(job_id)
-        print(
-            f"Job {job_id} is no longer queued; ending status: {','.join(job_status)}"
-        )
+        print(f"Job {job_id} is no longer queued; ending status: {','.join(job_status)}")
         if self.training_mode == "Segment":
             job_output = self.work_dir / f"segtrain_{job_id}.out"
         else:
@@ -206,14 +198,15 @@ class TrainingManager:
                 self.slurm_output = ""
 
             self.job_stats = slurm_job_stats(job_id)
-            
+
             # get current task report so we can add to messages
             task_report = self.api.task_details(self.task_report_id)
             self.api.task_update(
                 self.task_report_id,
                 task_report.label,
                 task_report.user,
-                f"{task_report.messages}\n\n{'='*80}\nSlurm job output:\n{self.slurm_output}\n\n{self.job_stats}\n{'='*80}",
+                f"{task_report.messages}\n\n{'=' * 80}\nSlurm job output:\n"
+                f"{self.slurm_output}\n\n{self.job_stats}\n{'=' * 80}",
             )
 
         # when cancelled via delete button on mydella web ui,
@@ -231,13 +224,13 @@ class TrainingManager:
         # change directory to working directory, since by default,
         # slurm executes the job from the directory where it was submitted
         os.chdir(self.work_dir)
-        
-        training_data_size = sum(f.stat().st_size for f in abs_training_data_dir.glob('*[!.xml]') if f.is_file())
+
+        training_data_size = sum(f.stat().st_size for f in abs_training_data_dir.glob("*[!.xml]") if f.is_file())
         print(f"Training data size: {training_data_size}")
-        
+
         prelim_cpu_mem = estimate_cpu_mem(training_data_size, self.training_mode)
         prelim_train_time = estimate_duration(training_data_size, self.training_mode)
-        
+
         print(f"Requesting {prelim_cpu_mem} at {prelim_train_time}.")
 
         job_id = segtrain(
@@ -245,38 +238,38 @@ class TrainingManager:
             abs_output_modelfile,
             abs_model_file,
             self.num_workers,
-            mem_per_cpu = prelim_cpu_mem,
-            training_time = prelim_train_time,
+            mem_per_cpu=prelim_cpu_mem,
+            training_time=prelim_train_time,
         )
         # change back to original working directory
         os.chdir(self.orig_working_dir)
         self.monitor_slurm_job(job_id)
-        
+
         # need to check if there is a _best.mlmodel
         prelim_best = list(self.output_model_dir.glob("*_best.mlmodel"))
         if prelim_best:
             self.upload_best()
             print("Best model already found.")
             return
-        
-        # otherwise prepare to run a second task, 
+
+        # otherwise prepare to run a second task,
         # refining on the preliminary model and using the new duration / cpu requests
         abs_prelim_model_file, full_duration, mem_per_cpu, epoch_request = self.calc_updated_params(abs_model_file)
-        
+
         # if values for parameters were found, then the previous train task ran without errors
         # and the second one can be submitted
         if full_duration and mem_per_cpu:
             print(f"Requesting {mem_per_cpu} at {full_duration}.")
             os.chdir(self.work_dir)
-                
+
             job_id = segtrain(
                 abs_training_data_dir,
                 abs_output_modelfile,
                 abs_prelim_model_file,
                 self.num_workers,
-                mem_per_cpu = mem_per_cpu,
-                training_time = full_duration,
-                epochs = epoch_request,
+                mem_per_cpu=mem_per_cpu,
+                training_time=full_duration,
+                epochs=epoch_request,
             )
             os.chdir(self.orig_working_dir)
             self.monitor_slurm_job(job_id)
@@ -298,14 +291,14 @@ class TrainingManager:
         # change directory to working directory, since by default,
         # slurm executes the job from the directory where it was submitted
         os.chdir(self.work_dir)
-        
+
         training_data_file = abs_training_data_dir / "train.arrow"
         training_data_size = training_data_file.stat().st_size
         print(f"Training data size: {training_data_size}")
-        
+
         prelim_cpu_mem = estimate_cpu_mem(training_data_size, self.training_mode)
         prelim_train_time = estimate_duration(training_data_size, self.training_mode)
-        
+
         print(f"Requesting {prelim_cpu_mem} at {prelim_train_time}.")
 
         job_id = recognition_train(
@@ -313,46 +306,44 @@ class TrainingManager:
             abs_output_modelfile,
             abs_model_file,
             self.num_workers,
-            mem_per_cpu = prelim_cpu_mem,
-            training_time = prelim_train_time,
+            mem_per_cpu=prelim_cpu_mem,
+            training_time=prelim_train_time,
         )
         # change back to original working directory
         os.chdir(self.orig_working_dir)
         self.monitor_slurm_job(job_id)
-        
+
         # need to check if there is a _best.mlmodel
         prelim_best = list(self.output_model_dir.glob("*_best.mlmodel"))
         if prelim_best:
             self.upload_best()
             print("Best model already found.")
             return
-        
-        # otherwise prepare to run a second task, 
+
+        # otherwise prepare to run a second task,
         # refining on the preliminary model and using the new duration / cpu requests
         abs_prelim_model_file, full_duration, mem_per_cpu, epoch_request = self.calc_updated_params(abs_model_file)
-        
+
         # if values for parameters were found, then the previous train task ran without errors
         # and the second one can be submitted
         if full_duration and mem_per_cpu:
             print(f"Requesting {mem_per_cpu} at {full_duration}.")
             os.chdir(self.work_dir)
-            
+
             job_id = recognition_train(
                 abs_training_data_dir,
                 abs_output_modelfile,
                 abs_prelim_model_file,
                 self.num_workers,
-                mem_per_cpu = mem_per_cpu,
-                training_time = full_duration,
-                epochs = epoch_request,
+                mem_per_cpu=mem_per_cpu,
+                training_time=full_duration,
+                epochs=epoch_request,
             )
             os.chdir(self.orig_working_dir)
             self.monitor_slurm_job(job_id)
-        
-        
+
         self.upload_best()
-            
-    
+
     def calc_updated_params(self, abs_model_file):
         # find preliminary model with highest accuracy to use as input for next train job
         best_epoch_acc = slurm_get_max_acc(self.slurm_output, self.training_mode)
@@ -360,7 +351,7 @@ class TrainingManager:
             prelim_best_model = list(self.output_model_dir.glob(f"*_{best_epoch_acc[0]}.mlmodel"))[0]
             prelim_model_file = get_prelim_model(prelim_best_model)
             abs_prelim_model_file = prelim_model_file.absolute()
-        
+
         # if there was no preliminary best model, use old `abs_model_file` in case train task was
         # refining upon an input model.
         else:
@@ -392,7 +383,6 @@ class TrainingManager:
             {msg}""",
         )
         return abs_prelim_model_file, full_duration, mem_per_cpu, epoch_request
-    
 
     def upload_best(self):
         # look for and upload best model
@@ -453,12 +443,8 @@ def main():
     #   name for the new model when creating a new one (required)
 
     # use subparsers for the two modes
-    parser = argparse.ArgumentParser(
-        description="Export content from eScriptorium and train or fine-tune models"
-    )
-    subparsers = parser.add_subparsers(
-        title="mode", description="supported training modes", required=True, dest="mode"
-    )
+    parser = argparse.ArgumentParser(description="Export content from eScriptorium and train or fine-tune models")
+    subparsers = parser.add_subparsers(title="mode", description="supported training modes", required=True, dest="mode")
     subparsers.add_parser("segmentation")  # currently no segmentation-specific options
     transcription_parser = subparsers.add_parser("transcription")
 
@@ -585,7 +571,7 @@ def main():
             print(f"Error: {'; '.join(error_messages)}")
             sys.exit(1)
     if not any([args.model_id, args.model_name]):
-        print(f"Error: one of --model or --model-name is required")
+        print("Error: one of --model or --model-name is required")
         sys.exit(1)
 
     # make sure working directory does not already exist
@@ -643,17 +629,15 @@ def main():
             training_mgr.recognition_training()
     except (NotFound, NotAllowed) as err:
         print(f"Something went wrong: {err}")
-    except JobCancelled as err:
-        print(f"Slurm job was cancelled")
+    except JobCancelled:
+        print("Slurm job was cancelled")
 
     # unless requested not to, clean up the working directory, which includes:
     # - downloaded training data & model to fine tune
     # - generated models
     # - training output
     if args.clean:
-        print(
-            f"Removing working directory {args.work_dir} with all training data and models."
-        )
+        print(f"Removing working directory {args.work_dir} with all training data and models.")
         rmtree(args.work_dir)
 
 

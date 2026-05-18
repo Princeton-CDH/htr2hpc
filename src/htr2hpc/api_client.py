@@ -1,17 +1,16 @@
 import datetime
+import json
 import logging
+import pathlib
 from collections import namedtuple
 from dataclasses import dataclass
 from time import sleep
-import pathlib
-from typing import Optional, Any
-from urllib.parse import urlparse, parse_qs
-import json
+from typing import Any, Optional
 
+import coremltools
 import humanize
 import requests
 from django.utils.text import slugify  # is django a reasonable dependency?
-import coremltools
 
 from htr2hpc import __version__ as _version
 
@@ -51,9 +50,7 @@ class ResultsList:
             # request the next page and return as a
             #  results list item with the same type and api client as this one
             resp = self.api._make_request(self.next)
-            return ResultsList(
-                api=self.api, result_type=self.result_type, **resp.json()
-            )
+            return ResultsList(api=self.api, result_type=self.result_type, **resp.json())
 
 
 @dataclass
@@ -233,9 +230,7 @@ class eScriptoriumAPIClient:
             raise ValueError(f"unsupported http method: {method}")
 
         resp = session_request(rqst_url, **rqst_opts)
-        logger.debug(
-            f"{method} {rqst_url} {resp.status_code}: {resp.elapsed.total_seconds()} sec"
-        )
+        logger.debug(f"{method} {rqst_url} {resp.status_code}: {resp.elapsed.total_seconds()} sec")
         if resp.status_code == expected_status:
             return resp
 
@@ -319,9 +314,7 @@ class eScriptoriumAPIClient:
         """Delete an existing model record from eScriptorium."""
         api_url = f"models/{model_id}/"
         # eScriptorium returns a 204 No Content response on success
-        self._make_request(
-            api_url, method="DELETE", expected_status=requests.codes.no_content
-        )
+        self._make_request(api_url, method="DELETE", expected_status=requests.codes.no_content)
 
     def model_create(
         self,
@@ -427,9 +420,7 @@ class eScriptoriumAPIClient:
         resp = self._make_request(api_url, params=params)
         return ResultsList(api=self, result_type="transcription_line", **resp.json())
 
-    def document_export(
-        self, document_id: int, transcription_id: int, include_images: bool = False
-    ):
+    def document_export(self, document_id: int, transcription_id: int, include_images: bool = False):
         """request a document export be compiled for download"""
         api_url = f"documents/{document_id}/export/"
         # export form requires a region_types list, which
@@ -491,9 +482,7 @@ class eScriptoriumAPIClient:
 
         return f"{self.base_url}/media/users/{user_id}/{base_filename}.zip"
 
-    def download_document_export(
-        self, user_id, document_id, document_name, transcription_ids
-    ) -> pathlib.Path:
+    def download_document_export(self, user_id, document_id, document_name, transcription_ids) -> pathlib.Path:
         """Request a document export, monitor the task until it completes,
         then download the compiled document export file.
         """
@@ -526,7 +515,7 @@ class eScriptoriumAPIClient:
             document_id,
             document_name,
             "alto",
-            export_task.done_at
+            export_task.done_at,
             # user_id, document_id, document_name, "alto", export_task.created_at
         )
         logger.info(f"Downloading export from {export_file_url}")
@@ -539,17 +528,13 @@ class eScriptoriumAPIClient:
             filename = content_disposition.split("filename=")[-1].strip('"')
             outfile = pathlib.Path(filename)
             # report on filename and size based on content-length header
-            logger.info(
-                f"Saving as {filename} ({humanize.naturalsize(content_length)})"
-            )
+            logger.info(f"Saving as {filename} ({humanize.naturalsize(content_length)})")
             with outfile.open("wb") as filehandle:
                 for chunk in resp.iter_content(chunk_size=1024):
                     filehandle.write(chunk)
             return outfile
 
-    def download_file(
-        self, url: str, save_location: pathlib.Path, filename=None
-    ) -> Optional[pathlib.Path]:
+    def download_file(self, url: str, save_location: pathlib.Path, filename=None) -> Optional[pathlib.Path]:
         """Convenience method to download a file to a specified location.
         Returns"""
 
@@ -570,9 +555,7 @@ class eScriptoriumAPIClient:
 
             outfile = save_location / filename
             # report on filename and size based on content-length header
-            logger.debug(
-                f"Saving as {filename} ({humanize.naturalsize(content_length)})"
-            )
+            logger.debug(f"Saving as {filename} ({humanize.naturalsize(content_length)})")
             with outfile.open("wb") as filehandle:
                 for chunk in resp.iter_content(chunk_size=1024):
                     filehandle.write(chunk)

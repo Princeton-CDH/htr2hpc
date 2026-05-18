@@ -1,9 +1,9 @@
 # Deploy Notes
 
-
 We use the [git-flow branching pattern](https://www.gitkraken.com/learn/git/git-flow) for this codebase. This means that `main` is always the most recent release and `develop` has new features for the next release.
 
 We recommend installing git-flow. On OSX, you can install with brew:
+
 ```sh
 brew install git-flow
 ```
@@ -19,7 +19,7 @@ git flow release start 0.5
 ```
 
 1. Update the version number in `src/htr2hpc/__init__.py`
-2. Update `CHANGELOG.md` to document changes in the new version.
+1. Update `CHANGELOG.md` to document changes in the new version.
 
 Do any checking you want to do to verify the changes (e.g., git diff against `main` or previous release, or creating a pull request on GitHub to review the changes).
 
@@ -54,4 +54,3 @@ Once the new release has been merged to `main` and pushed to GitHub, you can use
 ```sh
 ansible-playbook playbooks/escriptorium.yml -t reinstall-htr2hpc
 ```
-

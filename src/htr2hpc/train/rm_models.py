@@ -15,9 +15,8 @@ usage:
 
 """
 
-
-import os
 import argparse
+import os
 import sys
 
 from tqdm import tqdm
@@ -57,9 +56,7 @@ def main():
     # handle one or more pages of results from model list
     model_list = api.model_list()
     while True:
-        rm_models.extend(
-            [m for m in model_list.results if m.name.startswith(args.model_name)]
-        )
+        rm_models.extend([m for m in model_list.results if m.name.startswith(args.model_name)])
 
         # if there is another page of results, get them
         if model_list.next:

@@ -18,14 +18,10 @@ class OverrideAlterField(migrations.AlterField):
         super().state_forwards(self.override_app_label, state)
 
     def database_forwards(self, app_label, schema_editor, from_state, to_state):
-        super().database_forwards(
-            self.override_app_label, schema_editor, from_state, to_state
-        )
+        super().database_forwards(self.override_app_label, schema_editor, from_state, to_state)
 
     def database_backwards(self, app_label, schema_editor, from_state, to_state):
-        self.database_forwards(
-            self.override_app_label, schema_editor, from_state, to_state
-        )
+        self.database_forwards(self.override_app_label, schema_editor, from_state, to_state)
 
 
 class Migration(migrations.Migration):
@@ -37,8 +33,6 @@ class Migration(migrations.Migration):
         OverrideAlterField(
             model_name="User",
             name="email",
-            field=models.EmailField(
-                max_length=255, null=True, unique=True, verbose_name="email address"
-            ),
+            field=models.EmailField(max_length=255, null=True, unique=True, verbose_name="email address"),
         ),
     ]

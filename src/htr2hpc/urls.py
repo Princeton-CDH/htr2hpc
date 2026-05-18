@@ -1,5 +1,4 @@
 from django.urls import include, path
-
 from escriptorium.urls import urlpatterns
 
 from htr2hpc.views import remote_user_setup

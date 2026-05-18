@@ -11,7 +11,8 @@ delete all models that start with the specified model name prefix.
 
 usage:
 
-    python src/htr2hpc/train/rm_models.py https://test-htr.lib.princeton.edu/ model_prefix
+    python src/htr2hpc/train/rm_models.py \
+        https://test-htr.lib.princeton.edu/ model_prefix
 
 """
 
@@ -31,7 +32,8 @@ def main():
         api_token = os.environ[api_token_env_var]
     except KeyError:
         print(
-            f"Error: eScriptorium API token must be set as environment variable {api_token_env_var}",
+            f"Error: eScriptorium API token must be set as environment variable"
+            f" {api_token_env_var}",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -56,7 +58,9 @@ def main():
     # handle one or more pages of results from model list
     model_list = api.model_list()
     while True:
-        rm_models.extend([m for m in model_list.results if m.name.startswith(args.model_name)])
+        rm_models.extend(
+            [m for m in model_list.results if m.name.startswith(args.model_name)]
+        )
 
         # if there is another page of results, get them
         if model_list.next:

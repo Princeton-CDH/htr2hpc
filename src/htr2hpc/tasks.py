@@ -27,7 +27,9 @@ def directory_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
 
 
-def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk, task_report):
+def start_remote_training(
+    user, working_dir, train_cmd, document_pk, model_pk, task_report
+):
     # common logic for segtrain and train to kick off remote training script
 
     # assume we're using LDAP accounts only so usernames match here and on hpc
@@ -35,7 +37,10 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk, t
     api_token = user.auth_token.key
 
     # hostname and ssh key path set in django config
-    logger.debug(f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}")
+    logger.debug(
+        f"Connecting to {settings.HPC_HOSTNAME} as {username}"
+        f" with keyfile {settings.HPC_SSH_KEYFILE}"
+    )
 
     # add training command to task report
     task_report.append(f"remote training command:\n  {train_cmd}\n")
@@ -65,13 +70,18 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk, t
                     env={"ESCRIPTORIUM_API_TOKEN": api_token},
                     warn=True,  # don't throw unexpected error on exit != 0
                 )
-                logger.info(f"remote training script completed; exit code: {result.exited}")
+                logger.info(
+                    f"remote training script completed; exit code: {result.exited}"
+                )
                 # refresh task report to get any messages added via api
                 task_report.refresh_from_db()
 
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
-                task_report.append(f"\n\nremote script output:\n\n{result.stdout}\n\n{result.stderr}\n\n")
+                task_report.append(
+                    f"\n\nremote script output:\n\n"
+                    f"{result.stdout}\n\n{result.stderr}\n\n"
+                )
                 if "Slurm job was cancelled" in result.stdout:
                     task_report.cancel("(slurm cancellation)")
                     # notify the user of the error
@@ -88,7 +98,10 @@ def start_remote_training(user, working_dir, train_cmd, document_pk, model_pk, t
     except (AuthenticationException, UnexpectedExit) as err:
         if isinstance(err, AuthenticationException):
             logger.error(f"Authentication exception to remote connection: {err}")
-            error_message = "Authentication failed; check that your account is set up properly on della"
+            error_message = (
+                "Authentication failed; check that your account"
+                " is set up properly on della"
+            )
         else:
             logger.error(f"Unexpected exit from remote connection: {err}")
             error_message = "Something went wrong running the training."
@@ -137,7 +150,10 @@ def segtrain(
     # we require both of these; are they really optional?
     if not all([user_pk, document_pk]):
         # can't proceed without both of these
-        logger.error(f"segtrain called without document_pk or user_pk; document_pk={document_pk} user_pk={user_pk}")
+        logger.error(
+            f"segtrain called without document_pk or user_pk;"
+            f" document_pk={document_pk} user_pk={user_pk}"
+        )
         return
 
     try:
@@ -219,7 +235,9 @@ def segtrain(
     # log the command to be run
     logger.info(f"remote training command: {cmd}")
 
-    success = start_remote_training(user, working_dir, cmd, document_pk, model.pk, task_report)
+    success = start_remote_training(
+        user, working_dir, cmd, document_pk, model.pk, task_report
+    )
 
     # refresh model data from the database,
     # since if htr2hpc-train script succeeded it should have been updated via api
@@ -228,7 +246,9 @@ def segtrain(
     if success:
         # check for case where training completed but model did not improve.
         # i.e., no new model was uploaded or cloned model is still parent file
-        if model.file is None or (model.parent is not None and model.file == model.parent.file):
+        if model.file is None or (
+            model.parent is not None and model.file == model.parent.file
+        ):
             user.notify(
                 "Training completed but did not result in an improved model",
                 id="training-warning",
@@ -293,7 +313,8 @@ def train(
         # can't proceed without these
         logger.error(
             "train called without transcription_pk, part_pks, or user_pk "
-            + f"transcription_pk={transcription_pk} part_pks={part_pks} user_pk={user_pk}"
+            + f"transcription_pk={transcription_pk} part_pks={part_pks}"
+            + f" user_pk={user_pk}"
         )
         return
 
@@ -384,7 +405,9 @@ def train(
     # log the command to be run
     logger.info(f"remote training command: {cmd}")
 
-    success = start_remote_training(user, working_dir, cmd, document.pk, model.pk, task_report)
+    success = start_remote_training(
+        user, working_dir, cmd, document.pk, model.pk, task_report
+    )
 
     # refresh model data from the database,
     # since if htr2hpc-train script succeeded it should have been updated via api
@@ -394,7 +417,9 @@ def train(
 
         # check for case where training completed but model did not improve.
         # i.e., no new model was uploaded or cloned model is still parent file
-        if model.file is None or (model.parent is not None and model.file == model.parent.file):
+        if model.file is None or (
+            model.parent is not None and model.file == model.parent.file
+        ):
             user.notify(
                 "Training completed but did not result in an improved model",
                 id="training-warning",
@@ -456,7 +481,10 @@ def hpc_user_setup(self, user_pk=None):
     task_report = TaskReport.objects.filter(task_id=self.request.id).first()
 
     # hostname and ssh key path set in django config
-    logger.debug(f"Connecting to {settings.HPC_HOSTNAME} as {user.username} with keyfile {settings.HPC_SSH_KEYFILE}")
+    logger.debug(
+        f"Connecting to {settings.HPC_HOSTNAME} as {user.username}"
+        f" with keyfile {settings.HPC_SSH_KEYFILE}"
+    )
 
     # bash setup script is included with this package
     user_setup_script = settings.HTR2HPC_INSTALL_DIR / "train" / "user_setup.sh"
@@ -477,7 +505,9 @@ def hpc_user_setup(self, user_pk=None):
             # run the script with options; skip ssh setup (must already be setup
             # for this task to run) and ensure htr2hpc install is up to date
 
-            setup_cmd = f"./{user_setup_script.name}  --skip-ssh-setup --reinstall-htr2hpc"
+            setup_cmd = (
+                f"./{user_setup_script.name}  --skip-ssh-setup --reinstall-htr2hpc"
+            )
             # document setup command options in task report
             if task_report:
                 task_report.append(f"Running setup script:\n  {setup_cmd}\n\n")
@@ -490,7 +520,10 @@ def hpc_user_setup(self, user_pk=None):
             # add script output to task report
             if task_report:
                 # script output is stored in result.stdout/result.stderr
-                task_report.append(f"\n\nsetup script output:\n\n{result.stdout}\n\n{result.stderr}\n\n")
+                task_report.append(
+                    f"\n\nsetup script output:\n\n"
+                    f"{result.stdout}\n\n{result.stderr}\n\n"
+                )
 
             if "Setup complete" in result.stdout:
                 user.notify(
@@ -507,7 +540,8 @@ def hpc_user_setup(self, user_pk=None):
             task_report.append(error_message)
         # notify the user of the error
         user.notify(
-            "Authentication failed; check that your account on della is set up for remote access",
+            "Authentication failed; check that your account on della"
+            " is set up for remote access",
             id="setup-error",
             level="danger",
         )

@@ -20,7 +20,7 @@ class CasUserInitForm(forms.Form):
 
     netids = forms.CharField(
         label="NetIDs",
-        help_text="Enter one or more Princeton NetIDs, separated by spaces or newlines.",
+        help_text="Enter one or more Princeton NetIDs, separated by spaces or newlines.",  # noqa: E501
         widget=forms.Textarea(attrs={"rows": 4}),
     )
 
@@ -77,7 +77,7 @@ class Htr2HpcUserAdmin(MyUserAdmin):
                         # verify netid exists in LDAP before creating a DB record
                         ldap.find_user(netid)
                         user, created = User.objects.get_or_create(username=netid)
-                        # only init new users; skip existing to avoid resetting is_active
+                        # only init new users; skip existing to avoid resetting is_active  # noqa: E501
                         if created:
                             user_info_from_ldap(user)
                         created_users.append((netid, created))

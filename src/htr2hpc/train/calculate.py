@@ -32,7 +32,8 @@ def slurm_get_avg_epoch(slurm_output):
     if epoch_times:
         epoch_times = [datetime.datetime.strptime(t, "%H:%M:%S") for t in epoch_times]
         epoch_times = [
-            datetime.timedelta(hours=t.hour, minutes=t.minute, seconds=t.second).seconds for t in epoch_times
+            datetime.timedelta(hours=t.hour, minutes=t.minute, seconds=t.second).seconds
+            for t in epoch_times
         ]
         epoch_avg = math.ceil(sum(epoch_times) / len(epoch_times))
         if epoch_avg == 0:
@@ -45,7 +46,11 @@ def stats_get_max_cpu(job_stats):
     mem_usage = re.findall("\(([\d.]+)([\w]+)\/[\d.]+[\w]+ per core", job_stats)
 
     if mem_usage:
-        gb_used = float(mem_usage[0][0]) / 1000 if mem_usage[0][1] == "MB" else float(mem_usage[0][0])
+        gb_used = (
+            float(mem_usage[0][0]) / 1000
+            if mem_usage[0][1] == "MB"
+            else float(mem_usage[0][0])
+        )
         return gb_used
 
 
@@ -61,28 +66,35 @@ def calc_full_duration(slurm_output, job_stats):
 
     if job_duration:
         t = datetime.datetime.strptime(job_duration[0], "%H:%M:%S")
-        job_duration = datetime.timedelta(hours=t.hour, minutes=t.minute, seconds=t.second).seconds
+        job_duration = datetime.timedelta(
+            hours=t.hour, minutes=t.minute, seconds=t.second
+        ).seconds
 
         if epoch_avg:
             setup_time = job_duration - (epoch_avg * epoch_count)
 
             epoch_request = 50 - epoch_count
-            # if prelim train task already came close to 50 epochs or overshot it, run second train task
-            # so that --lag 10 is immediately active (epoch_request -> --min-epochs 5) and so that the
+            # if prelim train task already came close to 50 epochs or overshot it,
+            # run second train task
+            # so that --lag 10 is immediately active (epoch_request -> --min-epochs 5)
+            # and so that the
             # estimated job time request allows room for 15 more epochs.
             epoch_time_est = 15 if epoch_request < 11 else epoch_request
             epoch_request = 5 if epoch_request < 11 else epoch_request
 
             return epoch_request, datetime.timedelta(
-                minutes=math.ceil((setup_time + (epoch_avg * epoch_time_est * 1.1)) / 60)
+                minutes=math.ceil(
+                    (setup_time + (epoch_avg * epoch_time_est * 1.1)) / 60
+                )
             )
 
         elif datetime.timedelta(seconds=job_duration) > datetime.timedelta(minutes=14):
-            # if epoch_avg returns as None (no epochs completed during the first train task),
-            # but job did not error out early, assume that more time is needed per epoch.
+            # if epoch_avg returns as None (no epochs completed during the first train task),  # noqa: E501
+            # but job did not error out early, assume that more time is needed per epoch.  # noqa: E501
             # assume 15min per epoch and 15min setup time.
             # this means max train time should be ~14 hrs.
-            # note the calc_full_duration function should run only when the first train job does not crash.
+            # note the calc_full_duration function should run only when the first train job  # noqa: E501
+            # does not crash.
             epoch_request = 50
 
             return epoch_request, datetime.timedelta(minutes=(15 * 51 * 1.1))

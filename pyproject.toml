@@ -95,6 +95,11 @@ extend-select = [
   "UP",   # pyupgrade
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Django migration classes use mutable class attributes (dependencies, operations)
+# as a framework convention; RUF012 does not apply here.
+"*/migrations/*.py" = ["RUF012"]
+
 [tool.codespell]
 skip = "*.egg-info"
 

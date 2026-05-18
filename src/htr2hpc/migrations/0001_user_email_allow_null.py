@@ -29,11 +29,11 @@ class OverrideAlterField(migrations.AlterField):
 
 
 class Migration(migrations.Migration):
-    dependencies = [  # noqa: RUF012
+    dependencies = [
         ("users", "0021_alter_user_legacy_mode"),
     ]
 
-    operations = [  # noqa: RUF012
+    operations = [
         OverrideAlterField(
             model_name="User",
             name="email",

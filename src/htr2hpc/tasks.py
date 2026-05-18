@@ -160,7 +160,8 @@ def segtrain(
     model_overwrite = model.version_created_at < task_group.created_at
     if model_overwrite:
         logger.debug(
-            f"Inferring model overwrite requested based on model/task creation dates (model:{model.version_created_at} task:{task_group.created_at})"
+            f"Inferring model overwrite requested based on model/task creation dates"
+            f" (model:{model.version_created_at} task:{task_group.created_at})"
         )
 
     # mark the model as being in training
@@ -327,7 +328,8 @@ def train(
     model_overwrite = model.version_created_at < task_group.created_at
     if model_overwrite:
         logger.debug(
-            f"Inferring model overwrite requested based on model/task creation dates (model:{model.version_created_at} task:{task_group.created_at})"
+            f"Inferring model overwrite requested based on model/task creation dates"
+            f" (model:{model.version_created_at} task:{task_group.created_at})"
         )
 
     # mark the model as being in training

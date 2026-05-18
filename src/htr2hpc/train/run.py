@@ -598,24 +598,23 @@ def main():
     logger_local = logging.getLogger("htr2hpc")
     logger_local.setLevel(logging.INFO)
     # output kraken logging details to confirm binary data looks ok
-    logger_kraken = logging.getLogger("kraken")
+    # logger_kraken = logging.getLogger("kraken")
     # logger_kraken.setLevel(logging.INFO)
 
     # nearly all the argparse options need to be passed to the training manager class
-    # convert to a _copy_ dictionary and delete the unused parmeters
+    # convert to a _copy_ dictionary and delete the unused parameters
     arg_options = dict(vars(args))
     del arg_options["clean"]
     del arg_options["mode"]  # converted to training_mode (Segment/Recognize)
 
     # initialize training manager
     try:
-        training_mgr = TrainingManager(
-            api_token=api_token, training_mode=es_model_jobs[args.mode], **arg_options
-        )
+        training_mgr = TrainingManager(api_token=api_token, training_mode=es_model_jobs[args.mode], **arg_options)
     except ConnectionError as err:
         print(err)
         print(
-            "Check that you have specified the correct BASE_URL and API token and confirm the eScriptorium server is available."
+            "Check that you have specified the correct BASE_URL and API token"
+            " and confirm the eScriptorium server is available."
         )
         sys.exit(1)
 

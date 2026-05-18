@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from escriptorium.settings import INSTALLED_APPS, TEMPLATES, LOGIN_REDIRECT_URL
+from escriptorium.settings import INSTALLED_APPS, LOGIN_REDIRECT_URL, TEMPLATES
 
 # base directory for this package where it is installed
 HTR2HPC_INSTALL_DIR = Path(__file__).parent

@@ -1,19 +1,18 @@
 import logging
 from datetime import datetime
 
-from celery import shared_task
-from django.apps import apps
-from django.contrib.auth import get_user_model
-from django.contrib.sites.models import Site
-from django.conf import settings
-from django.utils.translation import gettext as _
-from intspan import intspan
-from fabric import Connection
-from invoke.exceptions import UnexpectedExit
-from paramiko.ssh_exception import AuthenticationException
-
 # imports from escriptorium
 from apps.users.consumers import send_event
+from celery import shared_task
+from django.apps import apps
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.sites.models import Site
+from django.utils.translation import gettext as _
+from fabric import Connection
+from intspan import intspan
+from invoke.exceptions import UnexpectedExit
+from paramiko.ssh_exception import AuthenticationException
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +128,7 @@ def start_remote_training(
 @shared_task(default_retry_delay=60 * 60)
 def segtrain(
     model_pk=None,
-    part_pks=[],
+    part_pks=None,
     document_pk=None,
     task_group_pk=None,  # do train/segtrain update task status anywhere?
     user_pk=None,
@@ -263,7 +262,7 @@ def segtrain(
                 model.delete()
 
         else:
-            # - notify the user that training completed sucessfully
+            # - notify the user that training completed successfully
             user.notify(_("Training finished!"), id="training-success", level="success")
             # send training complete event
             send_event(
@@ -432,7 +431,7 @@ def train(
                 model.delete()
 
         else:
-            # otherwise, notify the user that training completed sucessfully
+            # otherwise, notify the user that training completed successfully
             user.notify(_("Training finished!"), id="training-success", level="success")
             # send training complete event
             send_event(
@@ -482,7 +481,7 @@ def hpc_user_setup(self, user_pk=None):
     user.notify(
         "Running user setup script, on first run this may take a while...",
         id="htr2hpc-setup-start",
-        #level="info",
+        # level="info",
     )
     try:
         with Connection(

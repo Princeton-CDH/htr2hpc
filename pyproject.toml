@@ -57,6 +57,35 @@ extra-dependencies = [
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:src/htr2hpc tests}"
 
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+extend-select = [
+  "B",    # flake8-bugbear
+  "C4",   # flake8-comprehensions
+  "I",    # isort
+  "PERF", # perflint
+  "PTH",  # flake8-use-pathlib
+  "RUF",  # ruff-specific rules
+  "SIM",  # flake8-simplify
+  "UP",   # pyupgrade
+]
+ignore = [
+  "RUF012",  # migrations use mutable class attributes; not worth fixing
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/htr2hpc/migrations/*" = ["RUF012"]
+
+[tool.codespell]
+skip = "*.po,*.ts"
+
+[tool.mdformat]
+number = true
+wrap = "keep"
+end_of_line = "lf"
+
 [tool.coverage.run]
 source_pkgs = ["htr2hpc", "tests"]
 branch = true

@@ -104,4 +104,6 @@ extend-select = [
 skip = "*.egg-info"
 
 [tool.mdformat]
-wrap = "no"
+number = true
+wrap = "keep"
+end_of_line = "lf"

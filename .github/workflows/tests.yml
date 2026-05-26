@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main, develop]
 
+env:
+  # Prevent uv from including dev dependencies by default
+  UV_NO_DEV: 1
+  # Prevent uv run from syncing by default
+  UV_NO_SYNC: 1
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -25,17 +31,19 @@ jobs:
           repository: UB-Mannheim/escriptorium
           path: escriptorium
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv and Python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install htr2hpc with test dependencies
-        run: pip install -e "./htr2hpc[test]"
+        working-directory: htr2hpc
+        run: uv sync --extra test
 
       - name: Install eScriptorium dependencies needed for import resolution
+        working-directory: htr2hpc
         run: |
-          pip install \
+          uv pip install \
             celery \
             django-simple-captcha \
             djangorestframework \
@@ -46,7 +54,7 @@ jobs:
         working-directory: htr2hpc
         env:
           ESCRIPTORIUM_ROOT: ${{ github.workspace }}/escriptorium
-        run: pytest --cov --cov-report=xml
+        run: uv run pytest --cov --cov-report=xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

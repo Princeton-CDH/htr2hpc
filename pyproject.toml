@@ -79,10 +79,6 @@ exclude_lines = [
   "if TYPE_CHECKING:",
 ]
 
-[tool.ruff]
-line-length = 88
-target-version = "py38"
-
 [tool.ruff.lint]
 extend-select = [
   "B",    # flake8-bugbear

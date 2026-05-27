@@ -55,11 +55,11 @@ def start_remote_training(
         ) as conn:
             # only notify once we successfully connect
             user.notify(
-                "Starting remote training; slurm portion can be monitored on mydella",
+                "Starting remote training; slurm portion can be monitored on myadroit",
                 links=[
                     {
-                        "text": "Della Active Jobs",
-                        "src": "https://mydella.princeton.edu/pun/sys/dashboard/activejobs",
+                        "text": "Adroit Active Jobs",
+                        "src": "https://myadroit.princeton.edu/pun/sys/dashboard/activejobs",
                     }
                 ],
             )
@@ -97,7 +97,7 @@ def start_remote_training(
     except (AuthenticationException, UnexpectedExit) as err:
         if isinstance(err, AuthenticationException):
             logger.error(f"Authentication exception to remote connection: {err}")
-            error_message = "Authentication failed; check that your account is set up properly on della"
+            error_message = "Authentication failed; check that your account is set up properly on adroit"
         else:
             logger.error(f"Unexpected exit from remote connection: {err}")
             error_message = "Something went wrong running the training."
@@ -190,7 +190,7 @@ def segtrain(
     )
 
     # create a name for an output directory based on mode and document id
-    working_dir = f"/scratch/gpfs/{user.username}/htr2hpc"
+    working_dir = f"/scratch/network/{user.username}/htr2hpc"
     # includes a timestamp to ensure uniqueness, since
     # script will fail if there is an existing directory
     outdir = f"segtrain_doc{document_pk}_{directory_timestamp()}"
@@ -319,7 +319,7 @@ def train(
         return
 
     # create a name for an output directory based on mode and document id
-    working_dir = f"/scratch/gpfs/{user.username}/htr2hpc"
+    working_dir = f"/scratch/network/{user.username}/htr2hpc"
     # create a name for an output directory based on mode and transcripiton id
     # include a timestamp to ensure uniqueness, since
     # script will fail if there is an existing directory
@@ -530,7 +530,7 @@ def hpc_user_setup(self, user_pk=None):
             task_report.append(error_message)
         # notify the user of the error
         user.notify(
-            "Authentication failed; check that your account on della is set up for remote access",
+            "Authentication failed; check that your account on adroit is set up for remote access",
             id="setup-error",
             level="danger",
         )

@@ -19,7 +19,7 @@ git flow release start 0.5
 ```
 
 1. Update the version number in `src/htr2hpc/__init__.py`
-1. Update `CHANGELOG.md` to document changes in the new version.
+2. Update `CHANGELOG.md` to document changes in the new version.
 
 Do any checking you want to do to verify the changes (e.g., git diff against `main` or previous release, or creating a pull request on GitHub to review the changes).
 

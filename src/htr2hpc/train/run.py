@@ -214,7 +214,7 @@ class TrainingManager:
                 f"{self.slurm_output}\n\n{self.job_stats}\n{'=' * 80}",
             )
 
-        # when cancelled via delete button on mydella web ui,
+        # when cancelled via delete button on myadroit web ui,
         # statuses are COMPLETED,CANCELLED
         # if time limit ran out, status will include TIMEOUT as well as CANCELLED
         if "CANCELLED" in job_status and "TIMEOUT" not in job_status:

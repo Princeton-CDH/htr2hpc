@@ -6,7 +6,7 @@ The `htr2hpc-train` script will download document parts and optionally a model f
 
 ## Setup
 
-On the HPC system (i.e., della for Princeton), download kraken and use their provided conda files to create a new python 3.11 conda environment named `htr2hpc`, and install the current version of this software:
+On the HPC system (i.e., adroit for Princeton), download kraken and use their provided conda files to create a new python 3.11 conda environment named `htr2hpc`, and install the current version of this software:
 
 ```sh
 module load anaconda3/2024.2
@@ -27,7 +27,7 @@ git checkout develop
 pip install -e .
 ```
 
-Change directory to your scratch space (e.g., `/scratch/gpfs/netid/` on della) or a subdirectory somewhere under it. Since the `htr2hpc-train` script monitors the slurm job, it is recommended to start a tmux session so that if you're disconnected the script will keep running and you can reconnect.
+Change directory to your scratch space (e.g., `/scratch/network/netid/` on adroit) or a subdirectory somewhere under it. Since the `htr2hpc-train` script monitors the slurm job, it is recommended to start a tmux session so that if you're disconnected the script will keep running and you can reconnect.
 
 Set your eScriptorium API token as an environment variable:
 

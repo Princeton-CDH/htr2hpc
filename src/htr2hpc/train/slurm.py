@@ -2,10 +2,9 @@ import datetime
 import logging
 import pathlib
 import subprocess
+from typing import Optional
 
 from simple_slurm import Slurm
-
-from htr2hpc.train.data import TrainingDataCounts
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +16,7 @@ def segtrain(
     num_workers: int = 8,
     mem_per_cpu: str = "4G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),
-    epochs: int = None,
+    epochs: Optional[int] = None,
     # optional param to specify name based on document? include date?
 ) -> int:
     """Run ketos segmentation training as a slurm job.
@@ -29,7 +28,7 @@ def segtrain(
         prelim_opt = "calibrate_"
     else:
         prelim_opt = ""
-        
+
     segtrain_slurm = Slurm(
         nodes=1,
         ntasks=1,
@@ -66,16 +65,16 @@ def segtrain(
 def recognition_train(
     input_data_dir: pathlib.Path,
     output_model: pathlib.Path,
-    input_model: pathlib.Path = None,
+    input_model: Optional[pathlib.Path] = None,
     num_workers: int = 8,
     mem_per_cpu: str = "2G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),
-    epochs: int = None,
+    epochs: Optional[int] = None,
     # optional param to specify name based on document? include date?
 ) -> int:
     """Run ketos recognition training as a slurm job.
     Returns the slurm job id for the queued job."""
-    
+
     # no epochs are passed for prelim train task.
     if not epochs:
         epochs = 50
@@ -105,7 +104,7 @@ def recognition_train(
         f"ketos train --min-epochs {epochs} {input_model_opt}"
         + f" -o {output_model} --workers {num_workers} -d cuda:0 "
         + f"-f binary {input_data_dir}/train.arrow "
-        + f"-w 0 -s '[1,120,0,1 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 S1(1x0)1,3 Lbx200 Do0.1,2 Lbx200 Do.1,2 Lbx200 Do]' -r 0.0001"
+        + "-w 0 -s '[1,120,0,1 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 S1(1x0)1,3 Lbx200 Do0.1,2 Lbx200 Do.1,2 Lbx200 Do]' -r 0.0001"
     )
 
     logger.info(f"recognition train command: {recogtrain_cmd}")
@@ -144,7 +143,8 @@ def slurm_job_status(job_id: int) -> set:
     # sacct returns a table with status for each portion of the job;
     # return all unique status codes for now
     return set(result.stdout.split())
-    
+
+
 def slurm_job_stats(job_id: int) -> str:
     """Use `jobstats` to get Slurm Job Statistics, to track resource usage"""
     result = subprocess.run(

@@ -1,19 +1,18 @@
 import logging
 from datetime import datetime
 
-from celery import shared_task
-from django.apps import apps
-from django.contrib.auth import get_user_model
-from django.contrib.sites.models import Site
-from django.conf import settings
-from django.utils.translation import gettext as _
-from intspan import intspan
-from fabric import Connection
-from invoke.exceptions import UnexpectedExit
-from paramiko.ssh_exception import AuthenticationException
-
 # imports from escriptorium
 from apps.users.consumers import send_event
+from celery import shared_task
+from django.apps import apps
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.sites.models import Site
+from django.utils.translation import gettext as _
+from fabric import Connection
+from intspan import intspan
+from invoke.exceptions import UnexpectedExit
+from paramiko.ssh_exception import AuthenticationException
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,8 @@ def start_remote_training(
 
     # hostname and ssh key path set in django config
     logger.debug(
-        f"Connecting to {settings.HPC_HOSTNAME} as {username} with keyfile {settings.HPC_SSH_KEYFILE}"
+        f"Connecting to {settings.HPC_HOSTNAME} as {username}"
+        f" with keyfile {settings.HPC_SSH_KEYFILE}"
     )
 
     # add training command to task report
@@ -79,7 +79,8 @@ def start_remote_training(
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
                 task_report.append(
-                    f"\n\nremote script output:\n\n{result.stdout}\n\n{result.stderr}\n\n"
+                    f"\n\nremote script output:\n\n"
+                    f"{result.stdout}\n\n{result.stderr}\n\n"
                 )
                 if "Slurm job was cancelled" in result.stdout:
                     task_report.cancel("(slurm cancellation)")
@@ -113,6 +114,7 @@ def start_remote_training(
         task_report.refresh_from_db()
         task_report.error(error_message)
 
+
         # send training error event
         send_event(
             "document",
@@ -129,7 +131,7 @@ def start_remote_training(
 @shared_task(default_retry_delay=60 * 60)
 def segtrain(
     model_pk=None,
-    part_pks=[],
+    part_pks=None,
     document_pk=None,
     task_group_pk=None,  # do train/segtrain update task status anywhere?
     user_pk=None,
@@ -144,10 +146,13 @@ def segtrain(
     # the specified model.
 
     # we require both of these; are they really optional?
+    if part_pks is None:
+        part_pks = []
     if not all([user_pk, document_pk]):
         # can't proceed without both of these
         logger.error(
-            f"segtrain called without document_pk or user_pk; document_pk={document_pk} user_pk={user_pk}"
+            f"segtrain called without document_pk or user_pk;"
+            f" document_pk={document_pk} user_pk={user_pk}"
         )
         return
 
@@ -171,7 +176,8 @@ def segtrain(
     model_overwrite = model.version_created_at < task_group.created_at
     if model_overwrite:
         logger.debug(
-            f"Inferring model overwrite requested based on model/task creation dates (model:{model.version_created_at} task:{task_group.created_at})"
+            f"Inferring model overwrite requested based on model/task creation dates"
+            f" (model:{model.version_created_at} task:{task_group.created_at})"
         )
 
     # mark the model as being in training
@@ -263,7 +269,7 @@ def segtrain(
                 model.delete()
 
         else:
-            # - notify the user that training completed sucessfully
+            # - notify the user that training completed successfully
             user.notify(_("Training finished!"), id="training-success", level="success")
             # send training complete event
             send_event(
@@ -307,7 +313,8 @@ def train(
         # can't proceed without these
         logger.error(
             "train called without transcription_pk, part_pks, or user_pk "
-            + f"transcription_pk={transcription_pk} part_pks={part_pks} user_pk={user_pk}"
+            + f"transcription_pk={transcription_pk} part_pks={part_pks}"
+            + f" user_pk={user_pk}"
         )
         return
 
@@ -342,7 +349,8 @@ def train(
     model_overwrite = model.version_created_at < task_group.created_at
     if model_overwrite:
         logger.debug(
-            f"Inferring model overwrite requested based on model/task creation dates (model:{model.version_created_at} task:{task_group.created_at})"
+            f"Inferring model overwrite requested based on model/task creation dates"
+            f" (model:{model.version_created_at} task:{task_group.created_at})"
         )
 
     # mark the model as being in training
@@ -432,7 +440,7 @@ def train(
                 model.delete()
 
         else:
-            # otherwise, notify the user that training completed sucessfully
+            # otherwise, notify the user that training completed successfully
             user.notify(_("Training finished!"), id="training-success", level="success")
             # send training complete event
             send_event(
@@ -474,7 +482,8 @@ def hpc_user_setup(self, user_pk=None):
 
     # hostname and ssh key path set in django config
     logger.debug(
-        f"Connecting to {settings.HPC_HOSTNAME} as {user.username} with keyfile {settings.HPC_SSH_KEYFILE}"
+        f"Connecting to {settings.HPC_HOSTNAME} as {user.username}"
+        f" with keyfile {settings.HPC_SSH_KEYFILE}"
     )
 
     # bash setup script is included with this package
@@ -482,7 +491,7 @@ def hpc_user_setup(self, user_pk=None):
     user.notify(
         "Running user setup script, on first run this may take a while...",
         id="htr2hpc-setup-start",
-        #level="info",
+        # level="info",
     )
     try:
         with Connection(
@@ -512,7 +521,8 @@ def hpc_user_setup(self, user_pk=None):
             if task_report:
                 # script output is stored in result.stdout/result.stderr
                 task_report.append(
-                    f"\n\nsetup script output:\n\n{result.stdout}\n\n{result.stderr}\n\n"
+                    f"\n\nsetup script output:\n\n"
+                    f"{result.stdout}\n\n{result.stderr}\n\n"
                 )
 
             if "Setup complete" in result.stdout:

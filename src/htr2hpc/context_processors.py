@@ -1,3 +1,4 @@
+import importlib.metadata
 from os import cpu_count, getloadavg
 from socket import gethostname
 
@@ -39,3 +40,8 @@ def vm_status(request):
         },
         "system_memory": system_memory,
     }
+
+
+def htr2hpc_version(request):
+    """Custom context processor to expose the htr2hpc package version."""
+    return {"HTR2HPC_VERSION": importlib.metadata.version("htr2hpc")}

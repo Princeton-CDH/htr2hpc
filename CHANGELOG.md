@@ -11,6 +11,9 @@
 - Fix typos in `api_client.py` docstrings
 - Remove custom `contactus` and model list HTML overrides
 - Add `DEPLOY_NOTES.md` with release and deployment instructions
+- Update homepage heading text for production instance
+- Display htr2hpc version in site footer with link to GitHub repo
+- Add pre-commit hooks for code quality (ruff, codespell, yamlfmt, mdformat, uv, action-validator)
 
 ## 0.5
 

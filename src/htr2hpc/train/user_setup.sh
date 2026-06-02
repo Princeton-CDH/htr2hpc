@@ -71,7 +71,7 @@ fi
 
 # create conda environment named htr2hpc
 conda_env_name=htr2hpc
-module load anaconda3/2024.2
+module load anaconda3/2025.6
 if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 	echo "conda env $conda_env_name already exists"
 
@@ -88,12 +88,12 @@ else
 	echo "Creating conda environment $conda_env_name and installing dependencies"
 	mkdir /scratch/network/$USER/setup_htr2hpc
 	cp -r /scratch/network/croughan/htr2hpc_setup/kraken /scratch/network/$USER/setup_htr2hpc
-	cd /scratch/network/$USER/setup_htr2hpc/kraken
-	conda env create -f environment_cuda.yml -n $conda_env_name
+	conda create -y -n $conda_env_name python=3.11 pip
 	conda activate $conda_env_name
+	# install specifically the pre-downloaded kraken 6.0.4
+	cd /scratch/network/$USER/setup_htr2hpc/kraken
+	pip install .
 	pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
-	pip install -q torchvision torch==2.1 torchaudio==2.1
-	pip install -q -U "rich<14.1.0"
 	# go back to scratch and delete temp directory
 	cd /scratch/network/$USER
 	rm -rf /scratch/network/$USER/setup_htr2hpc

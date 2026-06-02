@@ -39,3 +39,10 @@ def vm_status(request):
         },
         "system_memory": system_memory,
     }
+
+
+def htr2hpc_version(request):
+    """Custom context processor to expose the htr2hpc package version."""
+    from htr2hpc import __version__
+
+    return {"HTR2HPC_VERSION": __version__}

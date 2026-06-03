@@ -86,17 +86,10 @@ if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 
 else
 	echo "Creating conda environment $conda_env_name and installing dependencies"
-	mkdir /scratch/network/$USER/setup_htr2hpc
-	cp -r /scratch/network/croughan/htr2hpc_setup/kraken /scratch/network/$USER/setup_htr2hpc
 	conda create -y -n $conda_env_name python=3.11 pip
 	conda activate $conda_env_name
-	# install specifically the pre-downloaded kraken 6.0.4
-	cd /scratch/network/$USER/setup_htr2hpc/kraken
-	pip install .
+	pip install -q kraken==6.0.3
 	pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
-	# go back to scratch and delete temp directory
-	cd /scratch/network/$USER
-	rm -rf /scratch/network/$USER/setup_htr2hpc
 fi
 
 htrworkingdir=/scratch/network/$USER/htr2hpc

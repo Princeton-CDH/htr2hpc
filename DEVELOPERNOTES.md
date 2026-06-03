@@ -18,12 +18,6 @@ Follow the release checklist in the GitHub issue template for full release prep 
 
 ## Deploying a new release
 
-Once the new release has been merged to `main` and pushed to GitHub, deployment is handled via cdh-ansible. See the [cdh-ansible escriptorium application docs](https://github.com/Princeton-CDH/cdh-ansible/tree/main/docs/applications) for full deployment instructions.
+Once the new release has been merged to `main` and pushed to GitHub, deployment is handled via cdh-ansible. See the [cdh-ansible eScriptorium/htr2hpc application docs](https://github.com/Princeton-CDH/cdh-ansible/blob/main/docs/applications/escriptorium.md) for full deployment instructions, including how to use the `reinstall-htr2hpc` tag to deploy a new htr2hpc version.
 
-To update the version of htr2hpc installed on the escriptorium server, use the `reinstall-htr2hpc` tag:
-
-```sh
-ansible-playbook playbooks/escriptorium.yml -t reinstall-htr2hpc
-```
-
-The `reinstall-htr2hpc` tag triggers a full reinstall of the htr2hpc package in the server environment. Use this whenever you need to update to a new version after a release — it is not needed for other playbook changes.
+Note: this deployment is specific to CDH's Princeton instance of eScriptorium.

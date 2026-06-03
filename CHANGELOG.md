@@ -6,8 +6,6 @@
 - Update homepage heading text for production instance
 - Display htr2hpc version in site footer with link to GitHub repo
 - Add pre-commit hooks for code quality (ruff, codespell, yamlfmt, mdformat, uv, action-validator)
-- Fix Ansible playbook deploy ordering so nginx restarts after the escriptorium_setup patch is applied
-- Fix Celery worker concurrency configuration
 - Add `DEVELOPERNOTES.md` with instructions for development setup, creating a release, and deploying with Ansible
 
 

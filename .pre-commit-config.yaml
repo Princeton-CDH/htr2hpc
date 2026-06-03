@@ -20,6 +20,7 @@ repos:
         additional_dependencies:
           - mdformat-pyproject  # support configuration in pyproject.toml
           - mdformat-frontmatter  # support GitHub front-matter
+          - mdformat-gfm-alerts  # support GitHub alert formatting ([!WARNING], etc.)
   # yamlfmt for formatting YAML files
   - repo: https://github.com/google/yamlfmt
     rev: v0.21.0

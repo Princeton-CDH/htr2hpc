@@ -2,7 +2,8 @@
 
 This repository is associated with the [HTR2HPC](https://cdh.princeton.edu/projects/bringing-htr-to-the-hpc/) research project sponsored by the Center for Digital Humanities at Princeton. The project goal is integrating the [eScriptorium handwritten text recognition (HTR) software](https://gitlab.com/scripta/escriptorium) with high performance computing (HPC) clusters and task manage.
 
-> [!WARNING] This is experimental code for local use and assessment.
+> [!WARNING]
+> This is experimental code for local use and assessment.
 
 ______________________________________________________________________
 

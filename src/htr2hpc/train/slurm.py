@@ -52,9 +52,9 @@ def segtrain(
     logger.info(f"sbatch file\n: {segtrain_slurm}")
     # sbatch returns the job id for the created job
     segtrain_cmd = (
-        f"ketos segtrain --min-epochs {epochs} --resize both -i {input_model} -q early"
-        + f" -o {output_model} --workers {num_workers} -d cuda:0 "
-        + f"-f xml -t {input_data_dir}/train.txt -e {input_data_dir}/validate.txt"
+        f"ketos --workers {num_workers} -d cuda:0 segtrain "
+        + f"--min-epochs {epochs} --resize both -i {input_model} -q early -o {output_model} "
+        + f"-f xml -t {input_data_dir}/train.txt -e {input_data_dir}/validate.txt "
         # + "--precision 16"  # automatic mixed precision for nvidia gpu
     )
 
@@ -101,8 +101,8 @@ def recognition_train(
     # input model is optional; resize is only used with exesting model
     input_model_opt = f"--resize new -i {input_model}" if input_model else ""
     recogtrain_cmd = (
-        f"ketos train --min-epochs {epochs} {input_model_opt}"
-        + f" -o {output_model} --workers {num_workers} -d cuda:0 "
+        f"ketos --workers {num_workers} -d cuda:0 train "
+        + f"--min-epochs {epochs} {input_model_opt} -o {output_model} "
         + f"-f binary {input_data_dir}/train.arrow "
         + "-w 0 -s '[1,120,0,1 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,13,32 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 Mp2,2 Cr3,9,64 Do0.1,2 S1(1x0)1,3 Lbx200 Do0.1,2 Lbx200 Do.1,2 Lbx200 Do]' -r 0.0001"
     )

@@ -426,7 +426,7 @@ class TrainingManager:
         )
         if best_model:
             # TODO: revise message to include info about created/updated model id ##
-            print(f"Uploaded {best_model} to eScriptorum")
+            print(f"Uploaded {best_model} to eScriptorium")
         else:
             # possibly best model found but upload failed?
             print("No best model found")

@@ -7,6 +7,7 @@
 - Display htr2hpc version in site footer with link to GitHub repo
 - Add pre-commit hooks for code quality (ruff, codespell, yamlfmt, mdformat, uv, action-validator)
 - Add `DEVELOPERNOTES.md` with instructions for development setup, creating a release, and deploying with Ansible
+- Update to kraken 6.0.3 and switch HPC setup to use pip install instead of conda
 
 
 

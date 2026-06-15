@@ -1,17 +1,16 @@
 import datetime
+import json
 import logging
+import pathlib
 from collections import namedtuple
 from dataclasses import dataclass
 from time import sleep
-import pathlib
-from typing import Optional, Any
-from urllib.parse import urlparse, parse_qs
-import json
+from typing import Any, ClassVar, Optional
 
+import coremltools
 import humanize
 import requests
 from django.utils.text import slugify  # is django a reasonable dependency?
-import coremltools
 
 from htr2hpc import __version__ as _version
 
@@ -210,10 +209,7 @@ class eScriptoriumAPIClient:
         """
         # support absolute urls for retrieving paged results,
         # but only urls within the configured eScriptorium instance
-        if url.startswith(self.api_root):
-            rqst_url = url
-        else:
-            rqst_url = f"{self.api_root}/{url}"
+        rqst_url = url if url.startswith(self.api_root) else f"{self.api_root}/{url}"
         rqst_opts = {}
         if params:
             rqst_opts["params"] = params.copy()
@@ -234,7 +230,8 @@ class eScriptoriumAPIClient:
 
         resp = session_request(rqst_url, **rqst_opts)
         logger.debug(
-            f"{method} {rqst_url} {resp.status_code}: {resp.elapsed.total_seconds()} sec"
+            f"{method} {rqst_url} {resp.status_code}:"
+            f" {resp.elapsed.total_seconds()} sec"
         )
         if resp.status_code == expected_status:
             return resp
@@ -292,14 +289,14 @@ class eScriptoriumAPIClient:
         """Update an existing model record with a new model file."""
         api_url = f"models/{model_id}/"
         # if job or name is not specified, set it based on
-        # infoormation retrieved from the api
+        # information retrieved from the api
         if job is None or model_name is None:
             model_info = self.model_details(model_id)
             # use value passed in if set; otherwise use value from current model
             job = job or model_info.job
             model_name = model_name or model_info.name
 
-        with open(model_file, "rb") as mfile:
+        with model_file.open("rb") as mfile:
             files = {"file": mfile}
             data = {
                 "name": model_name,
@@ -316,7 +313,7 @@ class eScriptoriumAPIClient:
         return to_namedtuple("model", resp.json())
 
     def model_delete(self, model_id: int):
-        """Delete an existing model record from eScriptorum."""
+        """Delete an existing model record from eScriptorium."""
         api_url = f"models/{model_id}/"
         # eScriptorium returns a 204 No Content response on success
         self._make_request(
@@ -339,7 +336,7 @@ class eScriptoriumAPIClient:
         if model_name is None:
             model_name = model_file.stem
 
-        with open(model_file, "rb") as mfile:
+        with model_file.open("rb") as mfile:
             files = {"file": mfile}
             data = {
                 # NOTE: could optionally infer model name from filename
@@ -393,21 +390,26 @@ class eScriptoriumAPIClient:
         """details for one part of a document"""
         api_url = f"documents/{document_id}/parts/{part_id}/"
         resp = self._make_request(api_url)
-        
+
         # skip lines with missing baseline or mask coords
         broken_lines = []
         valid_lines = []
         resp_json = resp.json()
         for line in resp_json["lines"]:
-            if line["mask"] == None or line["baseline"] == None:
+            if line["mask"] is None or line["baseline"] is None:
                 broken_lines.append(line)
             else:
-               valid_lines.append(line)
-        # if there are any broken lines, update record with valid lines and report on skipped lines
+                valid_lines.append(line)
+        # if there are any broken lines, update record with valid lines
+        # and report on skipped lines
         if broken_lines:
             resp_json["lines"] = valid_lines
-            logger.warn("Skipping {len(broken_lines)} lines due to missing mask or baseline: {','.join([line['pk'] for line in broken_lines])} (document {document_id}, part {part_id})")
-            
+            logger.warning(
+                f"Skipping {len(broken_lines)} lines due to missing mask or baseline:"
+                f" {','.join([line['pk'] for line in broken_lines])}"
+                f" (document {document_id}, part {part_id})"
+            )
+
         try:
             return to_namedtuple("part", resp_json)
         except Exception as e:
@@ -453,7 +455,7 @@ class eScriptoriumAPIClient:
         return to_namedtuple("status", resp.json())
 
     # API provides types for these items
-    types = ["block", "line", "annotations", "part"]
+    types: ClassVar = ["block", "line", "annotations", "part"]
 
     def list_types(self, item):
         """list of available types"""
@@ -481,7 +483,7 @@ class eScriptoriumAPIClient:
         # import.export.BaseExporter logic
         # NOTE2: escriptorium code uses datetime.now() so there's no guarantee
         # this will match the completion time of the task...
-        base_filename = "export_doc%d_%s_%s_%s" % (
+        base_filename = "export_doc{}_{}_{}_{}".format(
             document_id,
             slugify(document_name).replace("-", "_")[:32],
             file_format,
@@ -526,7 +528,7 @@ class eScriptoriumAPIClient:
             document_id,
             document_name,
             "alto",
-            export_task.done_at
+            export_task.done_at,
             # user_id, document_id, document_name, "alto", export_task.created_at
         )
         logger.info(f"Downloading export from {export_file_url}")
@@ -595,7 +597,9 @@ class eScriptoriumAPIClient:
         resp = self._make_request(api_url)
         return to_namedtuple("task", resp.json())
 
-    def task_update(self, task_id: int, label: str, user_id: int, messages: str = None):
+    def task_update(
+        self, task_id: int, label: str, user_id: int, messages: Optional[str] = None
+    ):
         """Update an existing task report."""
         api_url = f"tasks/{task_id}/"
 

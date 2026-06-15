@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from escriptorium.settings import INSTALLED_APPS, TEMPLATES, LOGIN_REDIRECT_URL
+from escriptorium.settings import INSTALLED_APPS, LOGIN_REDIRECT_URL, TEMPLATES
 
 # base directory for this package where it is installed
 HTR2HPC_INSTALL_DIR = Path(__file__).parent
@@ -41,9 +41,12 @@ TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "templates")
 # But to override escriptorium templates, we need to treat it as a
 # template directory and put it first in the list.
 
-# add custom context processor to display VM status
+# add custom context processors to display VM status and htr2hpc version
 TEMPLATES[0]["OPTIONS"]["context_processors"].append(
     "htr2hpc.context_processors.vm_status"
+)
+TEMPLATES[0]["OPTIONS"]["context_processors"].append(
+    "htr2hpc.context_processors.htr2hpc_version"
 )
 
 

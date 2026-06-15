@@ -101,4 +101,4 @@ else
 	echo "htr2hpc scratch working directory already exists: $htrworkingdir"
 fi
 
-echo "Setup complete! 🚀 🚃"
+echo "Setup complete!"

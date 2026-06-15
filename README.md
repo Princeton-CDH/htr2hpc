@@ -2,16 +2,18 @@
 
 This repository is associated with the [HTR2HPC](https://cdh.princeton.edu/projects/bringing-htr-to-the-hpc/) research project sponsored by the Center for Digital Humanities at Princeton. The project goal is integrating the [eScriptorium handwritten text recognition (HTR) software](https://gitlab.com/scripta/escriptorium) with high performance computing (HPC) clusters and task manage.
 
-> [!WARNING] This is experimental code for local use and assessment.
+> [!WARNING]
+> This is experimental code for local use and assessment.
 
 ______________________________________________________________________
 
 ## Table of Contents
 
-- [Installation](#installation)
+- [Installation](#installation-and-usage)
+- [Architecture and Flow](#architecture-and-flow)
 - [License](#license)
 
-## Installation and usage
+## Installation and usage 
 
 This package can be installed directly from GitHub using `pip`:
 
@@ -58,6 +60,75 @@ PUCAS_LDAP.update(
     }
 )
 ```
+
+## Architecture and Flow
+
+
+### Deployment
+
+This architecture diagram shows how the eScriptorium instance was deployed on Princeton hardware during the testing phase.
+
+
+```mermaid
+flowchart TB
+ subgraph hpc["HPC"]
+        remote[["remote task"]]
+  end
+ subgraph htrvm["eScriptorium VM"]
+        Django["Django"]
+        nginx["NGINX"]
+        redis[("redis")]
+        supervisord["supervisord"]
+        celery["celery"]
+        local[["local task"]]
+  end
+ subgraph pul["PUL infrastructure"]
+        db[("PostgreSQL")]
+        nfs[/"NFS"\]
+        htrvm
+  end
+    nginx -- serves --> Django
+    Django --> db
+    Django -- queues tasks --> redis
+    supervisord -- manages --> celery
+    celery -- monitors --> redis
+    celery -- runs --> local & remote
+    htrvm --> nfs
+```
+
+For simplicity, we omit the second VM and load balancer; the two VMs are provisioned and deployed in the same way, and use shared PUL and HPC resources.
+
+### Remote training flow
+
+This sequence diagram shows the flow of operations between eScriptorium instance, htr2hpc installation on the HPC system, and Slurm.
+
+The task is triggered via ssh, then training data and optionally a model are retrieved via REST API. The htr2hpc training task uses a
+two-job workflow with a preliminary calibration job before requesting second training job with resources and time requested based on the results of the calibration job.
+
+```mermaid
+sequenceDiagram
+  participant htrvm as htrvm
+  participant htr2hpc as htr2hpc
+  participant slurm as slurm
+  autonumber
+  htrvm ->>+ htr2hpc: Start training task
+  activate htr2hpc
+  htr2hpc -) htrvm: request data
+  htr2hpc --) htrvm: request model
+  htr2hpc ->> slurm: start calibration job
+  activate slurm
+  htr2hpc --x slurm: monitor job
+  slurm ->> htr2hpc: calibration output
+  deactivate slurm
+  htr2hpc ->> slurm: start training job
+  activate slurm
+  htr2hpc --x slurm: monitor job
+  deactivate slurm
+  htr2hpc -) htrvm: upload model
+  deactivate htr2hpc
+```
+
+
 
 ## License
 

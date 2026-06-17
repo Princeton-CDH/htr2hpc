@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.14.2/.schema/devbox.schema.json",
+  "packages": [
+    "python@3.11",
+    "uv@latest"
+  ],
+  "env": {
+    "VIRTUAL_ENV": "$PWD/.venv",
+    "PATH": "$PWD/.venv/bin:$PATH"
+  },
+  "shell": {
+    "init_hook": [
+      "uv sync"
+    ],
+    "scripts": {
+      "test": "uv run pytest",
+      "lint": "uv run ruff check .",
+      "format": "uv run ruff format .",
+      "typecheck": "uv run mypy --install-types --non-interactive src/htr2hpc tests"
+    }
+  }
+}

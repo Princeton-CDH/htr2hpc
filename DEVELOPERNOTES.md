@@ -4,6 +4,41 @@ We use the [git-flow branching pattern](https://www.gitkraken.com/learn/git/git-
 
 ## Development Setup
 
+This project uses [devbox](https://www.jetify.com/devbox) to provide a reproducible development environment with Python 3.11 and uv pre-installed.
+
+### Install devbox
+
+```sh
+curl -fsSL https://get.jetify.com/devbox | bash
+```
+
+### Start the development environment
+
+```sh
+devbox shell
+```
+
+This installs the required packages via Nix and runs `uv sync` to install Python dependencies into a local `.venv`. You only need to run `devbox shell` once per terminal session.
+
+### Available scripts
+
+| Command | Description |
+| --- | --- |
+| `devbox run test` | Run the test suite with pytest |
+| `devbox run lint` | Check code with ruff |
+| `devbox run format` | Format code with ruff |
+| `devbox run typecheck` | Run mypy type checking |
+
+### Without devbox
+
+If you prefer not to use devbox, you can set up the environment manually with uv:
+
+```sh
+uv sync
+```
+
+### git-flow
+
 We recommend installing git-flow. On OSX, you can install with brew:
 
 ```sh

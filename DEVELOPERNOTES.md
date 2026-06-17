@@ -4,7 +4,7 @@ We use the [git-flow branching pattern](https://www.gitkraken.com/learn/git/git-
 
 ## Development Setup
 
-This project uses [devbox](https://www.jetify.com/devbox) to provide a reproducible development environment. Install devbox if you don't have it:
+This project uses [devbox](https://www.jetify.com/devbox) to provide a reproducible development environment with pinned versions of Python and uv, so all contributors work with the same tooling. Install devbox if you don't have it:
 
 ```sh
 curl -fsSL https://get.jetify.com/devbox | bash

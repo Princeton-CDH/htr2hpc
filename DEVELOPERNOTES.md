@@ -29,6 +29,26 @@ This installs the required packages via Nix and runs `uv sync` to install Python
 | `devbox run format` | Format code with ruff |
 | `devbox run typecheck` | Run mypy type checking |
 
+### Verify the environment
+
+To test that the devbox environment works without relying on any system dependencies:
+
+```sh
+devbox shell --pure
+```
+
+This launches a shell with only the packages specified in `devbox.json`, which is useful for confirming the environment is self-contained. You can then run the tests:
+
+```sh
+devbox run test
+```
+
+If you run into unexpected errors, clearing devbox's local state usually fixes them:
+
+```sh
+rm -rf .devbox
+```
+
 ### Without devbox
 
 If you prefer not to use devbox, you can set up the environment manually with uv:

@@ -4,6 +4,20 @@ We use the [git-flow branching pattern](https://www.gitkraken.com/learn/git/git-
 
 ## Development Setup
 
+This project uses [devbox](https://www.jetify.com/devbox) to simplify local development setup. Devbox installs the required tools (Python, uv) in an isolated environment without affecting your system, so you can get started with a single command and be confident your setup matches other contributors. If you prefer not to use devbox, you can set up the environment manually — see below.
+
+Install devbox if you don't have it:
+
+```sh
+curl -fsSL https://get.jetify.com/devbox | bash
+```
+
+Then run `devbox shell` to enter the environment. This installs Python 3.11 and uv via Nix. Run `uv sync --extra dev` to install Python dependencies into a local `.venv`. You only need to run `devbox shell` once per terminal session.
+
+Use `devbox run test` to run the test suite from your regular terminal without entering the devbox shell. To verify the environment works without any system dependencies, use `devbox shell --pure`. If you run into unexpected errors, `rm -rf .devbox` usually clears them up.
+
+If you prefer not to use devbox, you can set up the environment manually with `uv sync --extra dev`.
+
 We recommend installing git-flow. On OSX, you can install with brew:
 
 ```sh

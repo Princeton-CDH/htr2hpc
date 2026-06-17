@@ -4,60 +4,17 @@ We use the [git-flow branching pattern](https://www.gitkraken.com/learn/git/git-
 
 ## Development Setup
 
-This project uses [devbox](https://www.jetify.com/devbox) to provide a reproducible development environment with Python 3.11 and uv pre-installed.
-
-### Install devbox
+This project uses [devbox](https://www.jetify.com/devbox) to provide a reproducible development environment. Install devbox if you don't have it:
 
 ```sh
 curl -fsSL https://get.jetify.com/devbox | bash
 ```
 
-### Start the development environment
+Then run `devbox shell` to enter the environment. This installs Python 3.11 and uv via Nix and runs `uv sync` to install Python dependencies into a local `.venv`. You only need to run this once per terminal session.
 
-```sh
-devbox shell
-```
+Use `devbox run test`, `devbox run lint`, `devbox run format`, or `devbox run typecheck` to run common tasks. To verify the environment works without any system dependencies, use `devbox shell --pure`. If you run into unexpected errors, `rm -rf .devbox` usually clears them up.
 
-This installs the required packages via Nix and runs `uv sync` to install Python dependencies into a local `.venv`. You only need to run `devbox shell` once per terminal session.
-
-### Available scripts
-
-| Command | Description |
-| --- | --- |
-| `devbox run test` | Run the test suite with pytest |
-| `devbox run lint` | Check code with ruff |
-| `devbox run format` | Format code with ruff |
-| `devbox run typecheck` | Run mypy type checking |
-
-### Verify the environment
-
-To test that the devbox environment works without relying on any system dependencies:
-
-```sh
-devbox shell --pure
-```
-
-This launches a shell with only the packages specified in `devbox.json`, which is useful for confirming the environment is self-contained. You can then run the tests:
-
-```sh
-devbox run test
-```
-
-If you run into unexpected errors, clearing devbox's local state usually fixes them:
-
-```sh
-rm -rf .devbox
-```
-
-### Without devbox
-
-If you prefer not to use devbox, you can set up the environment manually with uv:
-
-```sh
-uv sync
-```
-
-### git-flow
+If you prefer not to use devbox, you can set up the environment manually with `uv sync`.
 
 We recommend installing git-flow. On OSX, you can install with brew:
 

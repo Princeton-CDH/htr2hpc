@@ -13,10 +13,7 @@
       "uv sync"
     ],
     "scripts": {
-      "test": "uv run pytest",
-      "lint": "uv run ruff check .",
-      "format": "uv run ruff format .",
-      "typecheck": "uv run mypy --install-types --non-interactive src/htr2hpc tests"
+      "test": "uv run pytest"
     }
   }
 }

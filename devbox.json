@@ -4,14 +4,7 @@
     "python@3.11",
     "uv@latest"
   ],
-  "env": {
-    "VIRTUAL_ENV": "$PWD/.venv",
-    "PATH": "$PWD/.venv/bin:$PATH"
-  },
   "shell": {
-    "init_hook": [
-      "uv sync"
-    ],
     "scripts": {
       "test": "uv run pytest"
     }

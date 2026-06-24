@@ -7,29 +7,16 @@ That plugin uses pytest_load_initial_conftests(tryfirst=True) to run before
 pytest-django calls django.setup().
 """
 import pytest
-from django.contrib.auth import get_user_model
 
 
 @pytest.fixture
-def user(db):
+def user(db, django_user_model):
     """A basic active user."""
-    User = get_user_model()
-    return User.objects.create_user(
+    return django_user_model.objects.create_user(
         username="testuser",
         email="testuser@example.com",
         password="testpass123",
         is_active=True,
-    )
-
-
-@pytest.fixture
-def admin_user(db):
-    """A superuser for admin view tests."""
-    User = get_user_model()
-    return User.objects.create_superuser(
-        username="admin",
-        email="admin@example.com",
-        password="adminpass123",
     )
 
 

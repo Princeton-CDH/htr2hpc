@@ -18,6 +18,34 @@ Use `devbox run test` to run the test suite from your regular terminal without e
 
 If you prefer not to use devbox, you can set up the environment manually with `uv sync --extra dev`.
 
+## Running Tests
+
+The test suite requires a local checkout of the [eScriptorium source](https://gitlab.com/scripta/escriptorium) so that the eScriptorium app modules can be imported. The easiest setup is to clone both repos side-by-side:
+
+```sh
+git clone https://gitlab.com/scripta/escriptorium.git
+git clone https://github.com/Princeton-CDH/htr2hpc.git
+```
+
+The pytest plugin auto-detects the eScriptorium directory when it is a sibling named `escriptorium` next to the htr2hpc checkout. If your layout is different, set the `ESCRIPTORIUM_ROOT` environment variable to the eScriptorium root before running tests:
+
+```sh
+export ESCRIPTORIUM_ROOT=/path/to/escriptorium
+```
+
+Install htr2hpc with test dependencies, then install the eScriptorium runtime dependencies (needed for import resolution even though no eScriptorium services run during tests):
+
+```sh
+uv sync --extra test
+uv pip install -r ../escriptorium/app/requirements.txt  # adjust path if needed
+```
+
+Then run the tests:
+
+```sh
+uv run pytest
+```
+
 We recommend installing git-flow. On OSX, you can install with brew:
 
 ```sh

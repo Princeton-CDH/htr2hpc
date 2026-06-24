@@ -26,10 +26,7 @@ jobs:
           path: htr2hpc
 
       - name: Check out eScriptorium
-        uses: actions/checkout@v4
-        with:
-          repository: UB-Mannheim/escriptorium
-          path: escriptorium
+        run: git clone --depth 1 https://gitlab.com/scripta/escriptorium.git escriptorium
 
       - name: Install uv and Python ${{ matrix.python-version }}
         uses: astral-sh/setup-uv@v6
@@ -40,15 +37,9 @@ jobs:
         working-directory: htr2hpc
         run: uv sync --extra test
 
-      - name: Install eScriptorium dependencies needed for import resolution
+      - name: Install eScriptorium dependencies
         working-directory: htr2hpc
-        run: |
-          uv pip install \
-            celery \
-            django-simple-captcha \
-            djangorestframework \
-            django-prometheus \
-            easy-thumbnails
+        run: uv pip install -r ../escriptorium/app/requirements.txt
 
       - name: Run tests with coverage
         working-directory: htr2hpc

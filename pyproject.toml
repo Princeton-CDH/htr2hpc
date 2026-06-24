@@ -41,7 +41,14 @@ Source = "https://github.com/Princeton-CDH/htr2hpc"
 [project.optional-dependencies]
 dev = [
   "pre-commit",
-  "pytest",
+]
+test = [
+    "pytest==8.3.5",
+    "pytest-django==4.9.0",
+    "pytest-cov==6.1.0",
+    "pytest-mock==3.14.0",
+    "coverage[toml]==7.6.12",
+    "responses==0.25.3",
 ]
 
 [project.scripts]
@@ -55,16 +62,6 @@ allow-direct-references = true
 
 [project.entry-points."pytest11"]
 htr2hpc = "htr2hpc.pytest_plugin"
-
-[project.optional-dependencies]
-test = [
-    "pytest==8.3.5",
-    "pytest-django==4.9.0",
-    "pytest-cov==6.1.0",
-    "pytest-mock==3.14.0",
-    "coverage[toml]==7.6.12",
-    "responses==0.25.3",
-]
 
 [tool.hatch.envs.types]
 extra-dependencies = [

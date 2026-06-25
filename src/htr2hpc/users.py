@@ -32,7 +32,7 @@ class CasUserInitForm(forms.Form):
 class Htr2HpcUserAdmin(MyUserAdmin):
     """Extends eScriptorium's UserAdmin with CAS user management."""
 
-    actions = MyUserAdmin.actions + ["activate"]
+    actions = list(MyUserAdmin.actions) + ["activate"]
 
     def activate(self, request, queryset):
         """Admin action to activate selected user accounts."""

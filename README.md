@@ -130,6 +130,14 @@ sequenceDiagram
 
 
 
+### User account activation
+
+New accounts created via CAS login are **inactive by default**. This means any Princeton netid holder who authenticates via CAS will have an account created, but will not be able to log in until an admin explicitly activates their account.
+
+To activate a user account, a site admin can do so via the Django admin interface under **Users**.
+
+This behavior is implemented via the `pucas` `EXTRA_USER_INIT` hook in `htr2hpc.users.init_new_user`, which is configured automatically when you import `htr2hpc.settings`.
+
 ## License
 
 `htr2hpc` is distributed under the terms of the Apache 2 license.

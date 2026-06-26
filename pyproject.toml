@@ -30,7 +30,8 @@ dependencies = [
   "simple_slurm",
   "tqdm",
   "intspan",
-  "fabric"
+  "fabric",
+  "django~=4.2",   # must match eScriptorium's Django version
 ]
 
 [project.urls]

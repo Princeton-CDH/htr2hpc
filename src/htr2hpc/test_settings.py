@@ -5,44 +5,18 @@ Does NOT import from htr2hpc.settings or escriptorium.settings —
 those pull in PostgreSQL, Redis, Celery broker, and the full eScriptorium
 stack. This file defines only what is needed to load the htr2hpc app and
 run tests against it.
+
+eScriptorium's app directory must be on PYTHONPATH before running tests;
+see DEVELOPERNOTES.md for setup instructions.
 """
+import os
 import sys
 from pathlib import Path
-
-# Put eScriptorium apps on sys.path so imports like
-# "from users.admin import MyUserAdmin" resolve.
-# pytest.ini_options pythonpath handles this for pytest runs,
-# but we also set it here for any direct django-admin invocations.
-# Use Path(__file__) without .resolve() to preserve symlink paths.
-# htr2hpc may be a symlink inside an escriptorium checkout; resolving
-# the symlink would lose the path to the escriptorium root.
-_HERE = Path(__file__)
-
-# Search upward for an 'app/apps' directory (eScriptorium root).
-def _find_escriptorium_root(start: Path):
-    for parent in [start, *start.parents]:
-        if (parent / "app" / "apps").is_dir():
-            return parent
-    return None
-
-_ESCRIPTORIUM_ROOT = _find_escriptorium_root(_HERE)
-_SRC = str(_HERE.parents[2])  # .../htr2hpc/src/
-
-_paths_to_add = [_SRC]
-if _ESCRIPTORIUM_ROOT:
-    _paths_to_add += [
-        str(_ESCRIPTORIUM_ROOT / "app" / "apps"),
-        str(_ESCRIPTORIUM_ROOT / "app"),
-    ]
-
-for _p in _paths_to_add:
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+from unittest.mock import MagicMock
 
 # channels is imported by users.consumers at the top level.
 # Mock it so we don't need a running ASGI server.
 # Note: do NOT mock asgiref — Django itself depends on it.
-from unittest.mock import MagicMock  # noqa: E402
 
 for _mod in [
     "channels",
@@ -53,7 +27,7 @@ for _mod in [
     if _mod not in sys.modules:
         sys.modules[_mod] = MagicMock()
 
-SECRET_KEY = "test-secret-key-not-for-production"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "test-secret-key-for-testing-only")
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
 SITE_ID = 1

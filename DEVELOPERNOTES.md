@@ -4,6 +4,31 @@ We use the [git-flow branching pattern](https://www.gitkraken.com/learn/git/git-
 
 ## Development Setup
 
+Local development requires a checkout of both htr2hpc and [eScriptorium](https://gitlab.com/scripta/escriptorium). The eScriptorium apps directory must be on your Python path for imports to resolve. The easiest setup is to clone both repos side-by-side:
+
+```sh
+git clone https://gitlab.com/scripta/escriptorium.git
+git clone https://github.com/Princeton-CDH/htr2hpc.git
+```
+
+We recommend using [direnv](https://direnv.net/) to set PYTHONPATH automatically when you enter the directory. Create a `.envrc` in your htr2hpc checkout:
+
+```sh
+export PYTHONPATH=/path/to/escriptorium/app/apps:/path/to/escriptorium/app
+```
+
+Then run `direnv allow`. Alternatively, set the variable manually in your shell profile:
+
+```sh
+# bash/zsh
+export PYTHONPATH=/path/to/escriptorium/app/apps:/path/to/escriptorium/app
+
+# fish
+set -x PYTHONPATH /path/to/escriptorium/app/apps /path/to/escriptorium/app
+```
+
+Some eScriptorium dependencies require system libraries (e.g. libvips). See the [eScriptorium full install guide](https://gitlab.com/scripta/escriptorium/-/wikis/full-install) if you encounter errors installing requirements.
+
 This project uses [devbox](https://www.jetify.com/devbox) to simplify local development setup. Devbox installs the required tools (Python, uv) in an isolated environment without affecting your system, so you can get started with a single command and be confident your setup matches other contributors. If you prefer not to use devbox, you can set up the environment manually — see below.
 
 Install devbox if you don't have it:
@@ -20,27 +45,14 @@ If you prefer not to use devbox, you can set up the environment manually with `u
 
 ## Running Tests
 
-The test suite requires a local checkout of the [eScriptorium source](https://gitlab.com/scripta/escriptorium) so that the eScriptorium app modules can be imported. The easiest setup is to clone both repos side-by-side:
+Install htr2hpc with dev dependencies (which include test dependencies), then install the eScriptorium runtime dependencies (needed for import resolution even though no eScriptorium services run during tests):
 
 ```sh
-git clone https://gitlab.com/scripta/escriptorium.git
-git clone https://github.com/Princeton-CDH/htr2hpc.git
-```
-
-The pytest plugin auto-detects the eScriptorium directory when it is a sibling named `escriptorium` next to the htr2hpc checkout. If your layout is different, set the `ESCRIPTORIUM_ROOT` environment variable to the eScriptorium root before running tests:
-
-```sh
-export ESCRIPTORIUM_ROOT=/path/to/escriptorium
-```
-
-Install htr2hpc with test dependencies, then install the eScriptorium runtime dependencies (needed for import resolution even though no eScriptorium services run during tests):
-
-```sh
-uv sync --extra test
+uv sync --extra dev
 uv pip install -r ../escriptorium/app/requirements.txt  # adjust path if needed
 ```
 
-Then run the tests:
+Make sure PYTHONPATH is set as described in Development Setup above, then run:
 
 ```sh
 uv run pytest

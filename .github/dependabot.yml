@@ -19,3 +19,13 @@ updates:
       precommit-hooks:
         patterns:
           - "*"
+
+  # Enable version updates for Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python-deps:
+        patterns:
+          - "*"

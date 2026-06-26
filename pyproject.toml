@@ -7,7 +7,7 @@ name = "htr2hpc"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 license = { text = "Apache-2"}
 keywords = []
 authors = [
@@ -16,9 +16,6 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
@@ -33,7 +30,8 @@ dependencies = [
   "simple_slurm",
   "tqdm",
   "intspan",
-  "fabric"
+  "fabric",
+  "django~=4.2",   # must match eScriptorium's Django version
 ]
 
 [project.urls]
@@ -44,7 +42,12 @@ Source = "https://github.com/Princeton-CDH/htr2hpc"
 [project.optional-dependencies]
 dev = [
   "pre-commit",
-  "pytest",
+  "pytest>=8.3",
+  "pytest-django>=4.9",
+  "pytest-cov>=6.1",
+  "pytest-mock>=3.14",
+  "coverage[toml]>=7.6",
+  "responses>=0.25",
 ]
 
 [project.scripts]
@@ -56,12 +59,21 @@ path = "src/htr2hpc/__init__.py"
 [tool.hatch.metadata]
 allow-direct-references = true
 
+[project.entry-points."pytest11"]
+htr2hpc = "htr2hpc.pytest_plugin"
+
 [tool.hatch.envs.types]
 extra-dependencies = [
   "mypy>=1.0.0",
 ]
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:src/htr2hpc tests}"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "htr2hpc.test_settings"
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-p no:parasolr"
 
 [tool.coverage.run]
 source_pkgs = ["htr2hpc", "tests"]

@@ -1,4 +1,4 @@
-name: Tests
+name: unit tests
 
 on:
   push:
@@ -18,13 +18,12 @@ env:
   UV_NO_DEV: 1
   # Prevent uv run from syncing by default
   UV_NO_SYNC: 1
+  # eScriptorium version to test against (track the version deployed via cdh-ansible)
+  ESCRIPTORIUM_GITREF: dev-0.14.2
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
 
     steps:
       - name: Check out htr2hpc
@@ -32,17 +31,17 @@ jobs:
         with:
           path: htr2hpc
 
-      - name: Check out eScriptorium
-        run: git clone --depth 1 https://gitlab.com/scripta/escriptorium.git escriptorium
+      # Shallow clone of the known eScriptorium version we develop and test against.
+      # PYTHONPATH is set below so htr2hpc can import eScriptorium app modules.
+      - name: Check out eScriptorium ${{ env.ESCRIPTORIUM_GITREF }}
+        run: git clone --depth 1 --branch ${{ env.ESCRIPTORIUM_GITREF }} https://gitlab.com/scripta/escriptorium.git escriptorium
 
-      - name: Install uv and Python ${{ matrix.python-version }}
+      - name: Install uv
         uses: astral-sh/setup-uv@v6
-        with:
-          python-version: ${{ matrix.python-version }}
 
-      - name: Install htr2hpc with test dependencies
+      - name: Install htr2hpc with dev dependencies
         working-directory: htr2hpc
-        run: uv sync --extra test
+        run: uv sync --extra dev
 
       - name: Install eScriptorium dependencies
         working-directory: htr2hpc
@@ -51,7 +50,10 @@ jobs:
       - name: Run tests with coverage
         working-directory: htr2hpc
         env:
-          ESCRIPTORIUM_ROOT: ${{ github.workspace }}/escriptorium
+          # eScriptorium app modules are imported directly (no running services needed).
+          # app/apps contains the Django apps; app is needed for top-level imports.
+          PYTHONPATH: ${{ github.workspace }}/escriptorium/app/apps:${{ github.workspace }}/escriptorium/app
+          DJANGO_SECRET_KEY: ${{ github.run_id }}-${{ github.run_attempt }}-test-secret
         run: uv run pytest --cov --cov-report=xml
 
       - name: Upload coverage to Codecov

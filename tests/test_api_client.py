@@ -27,6 +27,15 @@ def clean_registry():
             del RESULTCLASS_REGISTRY[key]
 
 
+@pytest.fixture
+def api_client_instance():
+    """An eScriptoriumAPIClient pointed at a fake base URL."""
+    return eScriptoriumAPIClient(
+        base_url="https://escriptorium.example.com",
+        api_token="test-token-abc123",
+    )
+
+
 # ---------------------------------------------------------------------------
 # to_namedtuple
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ We use the [git-flow branching pattern](https://www.gitkraken.com/learn/git/git-
 
 ## Development Setup
 
-Local development requires a checkout of both htr2hpc and [eScriptorium](https://gitlab.com/scripta/escriptorium). The eScriptorium apps directory must be on your Python path for imports to resolve. The easiest setup is to clone both repos side-by-side:
+Local development requires a checkout of both htr2hpc and [eScriptorium](https://gitlab.com/scripta/escriptorium). The eScriptorium apps directory must be on your Python path for imports to resolve — it doesn't matter where you clone it, as long as PYTHONPATH points to the right location. For example:
 
 ```sh
 git clone https://gitlab.com/scripta/escriptorium.git

@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 from django.contrib.auth.models import User
 
+from htr2hpc.users import init_user
 
 
 def test_init_user_sets_inactive():
@@ -21,3 +22,15 @@ def test_init_user_already_inactive():
     user = Mock(spec=User, is_staff=False, is_superuser=False, is_active=False)
     init_user(user, {})
     assert user.is_active is False
+
+
+def test_init_user_staff_stays_active():
+    user = Mock(spec=User, is_staff=True, is_superuser=False, is_active=True)
+    init_user(user, {})
+    assert user.is_active is True
+
+
+def test_init_user_superuser_stays_active():
+    user = Mock(spec=User, is_staff=False, is_superuser=True, is_active=True)
+    init_user(user, {})
+    assert user.is_active is True

@@ -57,6 +57,10 @@ extra-dependencies = [
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:src/htr2hpc tests}"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+DJANGO_SETTINGS_MODULE = "htr2hpc.test_settings"
+
 [tool.coverage.run]
 source_pkgs = ["htr2hpc", "tests"]
 branch = true

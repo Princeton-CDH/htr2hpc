@@ -51,7 +51,7 @@ def test_dry_run_does_not_delete(media_root):
     old_file = media_root / "users" / "42" / "export_doc1_test_alto_20240101.zip"
     make_file(old_file, age_days=35)
 
-    count, total_bytes = delete_old_exports(
+    count, _ = delete_old_exports(
         str(media_root), EXPORT_FILE_RETENTION_DEFAULT, dry_run=True
     )
 

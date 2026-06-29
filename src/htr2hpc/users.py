@@ -1,4 +1,9 @@
-def init_user(user, user_info):
+from typing import Any
+
+from django.contrib.auth.models import AbstractUser
+
+
+def init_user(user: AbstractUser, user_info: Any) -> None:
     """pucas EXTRA_USER_INIT hook: make new CAS accounts inactive by default.
 
     Staff and superuser accounts are left active so admin access is not

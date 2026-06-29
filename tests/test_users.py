@@ -1,22 +1,23 @@
 """Tests for htr2hpc.users."""
-from types import SimpleNamespace
+from unittest.mock import Mock
 
-from htr2hpc.users import init_new_user
+from django.contrib.auth.models import User
 
 
-def test_init_new_user_sets_inactive():
-    user = SimpleNamespace(is_active=True)
-    init_new_user(user, {})
+
+def test_init_user_sets_inactive():
+    user = Mock(spec=User, is_staff=False, is_superuser=False, is_active=True)
+    init_user(user, {})
     assert user.is_active is False
 
 
-def test_init_new_user_ignores_user_info():
-    user = SimpleNamespace(is_active=True)
-    init_new_user(user, {"uid": "netid123", "mail": "netid@example.com"})
+def test_init_user_ignores_user_info():
+    user = Mock(spec=User, is_staff=False, is_superuser=False, is_active=True)
+    init_user(user, {"uid": "netid123", "mail": "netid@example.com"})
     assert user.is_active is False
 
 
-def test_init_new_user_already_inactive():
-    user = SimpleNamespace(is_active=False)
-    init_new_user(user, {})
+def test_init_user_already_inactive():
+    user = Mock(spec=User, is_staff=False, is_superuser=False, is_active=False)
+    init_user(user, {})
     assert user.is_active is False

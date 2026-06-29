@@ -68,7 +68,6 @@ New accounts created via CAS login are **inactive by default**. This means any P
 
 To activate a user account, a site admin can do so via the Django admin interface under **Users**.
 
-This behavior is implemented via the `pucas` `EXTRA_USER_INIT` hook in `htr2hpc.users.init_new_user`, which is configured automatically when you import `htr2hpc.settings`.
 
 ## License
 

@@ -23,6 +23,8 @@ PUCAS_LDAP = {
         "last_name": "sn",
         "email": "mail",
     },
+    # new CAS accounts are inactive by default; admins must activate them
+    "EXTRA_USER_INIT": "htr2hpc.users.init_user",
 }
 
 # default django-cas behavior is to redirect back to the referrer,

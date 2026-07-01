@@ -5,6 +5,8 @@ from typing import Generator
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+EXPORT_FILE_RETENTION_DEFAULT = 168  # 1 week in hours
+
 VERBOSITY_QUIET = 0
 VERBOSITY_NORMAL = 1
 VERBOSITY_VERBOSE = 2

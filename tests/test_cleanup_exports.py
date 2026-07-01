@@ -10,10 +10,10 @@ from htr2hpc.management.commands.cleanup_exports import (
 )
 
 
-def make_file(path, age_days):
-    """Create a file and set its mtime to age_days ago."""
+def make_file(path, age_hours):
+    """Create a file and set its mtime to age_hours ago."""
     path.touch()
-    mtime = (datetime.datetime.now() - datetime.timedelta(days=age_days)).timestamp()
+    mtime = (datetime.datetime.now() - datetime.timedelta(hours=age_hours)).timestamp()
     os.utime(path, (mtime, mtime))
 
 
@@ -27,7 +27,7 @@ def media_root(tmp_path):
 
 def test_deletes_old_export_files(media_root):
     old_file = media_root / "users" / "42" / "export_doc1_test_alto_20240101.zip"
-    make_file(old_file, age_days=35)
+    make_file(old_file, age_hours=840)  # 35 days
 
     count, total_bytes = delete_old_exports(str(media_root), EXPORT_FILE_RETENTION_DEFAULT)
 
@@ -38,7 +38,7 @@ def test_deletes_old_export_files(media_root):
 
 def test_keeps_recent_export_files(media_root):
     recent_file = media_root / "users" / "42" / "export_doc1_test_alto_20240601.zip"
-    make_file(recent_file, age_days=5)
+    make_file(recent_file, age_hours=120)  # 5 days
 
     count, total_bytes = delete_old_exports(str(media_root), EXPORT_FILE_RETENTION_DEFAULT)
 
@@ -49,7 +49,7 @@ def test_keeps_recent_export_files(media_root):
 
 def test_dry_run_does_not_delete(media_root):
     old_file = media_root / "users" / "42" / "export_doc1_test_alto_20240101.zip"
-    make_file(old_file, age_days=35)
+    make_file(old_file, age_hours=840)  # 35 days
 
     count, _ = delete_old_exports(
         str(media_root), EXPORT_FILE_RETENTION_DEFAULT, dry_run=True
@@ -61,7 +61,7 @@ def test_dry_run_does_not_delete(media_root):
 
 def test_ignores_non_export_files(media_root):
     other_file = media_root / "users" / "42" / "manifest.json"
-    make_file(other_file, age_days=35)
+    make_file(other_file, age_hours=840)  # 35 days
 
     count, _ = delete_old_exports(str(media_root), EXPORT_FILE_RETENTION_DEFAULT)
 
@@ -70,16 +70,16 @@ def test_ignores_non_export_files(media_root):
 
 
 def test_respects_custom_retention(media_root):
-    # 10 days old — older than 7-day retention but newer than 30-day default
+    # 240 hours (10 days) old — older than 168-hour (1 week) retention but newer than 720-hour (30 day) default
     borderline_file = media_root / "users" / "42" / "export_doc1_test_alto_20240601.zip"
-    make_file(borderline_file, age_days=10)
+    make_file(borderline_file, age_hours=240)
 
-    count_default, _ = delete_old_exports(str(media_root), retention_days=30)
-    assert borderline_file.exists(), "should be kept under default 30-day retention"
+    count_default, _ = delete_old_exports(str(media_root), retention_hours=720)
+    assert borderline_file.exists(), "should be kept under 720-hour (30-day) retention"
     assert count_default == 0
 
-    count_short, _ = delete_old_exports(str(media_root), retention_days=7)
-    assert not borderline_file.exists(), "should be deleted under 7-day retention"
+    count_short, _ = delete_old_exports(str(media_root), retention_hours=168)
+    assert not borderline_file.exists(), "should be deleted under 168-hour (1-week) retention"
     assert count_short == 1
 
 
@@ -93,7 +93,7 @@ def test_missing_users_dir_returns_zeros(tmp_path):
 def test_reports_bytes_freed(media_root):
     old_file = media_root / "users" / "42" / "export_doc1_test_alto_20240101.zip"
     old_file.write_bytes(b"x" * 1024)
-    mtime = (datetime.datetime.now() - datetime.timedelta(days=35)).timestamp()
+    mtime = (datetime.datetime.now() - datetime.timedelta(hours=840)).timestamp()  # 35 days
     os.utime(old_file, (mtime, mtime))
 
     _, total_bytes = delete_old_exports(str(media_root), EXPORT_FILE_RETENTION_DEFAULT)
@@ -107,8 +107,8 @@ def test_deletes_files_across_multiple_users(media_root):
 
     old1 = media_root / "users" / "42" / "export_doc1_test_alto_20240101.zip"
     old2 = user2_dir / "export_doc2_test_pagexml_20240101.zip"
-    make_file(old1, age_days=35)
-    make_file(old2, age_days=35)
+    make_file(old1, age_hours=840)  # 35 days
+    make_file(old2, age_hours=840)  # 35 days
 
     count, _ = delete_old_exports(str(media_root), EXPORT_FILE_RETENTION_DEFAULT)
 

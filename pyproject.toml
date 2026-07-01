@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://princeton-cdh.github.io/htr2hpc/"
+Documentation = "https://htr2hpc.readthedocs.io/"
 Issues = "https://github.com/Princeton-CDH/htr2hpc/issues"
 Source = "https://github.com/Princeton-CDH/htr2hpc"
 

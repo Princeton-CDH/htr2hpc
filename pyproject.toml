@@ -59,9 +59,6 @@ path = "src/htr2hpc/__init__.py"
 [tool.hatch.metadata]
 allow-direct-references = true
 
-[project.entry-points."pytest11"]
-htr2hpc = "htr2hpc.pytest_plugin"
-
 [tool.hatch.envs.types]
 extra-dependencies = [
   "mypy>=1.0.0",
@@ -70,8 +67,8 @@ extra-dependencies = [
 check = "mypy --install-types --non-interactive {args:src/htr2hpc tests}"
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "htr2hpc.test_settings"
-pythonpath = ["src"]
+DJANGO_SETTINGS_MODULE = "test_settings"
+pythonpath = ["src", "tests"]
 testpaths = ["tests"]
 addopts = "-p no:parasolr"
 

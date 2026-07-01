@@ -1,12 +1,12 @@
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
+from django.core.validators import RegexValidator
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import path
-from django.utils.translation import ngettext
 
-from pucas.ldap import LDAPSearch, LDAPSearchException, user_info_from_ldap
+from pucas.ldap import LDAPSearchException, init_cas_user
 from users.admin import MyUserAdmin
 
 
@@ -32,24 +32,6 @@ class CasUserInitForm(forms.Form):
 class Htr2HpcUserAdmin(MyUserAdmin):
     """Extends eScriptorium's UserAdmin with CAS user management."""
 
-    actions = list(MyUserAdmin.actions) + ["activate"]
-
-    def activate(self, request, queryset):
-        """Admin action to activate selected user accounts."""
-        updated = queryset.update(is_active=True)
-        self.message_user(
-            request,
-            ngettext(
-                "%d user activated.",
-                "%d users activated.",
-                updated,
-            )
-            % updated,
-            messages.SUCCESS,
-        )
-
-    activate.short_description = "Activate selected users"
-
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
@@ -63,43 +45,36 @@ class Htr2HpcUserAdmin(MyUserAdmin):
 
     def cas_user_init(self, request):
         """View to initialize CAS user accounts by netid."""
-        User = get_user_model()
-
         if request.method == "POST":
             form = CasUserInitForm(request.POST)
             if form.is_valid():
                 netids = form.cleaned_data["netids"]
-                created_users = []
+                created_list = []
+                existing_list = []
                 errors = []
 
-                ldap = LDAPSearch()
                 for netid in netids:
                     try:
-                        # verify netid exists in LDAP before creating a DB record
-                        ldap.find_user(netid)
-                        user, created = User.objects.get_or_create(username=netid)
-                        # only init new users; skip existing to avoid resetting is_active
+                        _, created = init_cas_user(netid)
                         if created:
-                            user_info_from_ldap(user)
-                        created_users.append((netid, created))
+                            created_list.append(netid)
+                        else:
+                            existing_list.append(netid)
                     except LDAPSearchException:
                         errors.append(netid)
 
-                if created_users:
-                    created = [n for n, c in created_users if c]
-                    existing = [n for n, c in created_users if not c]
-                    if created:
-                        self.message_user(
-                            request,
-                            "Created accounts: %s" % ", ".join(created),
-                            messages.SUCCESS,
-                        )
-                    if existing:
-                        self.message_user(
-                            request,
-                            "Already exists: %s" % ", ".join(existing),
-                            messages.INFO,
-                        )
+                if created_list:
+                    self.message_user(
+                        request,
+                        "Created accounts: %s" % ", ".join(created_list),
+                        messages.SUCCESS,
+                    )
+                if existing_list:
+                    self.message_user(
+                        request,
+                        "Already exists: %s" % ", ".join(existing_list),
+                        messages.INFO,
+                    )
                 if errors:
                     self.message_user(
                         request,

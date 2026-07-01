@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("../src"))
+sys.path.insert(0, os.path.abspath("."))  # for django_settings.py
 
 # Mock modules that are unavailable outside the eScriptorium environment
 # so autodoc can import htr2hpc.tasks and htr2hpc.views without errors.
@@ -12,29 +13,14 @@ for _mod in [
     "apps.users",
     "apps.users.consumers",
     "celery",
-    "channels.generic",
-    "channels.generic.websocket",
-    "channels.layers",
-    "coremltools",
-    "coremltools.models",
-    "coremltools.models.MLModel",
 ]:
     sys.modules.setdefault(_mod, MagicMock())
 
-import django  # noqa: E402
-from django.conf import settings  # noqa: E402
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_settings")
 
-if not settings.configured:
-    settings.configure(
-        INSTALLED_APPS=[
-            "django.contrib.auth",
-            "django.contrib.contenttypes",
-            "django.contrib.sites",
-        ],
-        DATABASES={"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}},
-        SITE_ID=1,
-    )
-    django.setup()
+import django  # noqa: E402
+
+django.setup()
 
 from htr2hpc import __version__  # noqa: E402
 

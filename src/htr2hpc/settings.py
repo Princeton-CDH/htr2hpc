@@ -51,3 +51,7 @@ TEMPLATES[0]["OPTIONS"]["context_processors"].append(
 
 
 CUSTOM_HOME = True
+
+# Number of hours to retain user export files before cleanup.
+# Set to 0 to disable automatic cleanup entirely.
+EXPORT_FILE_RETENTION = 168  # 1 week

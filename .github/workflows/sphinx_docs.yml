@@ -14,24 +14,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
           python-version-file: ".python-version"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
       - name: Install dependencies
-        run: uv sync --extra docs
+        run: uv sync --group docs
 
       - name: Build Sphinx docs
         run: cd sphinx-docs && uv run make html
-
-      # on push to main, publish to GitHub Pages
-      - name: Deploy to GitHub Pages
-        if: ${{ github.event_name == 'push' }}
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./sphinx-docs/_build/html

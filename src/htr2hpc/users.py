@@ -16,6 +16,12 @@ def init_new_user(user, user_info):
     user.is_active = False
 
 
+netid_validator = RegexValidator(
+    r"^[a-zA-Z0-9]+$",
+    "NetIDs may only contain alphanumeric characters.",
+)
+
+
 class CasUserInitForm(forms.Form):
     """Form to initialize one or more CAS user accounts by netid."""
 
@@ -26,7 +32,10 @@ class CasUserInitForm(forms.Form):
     )
 
     def clean_netids(self):
-        return self.cleaned_data["netids"].split()
+        netids = self.cleaned_data["netids"].split()
+        for netid in netids:
+            netid_validator(netid)
+        return netids
 
 
 class Htr2HpcUserAdmin(MyUserAdmin):

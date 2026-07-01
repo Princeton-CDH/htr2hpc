@@ -35,6 +35,13 @@ This adjusts the settings as follows:
 - Adds to `INSTALLED_APPS` and `AUTHENTICATION_BACKENDS` and provides a basic `PUCAS_LDAP` configuration to enable Princeton CAS authentication; configures `CAS_REDIRECT_URL` to use the escriptorium `LOGIN_REDIRECT_URL` configuration (currently the projects list page) and sets `CAS_IGNORE_REFERER = True` to avoid behavior where successful CAS login takes you back to the login page
 - Sets `ROOT_URLCONF` to use `htr2hpc.urls`, which adds `pucas` url paths to the urls defined in `escriptorium.urls`
 - Adds `htr2hpc/templates` directory first in the list of template directories, so that any templates in this application will take precedence over eScriptorium templates; currently used for customizing the login page to add Princeton CAS login
+- Sets `EXPORT_FILE_RETENTION = 168` (hours) as the default retention period for user export files
+
+### Optional settings
+
+The following settings can be overridden in your local settings file:
+
+- `EXPORT_FILE_RETENTION`: Number of hours to retain user export files before they are eligible for cleanup by the `cleanup_exports` management command. Defaults to `168` (1 week). Set to `0` to disable automatic cleanup entirely.
 
 See [DEPLOY NOTES](DEPLOY_NOTES.md) for instructions on creating a new release and deploying it to the server with cdh-ansible.
 

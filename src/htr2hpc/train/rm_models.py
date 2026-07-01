@@ -11,13 +11,13 @@ delete all models that start with the specified model name prefix.
 
 usage:
 
-    python src/htr2hpc/train/rm_models.py https://test-htr.lib.princeton.edu/ model_prefix
+    python src/htr2hpc/train/rm_models.py \
+        https://test-htr.lib.princeton.edu/ model_prefix
 
 """
 
-
-import os
 import argparse
+import os
 import sys
 
 from tqdm import tqdm
@@ -32,7 +32,8 @@ def main():
         api_token = os.environ[api_token_env_var]
     except KeyError:
         print(
-            f"Error: eScriptorium API token must be set as environment variable {api_token_env_var}",
+            f"Error: eScriptorium API token must be set as environment variable"
+            f" {api_token_env_var}",
             file=sys.stderr,
         )
         sys.exit(1)

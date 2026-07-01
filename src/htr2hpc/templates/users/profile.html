@@ -10,11 +10,11 @@
             the below three steps. (This is a one-time process.)</p>
         <ol>
             <li>Ensure that you are either on-campus connected to the University wifi or
-                that you are connected to the Princeton network through the VPN 
+                that you are connected to the Princeton network through the VPN
                 <a href="https://informationsecurity.princeton.edu/connecting-to-princeton-n">like so</a>.</li>
-            <li>Open Terminal or Command Line on your computer, 
+            <li>Open Terminal or Command Line on your computer,
                 paste in the below code, and press enter. You will be prompted for your NetID password.<br>
-                <code>ssh {{ request.user.username }}@della.princeton.edu 'mkdir -p ~/.ssh &amp;&amp; echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzoR8jstrofzFKVoiXSFP5jGw/WbXHxFyIaS5b4vSWC test-htr.lib.princeton.edu" >> ~/.ssh/authorized_keys'</code>
+                <code>ssh {{ request.user.username }}@adroit.princeton.edu 'mkdir -p ~/.ssh &amp;&amp; echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzoR8jstrofzFKVoiXSFP5jGw/WbXHxFyIaS5b4vSWC test-htr.lib.princeton.edu" >> ~/.ssh/authorized_keys'</code>
             </li>
 
             <li>Click the "HPC setup" button below for initial environment setup. This step may take
@@ -28,7 +28,7 @@
             </li>
         </ol>
     <h3>HPC account updates</h3>
-    <p>This instance of eScriptorium is currently being tested and occasional updates might be necessary. 
+    <p>This instance of eScriptorium will receive occasional upgrades where updates to your HPC account may be necessary. 
         When prompted to update your HPC account, simply click the "HPC setup" button above to automatically 
         run the update process.</p>
 </div>

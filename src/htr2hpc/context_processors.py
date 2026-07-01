@@ -4,7 +4,6 @@ from socket import gethostname
 import psutil
 from django.template.defaultfilters import filesizeformat
 
-
 # Get host and CPU count once on load, since changing these requires a reboot
 
 #: number of logical CPUs in the system
@@ -40,3 +39,10 @@ def vm_status(request):
         },
         "system_memory": system_memory,
     }
+
+
+def htr2hpc_version(request):
+    """Custom context processor to expose the htr2hpc package version."""
+    from htr2hpc import __version__
+
+    return {"HTR2HPC_VERSION": __version__}

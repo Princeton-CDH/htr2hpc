@@ -56,7 +56,7 @@ source_suffix = {
 master_doc = "index"
 
 project = "htr2hpc"
-copyright = "2025, CDH @ Princeton University"
+copyright = "2026, CDH @ Princeton University"
 author = "CDH @ Princeton University"
 
 version = __version__

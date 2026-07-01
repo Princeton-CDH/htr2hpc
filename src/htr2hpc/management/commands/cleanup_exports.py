@@ -1,22 +1,35 @@
 import datetime
-import logging
 from pathlib import Path
+from typing import Generator
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-EXPORT_FILE_RETENTION_DEFAULT = 30
+VERBOSITY_QUIET = 0
+VERBOSITY_NORMAL = 1
+VERBOSITY_VERBOSE = 2
 
-logger = logging.getLogger(__name__)
+
+def get_old_exports(
+    users_dir: Path, cutoff: datetime.datetime
+) -> Generator[tuple[Path, int], None, None]:
+    """Yield (path, size_in_bytes) for export files older than cutoff."""
+    for entry in users_dir.glob("*/export_*.zip"):
+        stat = entry.stat()
+        mtime = datetime.datetime.fromtimestamp(stat.st_mtime)
+        if mtime < cutoff:
+            yield entry, stat.st_size
 
 
-def delete_old_exports(media_root, retention_days, dry_run=False):
-    """Delete export files under media_root/users/ older than retention_days.
+def delete_old_exports(
+    media_root: Path | str, retention_hours: int, dry_run: bool = False
+) -> tuple[int, int]:
+    """Delete export files under media_root/users/ older than retention_hours.
 
     Returns a (count, total_bytes) tuple of files deleted (or that would be
     deleted when dry_run=True).
     """
-    cutoff = datetime.datetime.now() - datetime.timedelta(days=retention_days)
+    cutoff = datetime.datetime.now() - datetime.timedelta(hours=retention_hours)
     users_dir = Path(media_root) / "users"
 
     if not users_dir.is_dir():
@@ -25,30 +38,17 @@ def delete_old_exports(media_root, retention_days, dry_run=False):
     count = 0
     total_bytes = 0
 
-    for user_dir in users_dir.iterdir():
-        if not user_dir.is_dir():
-            continue
-        for entry in user_dir.iterdir():
-            if not entry.name.startswith("export_"):
-                continue
-            stat = entry.stat()
-            mtime = datetime.datetime.fromtimestamp(stat.st_mtime)
-            if mtime < cutoff:
-                size = stat.st_size
-                logger.info("Deleting %s (%d bytes)", entry, size)
-                if not dry_run:
-                    entry.unlink()
-                count += 1
-                total_bytes += size
+    for entry, size in get_old_exports(users_dir, cutoff):
+        if not dry_run:
+            entry.unlink()
+        count += 1
+        total_bytes += size
 
     return count, total_bytes
 
 
 class Command(BaseCommand):
-    help = (
-        f"Delete export files older than settings.EXPORT_FILE_RETENTION days "
-        f"(default: {EXPORT_FILE_RETENTION_DEFAULT} days)."
-    )
+    help = "Delete export files older than settings.EXPORT_FILE_RETENTION hours."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -60,9 +60,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         dry_run = kwargs["dry_run"]
-        retention = getattr(
-            settings, "EXPORT_FILE_RETENTION", EXPORT_FILE_RETENTION_DEFAULT
-        )
+        verbosity = kwargs["verbosity"]
+        retention = settings.EXPORT_FILE_RETENTION
 
         if retention == 0:
             self.stdout.write(
@@ -70,12 +69,26 @@ class Command(BaseCommand):
             )
             return
 
-        if not (Path(settings.MEDIA_ROOT) / "users").is_dir():
+        users_dir = Path(settings.MEDIA_ROOT) / "users"
+        if not users_dir.is_dir():
             self.stdout.write("No users media directory found; nothing to clean up.")
             return
 
-        count, total_bytes = delete_old_exports(settings.MEDIA_ROOT, retention, dry_run)
-        action = "Would delete" if dry_run else "Deleted"
-        self.stdout.write(
-            f"{action} {count} export file(s), freeing {total_bytes} bytes."
-        )
+        cutoff = datetime.datetime.now() - datetime.timedelta(hours=retention)
+        count = 0
+        total_bytes = 0
+
+        for entry, size in get_old_exports(users_dir, cutoff):
+            if verbosity >= VERBOSITY_VERBOSE:
+                action = "Would delete" if dry_run else "Deleting"
+                self.stdout.write(f"{action} {entry} ({size} bytes)")
+            if not dry_run:
+                entry.unlink()
+            count += 1
+            total_bytes += size
+
+        if verbosity >= VERBOSITY_NORMAL:
+            action = "Would delete" if dry_run else "Deleted"
+            self.stdout.write(
+                f"{action} {count} export file(s), freeing {total_bytes} bytes."
+            )

@@ -5,14 +5,13 @@ from unittest.mock import MagicMock
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("../src"))
 
-# Mock modules that require eScriptorium or other unavailable dependencies
-# so autodoc can import htr2hpc modules without a full eScriptorium install.
+# Mock modules that are unavailable outside the eScriptorium environment
+# so autodoc can import htr2hpc.tasks and htr2hpc.views without errors.
 for _mod in [
     "apps",
     "apps.users",
     "apps.users.consumers",
     "celery",
-    "channels",
     "channels.generic",
     "channels.generic.websocket",
     "channels.layers",

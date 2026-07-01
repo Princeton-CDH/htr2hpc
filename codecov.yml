@@ -7,6 +7,9 @@ coverage:
         paths:
           - "src/"
       tests:
-        target: 80%
+        target: 100%
         paths:
           - "tests/"
+    patch:
+      default:
+        target: 95%

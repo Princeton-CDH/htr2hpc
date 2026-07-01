@@ -8,6 +8,7 @@ build:
   tools:
     python: "3.11"
   commands:
+    - pip install uv
     - uv sync --group docs
     - uv run sphinx-build -b html sphinx-docs/ $READTHEDOCS_OUTPUT/html
 

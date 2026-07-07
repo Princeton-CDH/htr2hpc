@@ -40,7 +40,10 @@ def delete_old_exports(
 
     for entry, size in get_old_exports(users_dir, cutoff):
         if not dry_run:
-            entry.unlink()
+            try:
+                entry.unlink()
+            except OSError:
+                continue
         count += 1
         total_bytes += size
 

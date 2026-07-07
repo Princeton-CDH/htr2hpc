@@ -130,6 +130,21 @@ sequenceDiagram
 
 
 
+### User account activation
+
+New accounts created via CAS login are **inactive by default**. This means any Princeton netid holder who authenticates via CAS will have an account created, but will not be able to log in until an admin explicitly activates their account.
+
+To activate a user account, a site admin can do so via the Django admin interface under **Users**.
+
+### Adding admin users
+
+To provision an admin account, use the `createcasuser` management command with the `--admin` or `--staff` flag. Admin and staff accounts are not made inactive by default. Multiple netids can be provided in a single command.
+
+```sh
+python manage.py createcasuser --admin <netid1> <netid2> ...
+python manage.py createcasuser --staff <netid1> <netid2> ...
+```
+
 ## License
 
 `htr2hpc` is distributed under the terms of the Apache 2 license.

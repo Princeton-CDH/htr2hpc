@@ -3,9 +3,10 @@ import datetime
 import os
 
 import pytest
+from django.test import override_settings
+from django.core.management import call_command
 
 from htr2hpc.management.commands.cleanup_exports import (
-    EXPORT_FILE_RETENTION_DEFAULT,
     delete_old_exports,
 )
 
@@ -94,7 +95,6 @@ def test_reports_bytes_freed(media_root):
     mtime = (datetime.datetime.now() - datetime.timedelta(hours=840)).timestamp()  # 35 days
     os.utime(old_file, (mtime, mtime))
 
-    _, total_bytes = delete_old_exports(str(media_root), EXPORT_FILE_RETENTION_DEFAULT)
     _, total_bytes = delete_old_exports(str(media_root), 168)
 
     assert total_bytes == 1024
@@ -114,3 +114,61 @@ def test_deletes_files_across_multiple_users(media_root):
     assert not old1.exists()
     assert not old2.exists()
     assert count == 2
+
+
+def test_unlink_error_is_skipped(media_root, mocker):
+    old_file = media_root / "users" / "42" / "export_doc1_test_alto_20240101.zip"
+    make_file(old_file, age_hours=840)
+
+    mocker.patch("pathlib.Path.unlink", side_effect=OSError("permission denied"))
+
+    count, total_bytes = delete_old_exports(str(media_root), 168)
+
+    assert old_file.exists()
+    assert count == 0
+    assert total_bytes == 0
+
+
+@pytest.mark.django_db
+def test_handle_retention_zero(tmp_path, capsys):
+    with override_settings(EXPORT_FILE_RETENTION=0, MEDIA_ROOT=str(tmp_path)):
+        call_command("cleanup_exports")
+
+    captured = capsys.readouterr()
+    assert "set to 0" in captured.out
+
+
+@pytest.mark.django_db
+def test_handle_missing_users_dir(tmp_path, capsys):
+    with override_settings(EXPORT_FILE_RETENTION=168, MEDIA_ROOT=str(tmp_path)):
+        call_command("cleanup_exports")
+
+    captured = capsys.readouterr()
+    assert "nothing to clean up" in captured.out
+
+
+@pytest.mark.django_db
+def test_handle_deletes_old_exports(media_root, capsys):
+    old_file = media_root / "users" / "42" / "export_doc1_test_alto_20240101.zip"
+    make_file(old_file, age_hours=840)
+
+    with override_settings(EXPORT_FILE_RETENTION=168, MEDIA_ROOT=str(media_root)):
+        call_command("cleanup_exports")
+
+    assert not old_file.exists()
+    captured = capsys.readouterr()
+    assert "Deleted 1 export file(s)" in captured.out
+
+
+@pytest.mark.django_db
+def test_handle_dry_run(media_root, capsys):
+    old_file = media_root / "users" / "42" / "export_doc1_test_alto_20240101.zip"
+    make_file(old_file, age_hours=840)
+
+    with override_settings(EXPORT_FILE_RETENTION=168, MEDIA_ROOT=str(media_root)):
+        call_command("cleanup_exports", dry_run=True)
+
+    assert old_file.exists()
+    captured = capsys.readouterr()
+    assert "Would delete 1 export file(s)" in captured.out
+

@@ -77,18 +77,13 @@ class Command(BaseCommand):
             self.stdout.write("No users media directory found; nothing to clean up.")
             return
 
-        cutoff = datetime.datetime.now() - datetime.timedelta(hours=retention)
-        count = 0
-        total_bytes = 0
-
-        for entry, size in get_old_exports(users_dir, cutoff):
-            if verbosity >= VERBOSITY_VERBOSE:
+        if verbosity >= VERBOSITY_VERBOSE:
+            cutoff = datetime.datetime.now() - datetime.timedelta(hours=retention)
+            for entry, size in get_old_exports(users_dir, cutoff):
                 action = "Would delete" if dry_run else "Deleting"
                 self.stdout.write(f"{action} {entry} ({size} bytes)")
-            if not dry_run:
-                entry.unlink()
-            count += 1
-            total_bytes += size
+
+        count, total_bytes = delete_old_exports(settings.MEDIA_ROOT, retention, dry_run)
 
         if verbosity >= VERBOSITY_NORMAL:
             action = "Would delete" if dry_run else "Deleted"

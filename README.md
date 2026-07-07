@@ -138,11 +138,11 @@ To activate a user account, a site admin can do so via the Django admin interfac
 
 ### Adding admin users
 
-To provision an admin account, use the `createcasuser` management command with the `--admin` or `--staff` flag. Admin and staff accounts are not made inactive by default.
+To provision an admin account, use the `createcasuser` management command with the `--admin` or `--staff` flag. Admin and staff accounts are not made inactive by default. Multiple netids can be provided in a single command.
 
 ```sh
-python manage.py createcasuser --admin <netid>
-python manage.py createcasuser --staff <netid>
+python manage.py createcasuser --admin <netid1> <netid2> ...
+python manage.py createcasuser --staff <netid1> <netid2> ...
 ```
 
 ## License

@@ -18,7 +18,10 @@ def get_old_exports(
 
 
 class Command(BaseCommand):
-    help = "Delete export files older than settings.EXPORT_FILE_RETENTION hours."
+    help = (
+        "Delete export files (export_*.zip) under MEDIA_ROOT/users/ "
+        "older than settings.EXPORT_FILE_RETENTION hours."
+    )
     v_normal = 1
 
     def add_arguments(self, parser):

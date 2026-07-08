@@ -40,8 +40,8 @@ if $ssh_setup; then
 	    mkdir ~/.ssh
 	fi
 
-	# add test-htr public key to authorized keys if not already present
-	ssh_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzoR8jstrofzFKVoiXSFP5jGw/WbXHxFyIaS5b4vSWC test-htr.lib.princeton.edu'
+	# add htr2hpc public key to authorized keys if not already present (same key used for staging and production)
+	ssh_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzoR8jstrofzFKVoiXSFP5jGw/WbXHxFyIaS5b4vSWC htr.cdh.princeton.edu'
 	if ! grep -q "$ssh_key" $HOME/.ssh/authorized_keys; then
 	    echo "Adding htr2hpc ssh key to authorized keys"
 	    echo $ssh_key >> ~/.ssh/authorized_keys

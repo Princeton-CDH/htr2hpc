@@ -39,8 +39,12 @@ DATABASES = {
 }
 
 INSTALLED_APPS = [
+    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
+    "django.contrib.messages",
+    "django.contrib.sessions",
+    "captcha",
     "rest_framework",
     "rest_framework.authtoken",
     "users",
@@ -51,6 +55,21 @@ AUTH_USER_MODEL = "users.User"
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 ROOT_URLCONF = "htr2hpc.urls"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
 
 
 class DisableMigrations:

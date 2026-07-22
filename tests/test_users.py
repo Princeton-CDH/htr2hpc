@@ -34,13 +34,15 @@ def test_init_user_ignores_user_info():
     assert user.is_active is False
 
 
-def test_init_user_staff_stays_active():
+def test_init_user_staff_set_inactive():
+    # staff/superuser accounts are set inactive by init_user;
+    # createcasuser is responsible for activating them after this hook runs
     user = make_user(is_staff=True, seconds_old=1)
     init_user(user, {})
-    assert user.is_active is True
+    assert user.is_active is False
 
 
-def test_init_user_superuser_stays_active():
+def test_init_user_superuser_set_inactive():
     user = make_user(is_superuser=True, seconds_old=1)
     init_user(user, {})
-    assert user.is_active is True
+    assert user.is_active is False

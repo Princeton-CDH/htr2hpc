@@ -49,7 +49,7 @@ class Command(BaseCommand):
         total_bytes = 0
 
         for entry, size in get_old_exports(export_dir, cutoff):
-            if self.verbosity >= self.v_normal + 1:
+            if self.dry_run or self.verbosity >= self.v_normal + 1:
                 action = "Would delete" if self.dry_run else "Deleting"
                 self.stdout.write(f"{action} {entry} ({size} bytes)")
             if not self.dry_run:

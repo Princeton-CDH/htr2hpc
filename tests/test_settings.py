@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.messages",
     "django.contrib.sessions",
+    "django.contrib.sites",
     "captcha",
     "rest_framework",
     "rest_framework.authtoken",
@@ -53,6 +54,7 @@ INSTALLED_APPS = [
 
 AUTH_USER_MODEL = "users.User"
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
+SITE_ID = 1
 
 ROOT_URLCONF = "htr2hpc.urls"
 

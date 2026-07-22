@@ -46,3 +46,12 @@ def htr2hpc_version(request):
     from htr2hpc import __version__
 
     return {"HTR2HPC_VERSION": __version__}
+
+
+def site_domain(request):
+    """Custom context processor to expose the current site domain from the
+    Django sites framework. Used to display environment-specific values
+    (e.g. SSH key labels) without hardcoding hostnames in templates."""
+    from django.contrib.sites.models import Site
+
+    return {"SITE_DOMAIN": Site.objects.get_current().domain}

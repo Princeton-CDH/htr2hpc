@@ -50,6 +50,9 @@ TEMPLATES[0]["OPTIONS"]["context_processors"].append(
 TEMPLATES[0]["OPTIONS"]["context_processors"].append(
     "htr2hpc.context_processors.htr2hpc_version"
 )
+TEMPLATES[0]["OPTIONS"]["context_processors"].append(
+    "htr2hpc.context_processors.site_domain"
+)
 
 
 CUSTOM_HOME = True

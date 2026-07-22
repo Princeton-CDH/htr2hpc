@@ -2096,7 +2096,7 @@ wheels = [
 [[package]]
 name = "pucas"
 version = "0.11.0.dev0"
-source = { git = "https://github.com/Princeton-CDH/django-pucas?rev=develop#d45085c7b6c2294c2549176d8e4fc05c3a23f597" }
+source = { git = "https://github.com/Princeton-CDH/django-pucas?rev=develop#1b719e2e22adc75af0eec26591c3c5a30ade7aad" }
 dependencies = [
     { name = "django" },
     { name = "django-cas-ng" },

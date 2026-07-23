@@ -181,6 +181,7 @@ def test_handle_dry_run(media_root, capsys):
     assert old_file.exists()
     captured = capsys.readouterr()
     assert "Would delete 1 export file(s)" in captured.out
+    assert str(old_file) in captured.out
 
 
 def test_get_old_exports(media_root):

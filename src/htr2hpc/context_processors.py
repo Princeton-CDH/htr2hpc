@@ -2,6 +2,7 @@ from os import cpu_count, getloadavg
 from socket import gethostname
 
 import psutil
+from django.contrib.sites.shortcuts import get_current_site
 from django.template.defaultfilters import filesizeformat
 
 # Get host and CPU count once on load, since changing these requires a reboot
@@ -49,9 +50,7 @@ def htr2hpc_version(request):
 
 
 def site_domain(request):
-    """Custom context processor to expose the current site domain from the
+    """Custom context processor to expose the current site from the
     Django sites framework. Used to display environment-specific values
     (e.g. SSH key labels) without hardcoding hostnames in templates."""
-    from django.contrib.sites.models import Site
-
-    return {"SITE_DOMAIN": Site.objects.get_current().domain}
+    return {"current_site": get_current_site(request)}

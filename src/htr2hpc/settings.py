@@ -44,15 +44,11 @@ TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "templates")
 # template directory and put it first in the list.
 
 # add custom context processors to display VM status and htr2hpc version
-TEMPLATES[0]["OPTIONS"]["context_processors"].append(
-    "htr2hpc.context_processors.vm_status"
-)
-TEMPLATES[0]["OPTIONS"]["context_processors"].append(
-    "htr2hpc.context_processors.htr2hpc_version"
-)
-TEMPLATES[0]["OPTIONS"]["context_processors"].append(
-    "htr2hpc.context_processors.site_domain"
-)
+TEMPLATES[0]["OPTIONS"]["context_processors"].extend([
+    "htr2hpc.context_processors.vm_status",
+    "htr2hpc.context_processors.htr2hpc_version",
+    "htr2hpc.context_processors.site_domain",
+])
 
 
 CUSTOM_HOME = True

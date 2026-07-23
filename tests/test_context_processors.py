@@ -95,4 +95,5 @@ def test_site_domain(rf, db):
     Site.objects.filter(pk=1).update(domain="htr.cdh.princeton.edu")
     request = rf.get("/")
     context = site_domain(request)
-    assert context["SITE_DOMAIN"] == "htr.cdh.princeton.edu"
+    assert "current_site" in context
+    assert context["current_site"].domain == "htr.cdh.princeton.edu"

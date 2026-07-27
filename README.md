@@ -70,7 +70,7 @@ PUCAS_LDAP.update(
 
 ### Configure Site domain
 
-htr2hpc uses Django's [Sites framework](https://docs.djangoproject.com/en/4.2/ref/contrib/sites/) to display the site hostname in user-facing setup instructions (e.g., the SSH key label on the profile page). After deploying, verify that the Site domain is set correctly in the Django admin under **Sites**. It should reflect the production hostname (e.g., `escriptorium.princeton.edu`).
+htr2hpc uses the Django Sites framework to display the site hostname in user-facing setup instructions (e.g., the SSH key label on the profile page). After deploying, verify that the Site domain is set correctly in the Django admin under **Sites**. It should match the domain where the application is deployed.
 
 ## Architecture and Flow
 

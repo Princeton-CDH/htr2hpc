@@ -6,7 +6,7 @@
   ],
   "shell": {
     "scripts": {
-      "test": "uv run --extra test pytest"
+      "test": "uv run --group dev pytest"
     }
   }
 }

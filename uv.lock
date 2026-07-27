@@ -924,7 +924,7 @@ requires-dist = [
     { name = "intspan" },
     { name = "kraken" },
     { name = "psutil" },
-    { name = "pucas", git = "https://github.com/Princeton-CDH/django-pucas?rev=develop" },
+    { name = "pucas", specifier = ">=0.11" },
     { name = "requests" },
     { name = "simple-slurm" },
     { name = "tqdm" },
@@ -2095,12 +2095,16 @@ wheels = [
 
 [[package]]
 name = "pucas"
-version = "0.11.0.dev0"
-source = { git = "https://github.com/Princeton-CDH/django-pucas?rev=develop#1b719e2e22adc75af0eec26591c3c5a30ade7aad" }
+version = "0.11"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
     { name = "django-cas-ng" },
     { name = "ldap3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6c/7d/f017ad4bb51c0419a84af81a25a05d3d81cdb03ff6226e751838fb869a90/pucas-0.11.tar.gz", hash = "sha256:3568a4af3d8e7e5facf8ad137b0a22d5207909e8d92f0e010554a5758f8e617a", size = 23247, upload-time = "2026-07-27T19:17:26.411Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/23/1b/d77afca137abbf8c15e01f07dcb5761d35852419c0343048bdaf3e4206a6/pucas-0.11-py3-none-any.whl", hash = "sha256:239857b910d0944cd841966b23c7d18523d2f23fa1be6d2e12f54ddaa3803967", size = 23751, upload-time = "2026-07-27T19:17:25.182Z" },
 ]
 
 [[package]]

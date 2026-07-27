@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pucas @ git+https://github.com/Princeton-CDH/django-pucas@0.11",    # TODO: move to an optional group for webapp integration only?
+  "pucas>=0.11",
   "psutil",
   "requests",
   "kraken",

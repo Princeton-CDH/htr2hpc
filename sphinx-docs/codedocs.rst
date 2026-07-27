@@ -28,6 +28,30 @@ Views
 .. automodule:: htr2hpc.views
    :members:
 
+Users
+-----
+
+.. automodule:: htr2hpc.users
+   :members:
+
+Admin
+-----
+
+.. automodule:: htr2hpc.admin
+   :members:
+
+Context Processors
+------------------
+
+.. automodule:: htr2hpc.context_processors
+   :members:
+
+Management Commands
+-------------------
+
+.. automodule:: htr2hpc.management.commands.cleanup_exports
+   :members:
+
 Training
 --------
 

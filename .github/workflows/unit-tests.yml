@@ -26,6 +26,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: htr2hpc
+          persist-credentials: false
 
       # Shallow clone of the known eScriptorium version we develop and test against.
       # PYTHONPATH is set below so htr2hpc can import eScriptorium app modules.

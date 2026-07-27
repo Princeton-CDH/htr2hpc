@@ -8,7 +8,7 @@
 - SSH key label in profile setup instructions now reflects the configured site domain
 - `createcasuser` now accepts multiple NetIDs in a single command
 - Add Sphinx documentation site published on ReadTheDocs
-- Add devbox configuration for reproducible development environment
+- Add devbox support for simplifying local development setup
 
 ## 0.6
 

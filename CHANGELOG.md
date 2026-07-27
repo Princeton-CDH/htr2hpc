@@ -6,6 +6,9 @@
 - Integrate Django admin functionality for initializing CAS users (via django-pucas v0.11)
 - Add `cleanup_exports` management command to remove old user export files
 - SSH key label in profile setup instructions now reflects the configured site domain
+- `createcasuser` now accepts multiple NetIDs in a single command
+- Add Sphinx documentation site published on ReadTheDocs
+- Add devbox configuration for reproducible development environment
 
 ## 0.6
 

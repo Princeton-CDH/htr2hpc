@@ -75,3 +75,5 @@ Follow the release checklist in the GitHub issue template for full release prep 
 Once the new release has been merged to `main` and pushed to GitHub, deployment is handled via cdh-ansible. See the [cdh-ansible eScriptorium/htr2hpc application docs](https://github.com/Princeton-CDH/cdh-ansible/blob/main/docs/applications/escriptorium.md) for full deployment instructions, including how to use the `reinstall-htr2hpc` tag to deploy a new htr2hpc version.
 
 Note: this deployment is specific to CDH's Princeton instance of eScriptorium.
+
+For initial setup after a new deployment, see [Configure Site domain](README.md#configure-site-domain) in the README.

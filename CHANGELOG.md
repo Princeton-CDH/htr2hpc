@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.7
+
+- New accounts created via CAS login are inactive by default
+- Add Django admin interface for CAS user initialization
+- Add `cleanup_exports` management command to remove old user export files
+- SSH key label in profile setup instructions now reflects the configured site domain
+- `createcasuser` now accepts multiple netids in a single command
+
 ## 0.6
 
 - Switch eScriptorium to use Adroit HPC cluster, including updated scratch paths and monitoring links

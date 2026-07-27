@@ -77,7 +77,6 @@ check = "mypy --install-types --non-interactive {args:src/htr2hpc tests}"
 DJANGO_SETTINGS_MODULE = "test_settings"
 pythonpath = ["src", "tests"]
 testpaths = ["tests"]
-addopts = "-p no:parasolr"
 
 [tool.coverage.run]
 source_pkgs = ["htr2hpc", "tests"]

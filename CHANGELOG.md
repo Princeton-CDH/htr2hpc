@@ -3,7 +3,7 @@
 ## 0.7
 
 - New accounts created via CAS login are inactive by default
-- Add Django admin interface for CAS user initialization
+- Integrate Django admin functionality for initializing CAS users (via django-pucas v0.11)
 - Add `cleanup_exports` management command to remove old user export files
 - SSH key label in profile setup instructions now reflects the configured site domain
 

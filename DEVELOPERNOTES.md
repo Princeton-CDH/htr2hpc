@@ -37,18 +37,18 @@ Install devbox if you don't have it:
 curl -fsSL https://get.jetify.com/devbox | bash
 ```
 
-Then run `devbox shell` to enter the environment. This installs Python 3.11 and uv via Nix. Run `uv sync --extra dev` to install Python dependencies into a local `.venv`. You only need to run `devbox shell` once per terminal session.
+Then run `devbox shell` to enter the environment. This installs Python 3.11 and uv via Nix. Run `uv sync --group dev` to install Python dependencies into a local `.venv`. You only need to run `devbox shell` once per terminal session.
 
 Use `devbox run test` to run the test suite from your regular terminal without entering the devbox shell. To verify the environment works without any system dependencies, use `devbox shell --pure`. If you run into unexpected errors, `rm -rf .devbox` usually clears them up.
 
-If you prefer not to use devbox, you can set up the environment manually with `uv sync --extra dev`.
+If you prefer not to use devbox, you can set up the environment manually with `uv sync --group dev`.
 
 ## Running Tests
 
 Install htr2hpc with dev dependencies (which include test dependencies), then install the eScriptorium runtime dependencies (needed for import resolution even though no eScriptorium services run during tests):
 
 ```sh
-uv sync --extra dev
+uv sync --group dev
 uv pip install -r ../escriptorium/app/requirements.txt  # adjust path if needed
 ```
 
@@ -57,6 +57,17 @@ Make sure PYTHONPATH is set as described in Development Setup above, then run:
 ```sh
 uv run pytest
 ```
+
+## Building Documentation
+
+Install documentation dependencies, then build with Sphinx:
+
+```sh
+uv sync --group docs
+cd sphinx-docs && uv run make html
+```
+
+The built documentation will be in `sphinx-docs/_build/html/`. Documentation is also published automatically to [ReadTheDocs](https://htr2hpc.readthedocs.io/) on every push to `main`.
 
 We recommend installing git-flow. On OSX, you can install with brew:
 

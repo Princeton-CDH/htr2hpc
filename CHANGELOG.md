@@ -7,7 +7,7 @@
 - Add `cleanup_exports` management command to remove old user export files
 - SSH key label in profile setup instructions now reflects the configured Django site domain
 - `createcasuser` now accepts multiple NetIDs in a single command
-- Add Sphinx documentation site published on ReadTheDocs
+- Set up Sphinx documentation; configure to publish on ReadTheDocs
 - Add devbox support for simplifying local development setup
 
 ## 0.6

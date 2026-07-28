@@ -75,7 +75,7 @@ uv run pytest
 
 ## Building Documentation
 
-Building documentation alone doesn't require eScriptorium installed.
+Building documentation alone doesn't require eScriptorium or its dependencies to be installed.
 
 Install htr2hpc with docs dependencies, then run:
 

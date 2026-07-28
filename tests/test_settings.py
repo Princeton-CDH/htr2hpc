@@ -39,13 +39,12 @@ DATABASES = {
 }
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
+    "django.contrib.admin.apps.SimpleAdminConfig",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.messages",
     "django.contrib.sessions",
     "django.contrib.sites",
-    "captcha",
     "rest_framework",
     "rest_framework.authtoken",
     "users",

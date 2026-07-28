@@ -5,7 +5,7 @@
 repos:
   # Ruff Python linter and formatter (configs in pyproject.toml)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.12
+    rev: v0.16.0
     hooks:
       # Run the linter
       - id: ruff-check
@@ -28,7 +28,7 @@ repos:
       - id: yamlfmt
   # Codespell for spell checking
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.2
+    rev: v2.4.3
     hooks:
       - id: codespell
         additional_dependencies:
@@ -53,7 +53,7 @@ repos:
         exclude: "docs/"
   # Check uv.lock file is up to date
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.8.13
+    rev: 0.11.33
     hooks:
       - id: uv-lock
   # Validate GitHub Actions workflow files

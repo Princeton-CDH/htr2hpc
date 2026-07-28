@@ -1,0 +1,41 @@
+name: unit tests
+
+on:
+  push:
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out htr2hpc
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install htr2hpc with dev dependencies
+        run: uv sync --group dev
+
+      - name: Run tests with coverage
+        env:
+          DJANGO_SECRET_KEY: ${{ github.run_id }}-${{ github.run_attempt }}-test-secret
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          token: ${{ secrets.CODECOV_TOKEN }}

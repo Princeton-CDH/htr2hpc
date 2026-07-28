@@ -6,7 +6,7 @@ from escriptorium.settings import INSTALLED_APPS, LOGIN_REDIRECT_URL, TEMPLATES
 HTR2HPC_INSTALL_DIR = Path(__file__).parent
 
 
-INSTALLED_APPS += ["django_cas_ng", "pucas", "htr2hpc"]
+INSTALLED_APPS += ["django_cas_ng", "pucas", "htr2hpc.apps.Htr2HpcConfig"]
 AUTHENTICATION_BACKENDS = (
     "django.contrib.auth.backends.ModelBackend",
     "django_cas_ng.backends.CASBackend",
@@ -23,6 +23,8 @@ PUCAS_LDAP = {
         "last_name": "sn",
         "email": "mail",
     },
+    # new CAS accounts are inactive by default; admins must activate them
+    "EXTRA_USER_INIT": "htr2hpc.users.init_user",
 }
 
 # default django-cas behavior is to redirect back to the referrer,
@@ -42,12 +44,15 @@ TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "templates")
 # template directory and put it first in the list.
 
 # add custom context processors to display VM status and htr2hpc version
-TEMPLATES[0]["OPTIONS"]["context_processors"].append(
-    "htr2hpc.context_processors.vm_status"
-)
-TEMPLATES[0]["OPTIONS"]["context_processors"].append(
-    "htr2hpc.context_processors.htr2hpc_version"
-)
+TEMPLATES[0]["OPTIONS"]["context_processors"].extend([
+    "htr2hpc.context_processors.vm_status",
+    "htr2hpc.context_processors.htr2hpc_version",
+    "htr2hpc.context_processors.site_domain",
+])
 
 
 CUSTOM_HOME = True
+
+# Number of hours to retain user export files before cleanup.
+# Set to 0 to disable automatic cleanup entirely.
+EXPORT_FILE_RETENTION = 168  # 1 week

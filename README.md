@@ -35,8 +35,15 @@ This adjusts the settings as follows:
 - Adds to `INSTALLED_APPS` and `AUTHENTICATION_BACKENDS` and provides a basic `PUCAS_LDAP` configuration to enable Princeton CAS authentication; configures `CAS_REDIRECT_URL` to use the escriptorium `LOGIN_REDIRECT_URL` configuration (currently the projects list page) and sets `CAS_IGNORE_REFERER = True` to avoid behavior where successful CAS login takes you back to the login page
 - Sets `ROOT_URLCONF` to use `htr2hpc.urls`, which adds `pucas` url paths to the urls defined in `escriptorium.urls`
 - Adds `htr2hpc/templates` directory first in the list of template directories, so that any templates in this application will take precedence over eScriptorium templates; currently used for customizing the login page to add Princeton CAS login
+- Sets `EXPORT_FILE_RETENTION = 168` (hours) as the default retention period for user export files
 
-See [DEPLOY NOTES](DEPLOY_NOTES.md) for instructions on creating a new release and deploying it to the server with cdh-ansible.
+### Optional settings
+
+The following settings can be overridden in your local settings file:
+
+- `EXPORT_FILE_RETENTION`: Number of hours to retain user export files before they are eligible for cleanup by the `cleanup_exports` management command. Defaults to `168` (1 week). Set to `0` to disable automatic cleanup entirely.
+
+See [DEVELOPER NOTES](DEVELOPERNOTES.md) for instructions on creating a new release and deploying it to the server with cdh-ansible.
 
 ### Configure CAS authentication
 
@@ -60,6 +67,10 @@ PUCAS_LDAP.update(
     }
 )
 ```
+
+### Configure Site domain
+
+htr2hpc uses the Django Sites framework to display the site hostname in user-facing setup instructions (e.g., the SSH key label on the profile page). After deploying, verify that the Site domain is set correctly in the Django admin under **Sites**. It should match the domain where the application is deployed.
 
 ## Architecture and Flow
 
@@ -129,6 +140,21 @@ sequenceDiagram
 ```
 
 
+
+### User account activation
+
+New accounts created via CAS login are **inactive by default**. This means any Princeton netid holder who authenticates via CAS will have an account created, but will not be able to log in until an admin explicitly activates their account.
+
+To activate a user account, a site admin can do so via the Django admin interface under **Users**.
+
+### Adding admin users
+
+To provision an admin account, use the `createcasuser` management command with the `--admin` or `--staff` flag. Admin and staff accounts are not made inactive by default. Multiple netids can be provided in a single command.
+
+```sh
+python manage.py createcasuser --admin <netid1> <netid2> ...
+python manage.py createcasuser --staff <netid1> <netid2> ...
+```
 
 ## License
 

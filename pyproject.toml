@@ -7,7 +7,7 @@ name = "htr2hpc"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 license = { text = "Apache-2"}
 keywords = []
 authors = [
@@ -16,16 +16,13 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pucas>=0.9",    # TODO: move to an optional group for webapp integration only?
+  "pucas>=0.11",
   "psutil",
   "requests",
   "kraken",
@@ -33,17 +30,31 @@ dependencies = [
   "simple_slurm",
   "tqdm",
   "intspan",
-  "fabric"
+  "fabric",
+  "django~=4.2",   # must match eScriptorium's Django version
 ]
 
 [project.urls]
-Documentation = "https://github.com/Princeton-CDH/htr2hpc#readme"
+Documentation = "https://htr2hpc.readthedocs.io/"
 Issues = "https://github.com/Princeton-CDH/htr2hpc/issues"
 Source = "https://github.com/Princeton-CDH/htr2hpc"
 
-[project.optional-dependencies]
+[dependency-groups]
+docs = [
+  "sphinx>=7.2",
+  "alabaster",
+  "django~=4.2",
+  "myst-parser",
+]
 dev = [
   "pre-commit",
+  "pytest>=8.3",
+  "pytest-django>=4.9",
+  "pytest-cov>=6.1",
+  "pytest-mock>=3.14",
+  "coverage[toml]>=7.6",
+  "responses>=0.25",
+  {include-group = "docs"},
 ]
 
 [project.scripts]
@@ -62,6 +73,11 @@ extra-dependencies = [
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:src/htr2hpc tests}"
 
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "test_settings"
+pythonpath = ["src", "tests"]
+testpaths = ["tests"]
+
 [tool.coverage.run]
 source_pkgs = ["htr2hpc", "tests"]
 branch = true
@@ -75,6 +91,7 @@ tests = ["tests", "*/htr2hpc/tests"]
 [tool.coverage.report]
 exclude_lines = [
   "no cov",
+  "pragma: no cover",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]

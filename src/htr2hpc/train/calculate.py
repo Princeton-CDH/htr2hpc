@@ -6,9 +6,9 @@ import re
 def slurm_get_max_acc(slurm_output, training_mode):
     """Return a tuple of (epoch #, accuracy) for the epoch with highest accuracy"""
     if training_mode == "Segment":
-        re_acc = "stage ([\d]+).+\n[^i]*val_mean_iu:\s+\n\s+([\d.]+)"
+        re_acc = r"stage ([\d]+).+\n[^i]*val_mean_iu:\s+\n\s+([\d.]+)"
     else:
-        re_acc = "stage ([\d]+).+\n.+(\d.\d\d\d)\s*\d/10"
+        re_acc = r"stage ([\d]+).+\n.+(\d.\d\d\d)\s*\d/10"
 
     accuracies = re.findall(re_acc, slurm_output)
     accuracies = [(int(i[0]), float(i[1])) for i in accuracies]
@@ -19,7 +19,7 @@ def slurm_get_max_acc(slurm_output, training_mode):
 
 def slurm_count_epoch(slurm_output):
     """Return count of epochs"""
-    epoch_times = re.findall("(\d:\d\d:\d\d) •", slurm_output)
+    epoch_times = re.findall(r"(\d:\d\d:\d\d) •", slurm_output)
 
     if epoch_times:
         return len(epoch_times)
@@ -27,7 +27,7 @@ def slurm_count_epoch(slurm_output):
 
 def slurm_get_avg_epoch(slurm_output):
     """Return average epoch duration, in seconds"""
-    epoch_times = re.findall("(\d:\d\d:\d\d) •", slurm_output)
+    epoch_times = re.findall(r"(\d:\d\d:\d\d) •", slurm_output)
 
     if epoch_times:
         epoch_times = [datetime.datetime.strptime(t, "%H:%M:%S") for t in epoch_times]
@@ -43,7 +43,7 @@ def slurm_get_avg_epoch(slurm_output):
 
 def stats_get_max_cpu(job_stats):
     """Return max CPU usage"""
-    mem_usage = re.findall("\(([\d.]+)([\w]+)\/[\d.]+[\w]+ per core", job_stats)
+    mem_usage = re.findall(r"\(([\d.]+)([\w]+)\/[\d.]+[\w]+ per core", job_stats)
 
     if mem_usage:
         gb_used = (
@@ -60,7 +60,7 @@ def calc_full_duration(slurm_output, job_stats):
     Assumes the train task will take 50 epochs. N = 50 - count of completed
     epochs from prelim train task.
     """
-    job_duration = re.findall("Run Time: (\d+:\d\d:\d\d)", job_stats)
+    job_duration = re.findall(r"Run Time: (\d+:\d\d:\d\d)", job_stats)
     epoch_avg = slurm_get_avg_epoch(slurm_output)
     epoch_count = slurm_count_epoch(slurm_output)
 

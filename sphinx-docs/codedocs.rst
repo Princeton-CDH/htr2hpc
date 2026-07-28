@@ -31,12 +31,6 @@ Users
 .. automodule:: htr2hpc.users
    :members:
 
-Admin
------
-
-.. automodule:: htr2hpc.admin
-   :members:
-
 Context Processors
 ------------------
 

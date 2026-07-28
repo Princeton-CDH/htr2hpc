@@ -64,7 +64,7 @@ In your local checkout of htr2hpc code, run `git flow init` to initialize the re
 
 ## Running Tests
 
-Running tests alone doesn't require eScriptorium installed.
+Running unit tests does not require eScriptorium or its dependencies to be installed.
 
 Install htr2hpc with dev dependencies (which include test dependencies), then run:
 

@@ -11,7 +11,10 @@ def get_old_exports(
 ) -> Generator[tuple[Path, int], None, None]:
     """Yield (path, size_in_bytes) for export files older than cutoff."""
     for entry in users_dir.glob("*/export_*.zip"):
-        stat = entry.stat()
+        try:
+            stat = entry.stat()
+        except OSError:
+            continue
         mtime = datetime.datetime.fromtimestamp(stat.st_mtime)
         if mtime < cutoff:
             yield entry, stat.st_size

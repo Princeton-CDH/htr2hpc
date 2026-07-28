@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 0.7
+
+- New accounts created via CAS login are inactive by default
+- Integrate Django admin functionality for initializing CAS users (via django-pucas v0.11)
+- Add `cleanup_exports` management command to remove old user export files
+- SSH key label in profile setup instructions now reflects the configured Django site domain
+- `createcasuser` now accepts multiple NetIDs in a single command
+- Set up Sphinx documentation; configure to publish on ReadTheDocs
+- Add devbox support for simplifying local development setup
+
 ## 0.6
 
 - Switch eScriptorium to use Adroit HPC cluster, including updated scratch paths and monitoring links

@@ -1,9 +1,6 @@
 Code Documentation
 ==================
 
-.. toctree::
-   :maxdepth: 2
-
 htr2hpc
 -------
 
@@ -26,6 +23,24 @@ Views
 -----
 
 .. automodule:: htr2hpc.views
+   :members:
+
+Users
+-----
+
+.. automodule:: htr2hpc.users
+   :members:
+
+Context Processors
+------------------
+
+.. automodule:: htr2hpc.context_processors
+   :members:
+
+Management Commands
+-------------------
+
+.. automodule:: htr2hpc.management.commands.cleanup_exports
    :members:
 
 Training

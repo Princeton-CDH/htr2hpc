@@ -43,7 +43,7 @@ The following settings can be overridden in your local settings file:
 
 - `EXPORT_FILE_RETENTION`: Number of hours to retain user export files before they are eligible for cleanup by the `cleanup_exports` management command. Defaults to `168` (1 week). Set to `0` to disable automatic cleanup entirely.
 
-See [DEPLOY NOTES](DEPLOY_NOTES.md) for instructions on creating a new release and deploying it to the server with cdh-ansible.
+See [DEVELOPER NOTES](DEVELOPERNOTES.md) for instructions on creating a new release and deploying it to the server with cdh-ansible.
 
 ### Configure CAS authentication
 
@@ -67,6 +67,10 @@ PUCAS_LDAP.update(
     }
 )
 ```
+
+### Configure Site domain
+
+htr2hpc uses the Django Sites framework to display the site hostname in user-facing setup instructions (e.g., the SSH key label on the profile page). After deploying, verify that the Site domain is set correctly in the Django admin under **Sites**. It should match the domain where the application is deployed.
 
 ## Architecture and Flow
 

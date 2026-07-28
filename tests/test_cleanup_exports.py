@@ -1,6 +1,7 @@
 """Tests for the cleanup_exports management command."""
 import datetime
 import os
+from pathlib import Path
 
 import pytest
 from django.core.management import call_command
@@ -196,4 +197,25 @@ def test_get_old_exports(media_root):
 
     assert len(results) == 1
     assert results[0][0] == old_file
+
+
+def test_get_old_exports_skips_files_removed_during_scan(media_root, mocker):
+    """Files deleted between glob and stat should be silently skipped."""
+    old_file = media_root / "users" / "42" / "export_doc1_test_alto_20240101.zip"
+    make_file(old_file, age_hours=840)
+
+    cutoff = datetime.datetime.now() - datetime.timedelta(hours=168)
+
+    # Simulate the file disappearing between glob and stat
+    original_stat = Path.stat
+
+    def stat_raises_once(self, **kwargs):
+        if self == old_file:
+            raise OSError("file disappeared")
+        return original_stat(self, **kwargs)
+
+    mocker.patch("pathlib.Path.stat", stat_raises_once)
+    results = list(get_old_exports(media_root / "users", cutoff))
+
+    assert results == []
 

@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pucas @ git+https://github.com/Princeton-CDH/django-pucas@develop",    # TODO: move to an optional group for webapp integration only?
+  "pucas>=0.11",
   "psutil",
   "requests",
   "kraken",
@@ -77,7 +77,6 @@ check = "mypy --install-types --non-interactive {args:src/htr2hpc tests}"
 DJANGO_SETTINGS_MODULE = "test_settings"
 pythonpath = ["src", "tests"]
 testpaths = ["tests"]
-addopts = "-p no:parasolr"
 
 [tool.coverage.run]
 source_pkgs = ["htr2hpc", "tests"]
@@ -92,6 +91,7 @@ tests = ["tests", "*/htr2hpc/tests"]
 [tool.coverage.report]
 exclude_lines = [
   "no cov",
+  "pragma: no cover",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]

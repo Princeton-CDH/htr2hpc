@@ -45,22 +45,16 @@ If you prefer not to use devbox, you can set up the environment manually with `u
 
 ## Running Tests
 
-Install htr2hpc with dev dependencies (which include test dependencies), then install the eScriptorium runtime dependencies (needed for import resolution even though no eScriptorium services run during tests):
+Install htr2hpc with dev dependencies (which include test dependencies), then run:
 
 ```sh
 uv sync --group dev
-uv pip install -r ../escriptorium/app/requirements.txt  # adjust path if needed
-```
-
-Make sure PYTHONPATH is set as described in Development Setup above, then run:
-
-```sh
 uv run pytest
 ```
 
 ## Building Documentation
 
-Install documentation dependencies, then build with Sphinx:
+Make sure PYTHONPATH is set as described in Development Setup above, then install documentation dependencies and build with Sphinx:
 
 ```sh
 uv sync --group docs

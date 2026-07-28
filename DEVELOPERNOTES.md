@@ -54,7 +54,7 @@ uv run pytest
 
 ## Building Documentation
 
-Make sure PYTHONPATH is set as described in Development Setup above, then install documentation dependencies and build with Sphinx:
+Install htr2hpc with docs dependencies, then run:
 
 ```sh
 uv sync --group docs

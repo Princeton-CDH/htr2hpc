@@ -5,26 +5,9 @@ Does NOT import from htr2hpc.settings or escriptorium.settings —
 those pull in PostgreSQL, Redis, Celery broker, and the full eScriptorium
 stack. This file defines only what is needed to load the htr2hpc app and
 run tests against it.
-
-eScriptorium's app directory must be on PYTHONPATH before running tests;
-see DEVELOPERNOTES.md for setup instructions.
 """
 import os
-import sys
 from pathlib import Path
-from unittest.mock import MagicMock
-
-# channels is imported by users.consumers at the top level.
-# Mock it so we don't need a running ASGI server.
-# Note: do NOT mock asgiref — Django itself depends on it.
-for _mod in [
-    "channels",
-    "channels.generic",
-    "channels.generic.websocket",
-    "channels.layers",
-]:
-    if _mod not in sys.modules:
-        sys.modules[_mod] = MagicMock()
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "test-secret-key-for-testing-only")
 DEBUG = True
@@ -45,13 +28,9 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sessions",
     "django.contrib.sites",
-    "rest_framework",
-    "rest_framework.authtoken",
-    "users",
     "htr2hpc",
 ]
 
-AUTH_USER_MODEL = "users.User"
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 SITE_ID = 1
 
@@ -84,11 +63,6 @@ class DisableMigrations:
 
 
 MIGRATION_MODULES = DisableMigrations()
-
-# Quota settings referenced by users.models.User methods
-QUOTA_DISK_STORAGE = None
-QUOTA_CPU_MINUTES = None
-QUOTA_GPU_MINUTES = None
 
 # htr2hpc-specific settings
 HPC_HOSTNAME = "della.princeton.edu"

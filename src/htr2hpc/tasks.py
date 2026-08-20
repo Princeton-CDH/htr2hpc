@@ -14,6 +14,8 @@ from intspan import intspan
 from invoke.exceptions import UnexpectedExit
 from paramiko.ssh_exception import AuthenticationException
 
+from htr2hpc.train.hpc import REQUIRED_KRAKEN_MAJOR, ensure_kraken_version
+
 logger = logging.getLogger(__name__)
 
 # override escriptorium training tasks to run on HPC
@@ -63,6 +65,12 @@ def start_remote_training(
                     }
                 ],
             )
+
+            # check Kraken version before training; upgrade if below required major version
+            if ensure_kraken_version(conn):
+                task_report.append(
+                    f"Upgraded Kraken to ~={REQUIRED_KRAKEN_MAJOR}.0 in conda env\n"
+                )
 
             with conn.cd(working_dir):
                 result = conn.run(

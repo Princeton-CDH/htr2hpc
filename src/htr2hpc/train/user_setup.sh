@@ -76,12 +76,13 @@ if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 	echo "conda env $conda_env_name already exists"
 
 	# when conda env already exists, if requested
-	# uninstall and reinstall htr2hpc
+	# uninstall and reinstall htr2hpc and ensure Kraken is up to date
 	if $reinstall_htr2hpc; then
-		echo "Reinstalling htr2hpc"
+		echo "Reinstalling htr2hpc and upgrading Kraken"
 		conda activate $conda_env_name
 		pip uninstall -q --yes htr2hpc
 		pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
+		pip install -q "kraken~=6.0"
 	fi
 
 else

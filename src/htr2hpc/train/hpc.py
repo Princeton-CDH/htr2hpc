@@ -14,7 +14,7 @@ def ensure_kraken_version(conn):
     check_cmd = (
         "module load anaconda3/2024.6 && "
         "conda run -n htr2hpc python -c "
-        '"import kraken; print(kraken.__version__)"'
+        '"from importlib.metadata import version; print(version(\'kraken\'))"'
     )
     result = conn.run(check_cmd, warn=True, hide=True)
     if result.exited != 0:

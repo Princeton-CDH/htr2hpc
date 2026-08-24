@@ -31,7 +31,7 @@ dependencies = [
   "tqdm",
   "intspan",
   "fabric",
-  "django~=4.2",   # must match eScriptorium's Django version
+  "django>=4.2,<6.0",   # must match eScriptorium's Django version
 ]
 
 [project.urls]
@@ -43,7 +43,7 @@ Source = "https://github.com/Princeton-CDH/htr2hpc"
 docs = [
   "sphinx>=7.2",
   "alabaster",
-  "django~=4.2",
+  "django>=4.2,<6.0",
   "myst-parser",
 ]
 dev = [

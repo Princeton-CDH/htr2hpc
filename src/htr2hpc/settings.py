@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from escriptorium.settings import INSTALLED_APPS, LOGIN_REDIRECT_URL, TEMPLATES
+from escriptorium.settings import INSTALLED_APPS, LOGIN_REDIRECT_URL, MIDDLEWARE, TEMPLATES
 
 # base directory for this package where it is installed
 HTR2HPC_INSTALL_DIR = Path(__file__).parent
@@ -52,6 +52,10 @@ TEMPLATES[0]["OPTIONS"]["context_processors"].extend([
 
 
 CUSTOM_HOME = True
+
+# Remove AccountExpiryMiddleware from eScriptorium's default middleware list.
+# We use CAS-managed accounts; expiry is handled via pucas + cron, not middleware.
+MIDDLEWARE = [m for m in MIDDLEWARE if m != 'escriptorium.middleware.AccountExpiryMiddleware']
 
 # Number of hours to retain user export files before cleanup.
 # Set to 0 to disable automatic cleanup entirely.

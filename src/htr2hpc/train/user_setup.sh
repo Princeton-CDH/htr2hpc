@@ -81,16 +81,14 @@ if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 		echo "Reinstalling htr2hpc and upgrading Kraken"
 		conda activate $conda_env_name
 		pip uninstall -q --yes htr2hpc
-		pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
-		pip install -q "kraken~=6.0"
+		pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@v0.7.0#egg=htr2hpc
 	fi
 
 else
 	echo "Creating conda environment $conda_env_name and installing dependencies"
 	conda create -y -n $conda_env_name python=3.11 pip
 	conda activate $conda_env_name
-	pip install -q kraken==6.0.3
-	pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
+	pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@v0.7.0#egg=htr2hpc
 fi
 
 htrworkingdir=/scratch/network/$USER/htr2hpc

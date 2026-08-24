@@ -55,7 +55,7 @@ CUSTOM_HOME = True
 
 # Remove AccountExpiryMiddleware from eScriptorium's default middleware list.
 # We use CAS-managed accounts; expiry is handled via pucas + cron, not middleware.
-MIDDLEWARE = [m for m in MIDDLEWARE if m != 'escriptorium.middleware.AccountExpiryMiddleware']
+MIDDLEWARE = [m for m in MIDDLEWARE if m != 'escriptorium.middleware.AccountExpiryMiddleware']  # pragma: no cover
 
 # Number of hours to retain user export files before cleanup.
 # Set to 0 to disable automatic cleanup entirely.

@@ -3,6 +3,8 @@ import sys
 from types import ModuleType
 from unittest.mock import patch
 
+import pytest
+
 
 def _make_escriptorium_settings(middleware):
     """Create a minimal fake escriptorium.settings module with the given MIDDLEWARE list."""
@@ -16,6 +18,15 @@ def _make_escriptorium_settings(middleware):
     return escriptorium, settings
 
 
+@pytest.fixture(autouse=True)
+def clear_htr2hpc_settings():
+    """Remove htr2hpc.settings from sys.modules before and after each test
+    so the module-level code re-executes with whatever mock is in place."""
+    sys.modules.pop("htr2hpc.settings", None)
+    yield
+    sys.modules.pop("htr2hpc.settings", None)
+
+
 def test_middleware_excludes_account_expiry():
     """AccountExpiryMiddleware should be removed from the middleware list."""
     sample_middleware = [
@@ -27,8 +38,6 @@ def test_middleware_excludes_account_expiry():
     ]
     escriptorium, settings = _make_escriptorium_settings(sample_middleware)
     with patch.dict(sys.modules, {"escriptorium": escriptorium, "escriptorium.settings": settings}):
-        if "htr2hpc.settings" in sys.modules:
-            del sys.modules["htr2hpc.settings"]
         import htr2hpc.settings as htr2hpc_settings
 
         assert "escriptorium.middleware.AccountExpiryMiddleware" not in htr2hpc_settings.MIDDLEWARE
@@ -44,8 +53,6 @@ def test_middleware_retains_other_entries():
     ]
     escriptorium, settings = _make_escriptorium_settings(sample_middleware)
     with patch.dict(sys.modules, {"escriptorium": escriptorium, "escriptorium.settings": settings}):
-        if "htr2hpc.settings" in sys.modules:
-            del sys.modules["htr2hpc.settings"]
         import htr2hpc.settings as htr2hpc_settings
 
         expected = [m for m in sample_middleware if m != "escriptorium.middleware.AccountExpiryMiddleware"]

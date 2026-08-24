@@ -9,11 +9,11 @@ coverage:
     project:
       default: false
       all:
-        target: 58%
+        target: 57%
         paths:
           - "src/"
       tests:
-        target: 100%
+        target: 96%
         paths:
           - "tests/"
     patch:

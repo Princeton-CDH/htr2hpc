@@ -1,6 +1,3 @@
-ignore:
-  - "src/htr2hpc/settings.py"
-
 coverage:
   status:
     project:

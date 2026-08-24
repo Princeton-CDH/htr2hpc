@@ -12,7 +12,7 @@ def ensure_kraken_version(conn):
     to the required major version if necessary. Returns True if an upgrade
     was performed, False if the version was already sufficient."""
     check_cmd = (
-        "module load anaconda3/2024.6 && "
+        "module load anaconda3/2025.6 && "
         "conda run -n htr2hpc python -c "
         '"from importlib.metadata import version; print(version(\'kraken\'))"'
     )
@@ -44,7 +44,7 @@ def ensure_kraken_version(conn):
         f"{REQUIRED_KRAKEN_MAJOR}; upgrading"
     )
     upgrade_cmd = (
-        "module load anaconda3/2024.6 && "
+        "module load anaconda3/2025.6 && "
         f'conda run -n htr2hpc pip install -q "kraken~={REQUIRED_KRAKEN_MAJOR}.0"'
     )
     conn.run(upgrade_cmd)

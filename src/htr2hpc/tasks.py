@@ -74,7 +74,7 @@ def start_remote_training(
 
             with conn.cd(working_dir):
                 result = conn.run(
-                    f"module load anaconda3/2024.6 && conda run -n htr2hpc {train_cmd}",
+                    f"module load anaconda3/2025.6 && conda run -n htr2hpc {train_cmd}",
                     env={"ESCRIPTORIUM_API_TOKEN": api_token},
                     warn=True,  # don't throw unexpected error on exit != 0
                 )

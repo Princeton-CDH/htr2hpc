@@ -1,51 +1,26 @@
 """Utilities for managing the remote HPC conda environment."""
 import logging
 
+from htr2hpc import __version__
+
 logger = logging.getLogger(__name__)
 
-# minimum required Kraken major version for training
-REQUIRED_KRAKEN_MAJOR = 6
 
-
-def ensure_kraken_version(conn):
-    """Check the Kraken version in the remote htr2hpc conda env and upgrade
-    to the required major version if necessary. Returns True if an upgrade
-    was performed, False if the version was already sufficient."""
-    check_cmd = (
+def ensure_htr2hpc_version(conn):
+    """Install the currently deployed version of htr2hpc in the remote conda
+    env, ensuring htr2hpc and all its dependencies (including kraken) match
+    the deployed version. If the correct version is already installed, pip
+    does nothing."""
+    install_cmd = (
         "module load anaconda3/2025.6 && "
-        "conda run -n htr2hpc python -c "
-        '"from importlib.metadata import version; print(version(\'kraken\'))"'
+        f"conda run -n htr2hpc pip install -q "
+        f"git+https://github.com/Princeton-CDH/htr2hpc.git@v{__version__}#egg=htr2hpc"
     )
-    result = conn.run(check_cmd, warn=True, hide=True)
+    result = conn.run(install_cmd, warn=True, hide=True)
     if result.exited != 0:
         logger.warning(
-            f"Could not check Kraken version in conda env: {result.stderr}"
+            f"Could not ensure htr2hpc version in conda env: {result.stderr}"
         )
         return False
-
-    installed_version = result.stdout.strip()
-    try:
-        major = int(installed_version.split(".")[0])
-    except (ValueError, IndexError):
-        logger.warning(
-            f"Could not parse Kraken version '{installed_version}'; skipping check"
-        )
-        return False
-
-    if major >= REQUIRED_KRAKEN_MAJOR:
-        logger.debug(
-            f"Kraken {installed_version} meets minimum major version "
-            f"{REQUIRED_KRAKEN_MAJOR}; no upgrade needed"
-        )
-        return False
-
-    logger.info(
-        f"Kraken {installed_version} is below required major version "
-        f"{REQUIRED_KRAKEN_MAJOR}; upgrading"
-    )
-    upgrade_cmd = (
-        "module load anaconda3/2025.6 && "
-        f'conda run -n htr2hpc pip install -q "kraken~={REQUIRED_KRAKEN_MAJOR}.0"'
-    )
-    conn.run(upgrade_cmd)
+    logger.info(f"Ensured htr2hpc=={__version__} in conda env")
     return True

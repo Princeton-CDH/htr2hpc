@@ -21,7 +21,7 @@ def ensure_htr2hpc_version(conn):
     result = conn.run(install_cmd, warn=True, hide=True)
     if result.exited != 0:
         logger.warning(
-            f"Could not ensure htr2hpc version in conda env: {result.stderr}"
+            f"Could not install htr2hpc v{__version__} in conda env: {result.stderr}"
         )
         return False
     logger.info(f"Ensured htr2hpc=={__version__} in conda env")

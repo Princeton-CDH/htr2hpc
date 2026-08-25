@@ -15,7 +15,7 @@ def ensure_htr2hpc_version(conn):
     does nothing."""
     install_cmd = (
         f"module load {ANACONDA_MODULE} && "
-        f"conda run -n htr2hpc pip install -q "
+        "conda run -n htr2hpc pip install -q "
         f"git+https://github.com/Princeton-CDH/htr2hpc.git@v{__version__}#egg=htr2hpc"
     )
     result = conn.run(install_cmd, warn=True, hide=True)

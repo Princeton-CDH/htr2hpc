@@ -77,6 +77,7 @@ fi
 
 # create conda environment named htr2hpc
 conda_env_name=htr2hpc
+htr2hpc_install="git+https://github.com/Princeton-CDH/htr2hpc.git@v${htr2hpc_version}#egg=htr2hpc"
 module load anaconda3/2025.6
 if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 	echo "conda env $conda_env_name already exists"
@@ -86,7 +87,6 @@ if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 	if $reinstall_htr2hpc; then
 		echo "Reinstalling htr2hpc and upgrading Kraken"
 		conda activate $conda_env_name
-		htr2hpc_install="git+https://github.com/Princeton-CDH/htr2hpc.git@v${htr2hpc_version}#egg=htr2hpc"
 		pip uninstall -q --yes htr2hpc
 		pip install -q $htr2hpc_install
 	fi
@@ -95,7 +95,6 @@ else
 	echo "Creating conda environment $conda_env_name and installing dependencies"
 	conda create -y -n $conda_env_name python=3.11 pip
 	conda activate $conda_env_name
-	htr2hpc_install="git+https://github.com/Princeton-CDH/htr2hpc.git@v${htr2hpc_version}#egg=htr2hpc"
 	pip install -q $htr2hpc_install
 fi
 

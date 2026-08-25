@@ -67,7 +67,12 @@ def start_remote_training(
             )
 
             # ensure htr2hpc version on HPC matches the deployed version
-            ensure_htr2hpc_version(conn)
+            if not ensure_htr2hpc_version(conn):
+                error_message = "Could not install required htr2hpc version in conda env; aborting training."
+                user.notify(error_message, id="training-error", level="danger")
+                task_report.error(error_message)
+                send_event("document", document_pk, "training:error", {"id": model_pk})
+                return False
 
             with conn.cd(working_dir):
                 result = conn.run(

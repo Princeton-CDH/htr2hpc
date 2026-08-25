@@ -24,5 +24,5 @@ def ensure_htr2hpc_version(conn):
             f"Could not install htr2hpc v{__version__} in conda env: {result.stderr}"
         )
         return False
-    logger.info(f"Ensured htr2hpc=={__version__} in conda env")
+    logger.info(f"htr2hpc=={__version__} is up to date in conda env")
     return True

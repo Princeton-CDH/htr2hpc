@@ -1,11 +1,11 @@
 """Utilities for managing the remote HPC conda environment."""
 import logging
 
+from django.conf import settings
+
 from htr2hpc import __version__
 
 logger = logging.getLogger(__name__)
-
-ANACONDA_MODULE = "anaconda3/2025.6"
 
 
 def ensure_htr2hpc_version(conn):
@@ -14,7 +14,7 @@ def ensure_htr2hpc_version(conn):
     the deployed version. If the correct version is already installed, pip
     does nothing."""
     install_cmd = (
-        f"module load {ANACONDA_MODULE} && "
+        f"module load {settings.HPC_ANACONDA_MODULE} && "
         "conda run -n htr2hpc pip install -q "
         f"git+https://github.com/Princeton-CDH/htr2hpc.git@v{__version__}#egg=htr2hpc"
     )

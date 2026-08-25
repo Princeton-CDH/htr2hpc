@@ -56,3 +56,6 @@ CUSTOM_HOME = True
 # Number of hours to retain user export files before cleanup.
 # Set to 0 to disable automatic cleanup entirely.
 EXPORT_FILE_RETENTION = 168  # 1 week
+
+# Anaconda module to load on HPC for conda environment management
+HPC_ANACONDA_MODULE = "anaconda3/2025.6"

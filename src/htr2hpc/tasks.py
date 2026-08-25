@@ -14,7 +14,7 @@ from intspan import intspan
 from invoke.exceptions import UnexpectedExit
 from paramiko.ssh_exception import AuthenticationException
 
-from htr2hpc.train.hpc import ensure_htr2hpc_version
+from htr2hpc.train.hpc import ANACONDA_MODULE, ensure_htr2hpc_version
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ def start_remote_training(
 
             with conn.cd(working_dir):
                 result = conn.run(
-                    f"module load anaconda3/2025.6 && conda run -n htr2hpc {train_cmd}",
+                    f"module load {ANACONDA_MODULE} && conda run -n htr2hpc {train_cmd}",
                     env={"ESCRIPTORIUM_API_TOKEN": api_token},
                     warn=True,  # don't throw unexpected error on exit != 0
                 )

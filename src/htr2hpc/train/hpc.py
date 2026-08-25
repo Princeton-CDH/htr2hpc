@@ -5,6 +5,8 @@ from htr2hpc import __version__
 
 logger = logging.getLogger(__name__)
 
+ANACONDA_MODULE = "anaconda3/2025.6"
+
 
 def ensure_htr2hpc_version(conn):
     """Install the currently deployed version of htr2hpc in the remote conda
@@ -12,7 +14,7 @@ def ensure_htr2hpc_version(conn):
     the deployed version. If the correct version is already installed, pip
     does nothing."""
     install_cmd = (
-        "module load anaconda3/2025.6 && "
+        f"module load {ANACONDA_MODULE} && "
         f"conda run -n htr2hpc pip install -q "
         f"git+https://github.com/Princeton-CDH/htr2hpc.git@v{__version__}#egg=htr2hpc"
     )

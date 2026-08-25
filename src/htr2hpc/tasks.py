@@ -14,6 +14,7 @@ from intspan import intspan
 from invoke.exceptions import UnexpectedExit
 from paramiko.ssh_exception import AuthenticationException
 
+from htr2hpc import __version__
 from htr2hpc.train.hpc import ensure_htr2hpc_version
 
 logger = logging.getLogger(__name__)
@@ -517,6 +518,7 @@ def hpc_user_setup(self, user_pk=None):
 
             setup_cmd = (
                 f"./{user_setup_script.name}  --skip-ssh-setup --reinstall-htr2hpc"
+                f" --htr2hpc-version {__version__}"
             )
             # document setup command options in task report
             if task_report:

@@ -82,7 +82,13 @@ testpaths = ["tests"]
 source_pkgs = ["htr2hpc", "tests"]
 branch = true
 parallel = true
-omit = []
+omit = [
+  "*/htr2hpc/settings.py",    # not executed in test environment by design
+  "*/htr2hpc/migrations/*",   # standard Django migrations
+  "*/htr2hpc/tasks.py",       # Celery tasks requiring full HPC+eScriptorium stack
+  "*/htr2hpc/urls.py",        # imports from escriptorium.urls, not available in test environment
+  "tests/test_settings.py",   # Django test configuration, not test code
+]
 
 [tool.coverage.paths]
 htr2hpc = ["src/htr2hpc"]

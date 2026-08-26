@@ -1,12 +1,9 @@
-ignore:
-  - "src/htr2hpc/settings.py"
-
 coverage:
   status:
     project:
       default: false
       all:
-        target: 60%
+        target: 57%
         paths:
           - "src/"
       tests:

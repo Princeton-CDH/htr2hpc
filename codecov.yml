@@ -1,6 +1,5 @@
 ignore:
   - "src/htr2hpc/settings.py"   # not executed in test environment by design
-  - "src/htr2hpc/test_settings.py"  # pytest config, not application code
   - "src/htr2hpc/migrations/"   # standard Django migrations
   - "src/htr2hpc/tasks.py"      # Celery tasks requiring full HPC+eScriptorium stack
 
@@ -9,7 +8,7 @@ coverage:
     project:
       default: false
       all:
-        target: 57%
+        target: 58%
         paths:
           - "src/"
       tests:

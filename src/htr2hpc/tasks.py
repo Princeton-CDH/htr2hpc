@@ -14,6 +14,9 @@ from intspan import intspan
 from invoke.exceptions import UnexpectedExit
 from paramiko.ssh_exception import AuthenticationException
 
+from htr2hpc import __version__
+from htr2hpc.train.hpc import ensure_htr2hpc_version
+
 logger = logging.getLogger(__name__)
 
 # override escriptorium training tasks to run on HPC
@@ -64,9 +67,17 @@ def start_remote_training(
                 ],
             )
 
+            # ensure htr2hpc version on HPC matches the deployed version
+            if not ensure_htr2hpc_version(conn):
+                error_message = "Could not install required htr2hpc version in conda env; aborting training."
+                user.notify(error_message, id="training-error", level="danger")
+                task_report.error(error_message)
+                send_event("document", document_pk, "training:error", {"id": model_pk})
+                return False
+
             with conn.cd(working_dir):
                 result = conn.run(
-                    f"module load anaconda3/2024.6 && conda run -n htr2hpc {train_cmd}",
+                    f"module load {settings.HPC_ANACONDA_MODULE} && conda run -n htr2hpc {train_cmd}",
                     env={"ESCRIPTORIUM_API_TOKEN": api_token},
                     warn=True,  # don't throw unexpected error on exit != 0
                 )
@@ -507,6 +518,7 @@ def hpc_user_setup(self, user_pk=None):
 
             setup_cmd = (
                 f"./{user_setup_script.name}  --skip-ssh-setup --reinstall-htr2hpc"
+                f" --htr2hpc-version {__version__}"
             )
             # document setup command options in task report
             if task_report:

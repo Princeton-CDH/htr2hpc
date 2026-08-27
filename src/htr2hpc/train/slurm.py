@@ -4,6 +4,7 @@ import pathlib
 import subprocess
 from typing import Optional
 
+from django.conf import settings
 from simple_slurm import Slurm
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ def segtrain(
 
     # add commands for setup steps
     segtrain_slurm.add_cmd("module purge")
-    segtrain_slurm.add_cmd("module load anaconda3/2024.2")
+    segtrain_slurm.add_cmd(f"module load {settings.HPC_ANACONDA_MODULE}")
     segtrain_slurm.add_cmd("conda activate htr2hpc")
     logger.info(f"sbatch file\n: {segtrain_slurm}")
     # sbatch returns the job id for the created job
@@ -93,7 +94,7 @@ def recognition_train(
         time=training_time,
     )
     recogtrain_slurm.add_cmd("module purge")
-    recogtrain_slurm.add_cmd("module load anaconda3/2024.2")
+    recogtrain_slurm.add_cmd(f"module load {settings.HPC_ANACONDA_MODULE}")
     recogtrain_slurm.add_cmd("conda activate htr2hpc")
     logger.info(f"sbatch file\n: {recogtrain_slurm}")
     # sbatch returns the job id for the created job

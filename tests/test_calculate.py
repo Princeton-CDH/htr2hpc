@@ -27,34 +27,31 @@ SEGMENT_OUTPUT = (
     "stage 2 foo bar\nval_mean_iu: \n  0.61\n"
 )
 
-# Fixture using real kraken 7.x output format (with controlled accuracy values).
-# Format: stage line with progress bar and two timestamps separated by •, followed
-# by indented metric lines. Controlled values ensure epoch 1 has the highest accuracy.
+# Fixture using real kraken 7.x non-TTY output format (same as SLURM .out files and CI):
+# val_accuracy value appears inline on the same line as the label.
+# Controlled values ensure epoch 1 has the highest accuracy.
 TRANSCRIPTION_OUTPUT = (
-    "stage 0/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 142.12it/s train_loss_step:  \n"
-    "                                                              1233.418          \n"
-    "                                                              val_accuracy:     \n"
-    "                                                              0.823             \n"
-    "                                                              val_word_accuracy:\n"
-    "                                                              0.100             \n"
-    "                                                              train_loss_epoch: \n"
-    "                                                              962.770           \n"
-    "stage 1/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 129.28it/s train_loss_step:  \n"
-    "                                                              1236.340          \n"
-    "                                                              val_accuracy:     \n"
-    "                                                              0.951             \n"
-    "                                                              val_word_accuracy:\n"
-    "                                                              0.200             \n"
-    "                                                              train_loss_epoch: \n"
-    "                                                              952.353           \n"
-    "stage 2/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 144.33it/s train_loss_step:  \n"
-    "                                                              1217.335          \n"
-    "                                                              val_accuracy:     \n"
-    "                                                              0.910             \n"
-    "                                                              val_word_accuracy:\n"
-    "                                                              0.300             \n"
-    "                                                              train_loss_epoch: \n"
-    "                                                              939.577           \n"
+    "stage 0/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 142.12it/s train_loss_step:   \n"
+    "                                                             1233.418           \n"
+    "                                                             val_accuracy: 0.823\n"
+    "                                                             val_word_accuracy: \n"
+    "                                                             0.100              \n"
+    "                                                             train_loss_epoch:  \n"
+    "                                                             962.770            \n"
+    "stage 1/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 129.28it/s train_loss_step:   \n"
+    "                                                             1236.340           \n"
+    "                                                             val_accuracy: 0.951\n"
+    "                                                             val_word_accuracy: \n"
+    "                                                             0.200              \n"
+    "                                                             train_loss_epoch:  \n"
+    "                                                             952.353            \n"
+    "stage 2/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 144.33it/s train_loss_step:   \n"
+    "                                                             1217.335           \n"
+    "                                                             val_accuracy: 0.910\n"
+    "                                                             val_word_accuracy: \n"
+    "                                                             0.300              \n"
+    "                                                             train_loss_epoch:  \n"
+    "                                                             939.577            \n"
 )
 
 

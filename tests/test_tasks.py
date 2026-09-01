@@ -2,8 +2,9 @@
 import sys
 from unittest.mock import MagicMock, patch
 
-# htr2hpc.tasks imports from apps.users.consumers (eScriptorium), which is not
-# available in the test environment; mock it before importing tasks
+# htr2hpc.tasks imports from apps.users.consumers (eScriptorium) and celery,
+# neither of which is available in the test environment; mock before importing
+sys.modules.setdefault("celery", MagicMock())
 sys.modules.setdefault("apps", MagicMock())
 sys.modules.setdefault("apps.users", MagicMock())
 sys.modules.setdefault("apps.users.consumers", MagicMock())

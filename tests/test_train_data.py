@@ -1,11 +1,32 @@
 """Tests for htr2hpc.train.data — training data utilities."""
 import pathlib
 import shutil
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
+from kraken.containers import Region, Segmentation
+from kraken.serialization import serialize
 
-from htr2hpc.train.data import get_best_model, get_prelim_model, split_segmentation
+from htr2hpc.train.data import (
+    get_best_model,
+    get_prelim_model,
+    split_segmentation,
+)
+
+
+# ---------------------------------------------------------------------------
+# serialize_segmentation — kraken 6.x tags generate TAGREFS in ALTO output
+# ---------------------------------------------------------------------------
+
+
+def test_kraken6_tags_generate_tagrefs_in_alto():
+    region = Region(id="r1", boundary=[[0, 0], [0, 100], [100, 100], [100, 0]], tags={"type": [{"type": "paragraph"}]})
+    seg = Segmentation(
+        type="baselines", imagename="test.jpg",
+        text_direction="horizontal-lr", script_detection=False,
+        regions={"paragraph": [region]}, lines=[],
+    )
+    assert "<OtherTag" in serialize(seg, image_size=(100, 100))
 
 
 # ---------------------------------------------------------------------------
@@ -206,3 +227,5 @@ class TestGetBestModel:
             result = get_best_model(tmp_path)
 
         assert result == best
+
+

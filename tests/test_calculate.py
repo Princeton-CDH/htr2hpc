@@ -27,11 +27,17 @@ SEGMENT_OUTPUT = (
 
 TRANSCRIPTION_OUTPUT = """\
 stage 0 foo bar
-baz 0.823 0/10
+train_loss 0.410 0/10
+val_accurac…
+0.823
 stage 1 foo bar
-baz 0.951 0/10
+train_loss 2.074 0/10
+val_accurac…
+0.951
 stage 2 foo bar
-baz 0.910 0/10
+train_loss 2.649 0/10
+val_accurac…
+0.910
 """
 
 

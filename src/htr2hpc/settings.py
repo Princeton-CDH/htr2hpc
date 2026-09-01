@@ -47,6 +47,7 @@ TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "templates")
 TEMPLATES[0]["OPTIONS"]["context_processors"].extend([
     "htr2hpc.context_processors.vm_status",
     "htr2hpc.context_processors.htr2hpc_version",
+    "htr2hpc.context_processors.kraken_version",
     "htr2hpc.context_processors.site_domain",
 ])
 

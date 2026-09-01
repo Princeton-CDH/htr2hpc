@@ -49,6 +49,13 @@ def htr2hpc_version(request):
     return {"HTR2HPC_VERSION": __version__}
 
 
+def kraken_version(request):
+    """Custom context processor to expose the kraken package version."""
+    from importlib.metadata import version as pkg_version
+
+    return {"KRAKEN_VERSION": pkg_version("kraken")}
+
+
 def site_domain(request):
     """Custom context processor to expose the current site from the
     Django sites framework. Used to display environment-specific values

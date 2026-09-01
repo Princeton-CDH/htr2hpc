@@ -6,7 +6,7 @@ import pytest
 from django.test import RequestFactory
 
 from htr2hpc import __version__
-from htr2hpc.context_processors import htr2hpc_version, site_domain, vm_status
+from htr2hpc.context_processors import htr2hpc_version, kraken_version, site_domain, vm_status
 
 
 @pytest.fixture
@@ -88,6 +88,12 @@ def test_htr2hpc_version():
     assert "HTR2HPC_VERSION" in context
     assert context["HTR2HPC_VERSION"] == __version__
     assert context["HTR2HPC_VERSION"] == importlib.metadata.version("htr2hpc")
+
+
+def test_kraken_version():
+    context = kraken_version(None)
+    assert "KRAKEN_VERSION" in context
+    assert context["KRAKEN_VERSION"] == importlib.metadata.version("kraken")
 
 
 def test_site_domain(rf, db):

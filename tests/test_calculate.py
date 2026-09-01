@@ -300,6 +300,10 @@ def test_slurm_get_max_acc_recognize_real_output(tmp_path):
         text=True,
     )
 
+    assert result.returncode == 0, (
+        f"ketos train failed (exit={result.returncode})\n"
+        f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )
     output = result.stdout + result.stderr
     parsed = slurm_get_max_acc(output, "Recognize")
 

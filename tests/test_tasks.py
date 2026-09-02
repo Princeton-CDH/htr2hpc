@@ -44,7 +44,7 @@ class TestEnsureHtr2hpcVersion:
         conn.run.return_value = _mock_run_result(exited=0)
         ensure_htr2hpc_version(conn)
         cmd = conn.run.call_args[0][0]
-        assert f"@v{__version__}" in cmd
+        assert f"@{__version__}" in cmd
         assert "--upgrade" in cmd
 
 

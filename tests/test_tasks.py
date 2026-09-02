@@ -1,4 +1,5 @@
 """Tests for htr2hpc tasks and htr2hpc.train.hpc."""
+import importlib.metadata
 import subprocess
 import sys
 from unittest.mock import MagicMock, patch
@@ -90,16 +91,7 @@ class TestStartRemoteTraining:
 
 
 def _get_installed_version(package):
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "show", package],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    for line in result.stdout.splitlines():
-        if line.startswith("Version:"):
-            return line.split(": ", 1)[1].strip()
-    raise RuntimeError(f"{package} not found in current environment")
+    return importlib.metadata.version(package)
 
 
 def _pip_install(*args):

@@ -1,5 +1,6 @@
 """Tests for htr2hpc tasks and htr2hpc.train.hpc."""
-import importlib.metadata
+import os
+import shutil
 import subprocess
 import sys
 from unittest.mock import MagicMock, patch
@@ -91,25 +92,40 @@ class TestStartRemoteTraining:
 
 
 def _get_installed_version(package):
-    return importlib.metadata.version(package)
+    # Run in a subprocess to avoid importlib.metadata caching stale versions
+    result = subprocess.run(
+        [sys.executable, "-c", f"import importlib.metadata; print(importlib.metadata.version('{package}'))"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
 
 
 def _pip_install(*args):
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "-q", *args],
-        check=True,
-    )
+    # uv-managed venvs do not include pip; use uv pip when available.
+    # Pass VIRTUAL_ENV to ensure uv targets the same venv as the running Python.
+    if shutil.which("uv"):
+        env = {**os.environ, "VIRTUAL_ENV": sys.prefix}
+        cmd = ["uv", "pip", "install", "-q", *args]
+        subprocess.run(cmd, check=True, env=env)
+    else:
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", *args], check=True)
 
 
 def test_pip_upgrade_restores_downgraded_kraken():
     """Run real pip commands to verify that pip install --upgrade restores kraken
-    when it has been downgraded, so that format changes or regressions cause test failures.
+    when it has been downgraded, so that regressions cause test failures.
+
+    Uses --no-deps when downgrading/restoring kraken to avoid dependency resolution
+    conflicts (kraken 5.x requires an incompatible torch version).
     """
     original_kraken = _get_installed_version("kraken")
 
     try:
-        # Simulate a user with kraken 5.x in their conda env
-        _pip_install("kraken==5.2.9")
+        # Simulate a user with kraken 5.x in their conda env.
+        # --no-deps avoids torch/torchvision dependency conflicts from kraken 5.x.
+        _pip_install("--no-deps", "kraken==5.2.9")
         assert _get_installed_version("kraken") == "5.2.9"
 
         # Simulate ensure_htr2hpc_version: pip install --upgrade (local path
@@ -122,5 +138,6 @@ def test_pip_upgrade_restores_downgraded_kraken():
             f"Expected kraken >= 6.0 after upgrade, got {restored}"
         )
     finally:
-        # Restore original kraken so the dev environment is unchanged
-        _pip_install(f"kraken=={original_kraken}")
+        # Restore original kraken so the dev environment is unchanged.
+        # --no-deps avoids unnecessary dep resolution on the restore.
+        _pip_install("--no-deps", f"kraken=={original_kraken}")

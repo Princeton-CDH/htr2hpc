@@ -1,4 +1,5 @@
 """Tests for htr2hpc tasks and htr2hpc.train.hpc."""
+import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -37,12 +38,14 @@ class TestEnsureHtr2hpcVersion:
         assert ensure_htr2hpc_version(conn) is False
 
     def test_install_command_contains_version(self):
-        """The install command should reference the current deployed version."""
+        """The install command should reference the current deployed version and use --upgrade
+        so that dependencies (e.g. kraken) are upgraded even when htr2hpc is already installed."""
         conn = MagicMock()
         conn.run.return_value = _mock_run_result(exited=0)
         ensure_htr2hpc_version(conn)
         cmd = conn.run.call_args[0][0]
         assert f"@v{__version__}" in cmd
+        assert "--upgrade" in cmd
 
 
 class TestStartRemoteTraining:
@@ -79,3 +82,53 @@ class TestStartRemoteTraining:
         # should not run the training command
         conn = mock_connection.return_value.__enter__.return_value
         assert conn.run.call_count == 0
+
+
+# ---------------------------------------------------------------------------
+# integration: verify --upgrade actually upgrades downgraded dependencies
+# ---------------------------------------------------------------------------
+
+
+def _get_installed_version(package):
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "show", package],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    for line in result.stdout.splitlines():
+        if line.startswith("Version:"):
+            return line.split(": ", 1)[1].strip()
+    raise RuntimeError(f"{package} not found in current environment")
+
+
+def _pip_install(*args):
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-q", *args],
+        check=True,
+    )
+
+
+def test_pip_upgrade_restores_downgraded_kraken():
+    """Run real pip commands to verify that pip install --upgrade restores kraken
+    when it has been downgraded, so that format changes or regressions cause test failures.
+    """
+    original_kraken = _get_installed_version("kraken")
+
+    try:
+        # Simulate a user with kraken 5.x in their conda env
+        _pip_install("kraken==5.2.9")
+        assert _get_installed_version("kraken") == "5.2.9"
+
+        # Simulate ensure_htr2hpc_version: pip install --upgrade (local path
+        # stands in for the git URL used in production)
+        _pip_install("--upgrade", ".")
+
+        # kraken must now satisfy kraken>=6.0
+        restored = _get_installed_version("kraken")
+        assert int(restored.split(".")[0]) >= 6, (
+            f"Expected kraken >= 6.0 after upgrade, got {restored}"
+        )
+    finally:
+        # Restore original kraken so the dev environment is unchanged
+        _pip_install(f"kraken=={original_kraken}")

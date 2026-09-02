@@ -87,7 +87,7 @@ class TestStartRemoteTraining:
 
 
 # ---------------------------------------------------------------------------
-# integration: verify --upgrade actually upgrades downgraded dependencies
+# integration: verify ensure_htr2hpc_version actually upgrades outdated deps
 # ---------------------------------------------------------------------------
 
 
@@ -107,18 +107,49 @@ def _pip_install(*args):
     # Pass VIRTUAL_ENV to ensure uv targets the same venv as the running Python.
     if shutil.which("uv"):
         env = {**os.environ, "VIRTUAL_ENV": sys.prefix}
-        cmd = ["uv", "pip", "install", "-q", *args]
-        subprocess.run(cmd, check=True, env=env)
+        subprocess.run(["uv", "pip", "install", "-q", *args], check=True, env=env)
     else:
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", *args], check=True)
 
 
-def test_pip_upgrade_restores_downgraded_kraken():
-    """Run real pip commands to verify that pip install --upgrade restores kraken
-    when it has been downgraded, so that regressions cause test failures.
+class _LocalHPCConn:
+    """Fake Fabric connection that runs pip install locally instead of on HPC.
 
-    Uses --no-deps when downgrading/restoring kraken to avoid dependency resolution
-    conflicts (kraken 5.x requires an incompatible torch version).
+    ensure_htr2hpc_version constructs a command that uses HPC-specific tools
+    (module load, conda run). This stub intercepts that call and runs a local
+    equivalent so the function can be tested without an HPC connection.
+    """
+
+    def run(self, cmd, warn=False, hide=False):
+        # Replace the full HPC command with a local pip install --upgrade.
+        # Mirror Fabric's behaviour: always return a result object (never raise),
+        # and surface the exit code so ensure_htr2hpc_version can handle failures.
+        if shutil.which("uv"):
+            env = {**os.environ, "VIRTUAL_ENV": sys.prefix}
+            proc = subprocess.run(
+                ["uv", "pip", "install", "-q", "--upgrade", "."],
+                capture_output=True, text=True, env=env,
+            )
+        else:
+            proc = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-q", "--upgrade", "."],
+                capture_output=True, text=True,
+            )
+
+        class _Result:
+            exited = proc.returncode
+            stdout = proc.stdout
+            stderr = proc.stderr
+
+        return _Result()
+
+
+def test_ensure_htr2hpc_version_upgrades_kraken():
+    """Verify that ensure_htr2hpc_version upgrades kraken when it has been downgraded.
+
+    Uses a local stub connection that runs pip install --upgrade locally instead
+    of on HPC, so the actual function is called end-to-end.
+    Uses --no-deps when downgrading kraken to avoid torch dependency conflicts.
     """
     original_kraken = _get_installed_version("kraken")
 
@@ -128,9 +159,9 @@ def test_pip_upgrade_restores_downgraded_kraken():
         _pip_install("--no-deps", "kraken==5.2.9")
         assert _get_installed_version("kraken") == "5.2.9"
 
-        # Simulate ensure_htr2hpc_version: pip install --upgrade (local path
-        # stands in for the git URL used in production)
-        _pip_install("--upgrade", ".")
+        # Call the actual function under test with a local stub connection
+        conn = _LocalHPCConn()
+        assert ensure_htr2hpc_version(conn) is True
 
         # kraken must now satisfy kraken>=6.0
         restored = _get_installed_version("kraken")
@@ -139,5 +170,4 @@ def test_pip_upgrade_restores_downgraded_kraken():
         )
     finally:
         # Restore original kraken so the dev environment is unchanged.
-        # --no-deps avoids unnecessary dep resolution on the restore.
         _pip_install("--no-deps", f"kraken=={original_kraken}")

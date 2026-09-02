@@ -63,3 +63,9 @@ EXPORT_FILE_RETENTION = 168  # 1 week
 
 # Anaconda module to load on HPC for conda environment management
 HPC_ANACONDA_MODULE = "anaconda3/2025.6"
+
+# Git ref used to install htr2hpc on HPC; set by Ansible to match the deployed
+# ref (branch or tag) so HPC always runs the same code as the web server.
+# Defaults to the version tag for non-Ansible environments.
+from htr2hpc import __version__  # noqa: E402
+HTR2HPC_GITREF = __version__

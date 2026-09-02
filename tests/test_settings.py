@@ -69,6 +69,7 @@ HPC_HOSTNAME = "della.princeton.edu"
 HPC_SSH_KEYFILE = "/tmp/test_ssh_key"
 HTR2HPC_INSTALL_DIR = Path(__file__).parent
 HPC_ANACONDA_MODULE = "anaconda3/2025.6"
+HTR2HPC_GITREF = "develop"
 
 # pucas LDAP config — minimal; LDAP calls are mocked in tests
 PUCAS_LDAP = {

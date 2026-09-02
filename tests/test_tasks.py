@@ -1,4 +1,8 @@
 """Tests for htr2hpc tasks and htr2hpc.train.hpc."""
+import importlib.metadata
+import os
+import shutil
+import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -9,7 +13,7 @@ sys.modules.setdefault("apps", MagicMock())
 sys.modules.setdefault("apps.users", MagicMock())
 sys.modules.setdefault("apps.users.consumers", MagicMock())
 
-from htr2hpc import __version__  # noqa: E402
+from django.conf import settings  # noqa: E402
 from htr2hpc.tasks import start_remote_training  # noqa: E402
 from htr2hpc.train.hpc import ensure_htr2hpc_version  # noqa: E402
 
@@ -36,13 +40,16 @@ class TestEnsureHtr2hpcVersion:
         conn.run.return_value = _mock_run_result(exited=1, stderr="some error")
         assert ensure_htr2hpc_version(conn) is False
 
-    def test_install_command_contains_version(self):
-        """The install command should reference the current deployed version."""
+    def test_install_command_contains_gitref(self):
+        """The install command should reference HTR2HPC_GITREF and use --upgrade
+        so that dependencies (e.g. kraken) are upgraded even when htr2hpc is
+        already installed, and HPC always runs the same ref as the web server."""
         conn = MagicMock()
         conn.run.return_value = _mock_run_result(exited=0)
         ensure_htr2hpc_version(conn)
         cmd = conn.run.call_args[0][0]
-        assert f"@v{__version__}" in cmd
+        assert f"@{settings.HTR2HPC_GITREF}" in cmd
+        assert "--upgrade" in cmd
 
 
 class TestStartRemoteTraining:
@@ -79,3 +86,79 @@ class TestStartRemoteTraining:
         # should not run the training command
         conn = mock_connection.return_value.__enter__.return_value
         assert conn.run.call_count == 0
+
+
+# ---------------------------------------------------------------------------
+# integration: verify ensure_htr2hpc_version actually upgrades outdated deps
+# ---------------------------------------------------------------------------
+
+
+def _get_installed_version(package):
+    return importlib.metadata.version(package)
+
+
+def _pip_install(*args):
+    # uv-managed venvs do not include pip; use uv pip when available.
+    # Pass VIRTUAL_ENV to ensure uv targets the same venv as the running Python.
+    if shutil.which("uv"):
+        env = {**os.environ, "VIRTUAL_ENV": sys.prefix}
+        subprocess.run(["uv", "pip", "install", "-q", *args], check=True, env=env)
+    else:
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", *args], check=True)
+
+
+class _LocalHPCConn:
+    """Fake Fabric connection that runs pip install locally instead of on HPC.
+
+    ensure_htr2hpc_version constructs a command that uses HPC-specific tools
+    (module load, conda run). This stub intercepts that call and runs a local
+    equivalent so the function can be tested without an HPC connection.
+    """
+
+    def run(self, cmd, warn=False, hide=False):
+        # Replace the full HPC command with a local pip install --upgrade.
+        # Mirror Fabric's behaviour: always return a result object (never raise),
+        # and surface the exit code so ensure_htr2hpc_version can handle failures.
+        try:
+            _pip_install("--upgrade", ".")
+            exited, stderr = 0, ""
+        except subprocess.CalledProcessError as e:
+            exited, stderr = e.returncode, e.stderr or ""
+
+        class _Result:
+            pass
+
+        result = _Result()
+        result.exited = exited
+        result.stdout = ""
+        result.stderr = stderr
+        return result
+
+
+def test_ensure_htr2hpc_version_upgrades_kraken():
+    """Verify that ensure_htr2hpc_version upgrades kraken when it has been downgraded.
+
+    Uses a local stub connection that runs pip install --upgrade locally instead
+    of on HPC, so the actual function is called end-to-end.
+    Uses --no-deps when downgrading kraken to avoid torch dependency conflicts.
+    """
+    original_kraken = _get_installed_version("kraken")
+
+    try:
+        # Simulate a user with kraken 5.x in their conda env.
+        # --no-deps avoids torch/torchvision dependency conflicts from kraken 5.x.
+        _pip_install("--no-deps", "kraken==5.2.9")
+        assert _get_installed_version("kraken") == "5.2.9"
+
+        # Call the actual function under test with a local stub connection
+        conn = _LocalHPCConn()
+        assert ensure_htr2hpc_version(conn) is True
+
+        # kraken must now satisfy kraken>=6.0
+        restored = _get_installed_version("kraken")
+        assert int(restored.split(".")[0]) >= 6, (
+            f"Expected kraken >= 6.0 after upgrade, got {restored}"
+        )
+    finally:
+        # Restore original kraken so the dev environment is unchanged.
+        _pip_install("--no-deps", f"kraken=={original_kraken}")

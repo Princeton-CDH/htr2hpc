@@ -1,4 +1,5 @@
 """Tests for htr2hpc tasks and htr2hpc.train.hpc."""
+import importlib.metadata
 import os
 import shutil
 import subprocess
@@ -92,14 +93,7 @@ class TestStartRemoteTraining:
 
 
 def _get_installed_version(package):
-    # Run in a subprocess to avoid importlib.metadata caching stale versions
-    result = subprocess.run(
-        [sys.executable, "-c", f"import importlib.metadata; print(importlib.metadata.version('{package}'))"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return result.stdout.strip()
+    return importlib.metadata.version(package)
 
 
 def _pip_install(*args):
@@ -124,24 +118,20 @@ class _LocalHPCConn:
         # Replace the full HPC command with a local pip install --upgrade.
         # Mirror Fabric's behaviour: always return a result object (never raise),
         # and surface the exit code so ensure_htr2hpc_version can handle failures.
-        if shutil.which("uv"):
-            env = {**os.environ, "VIRTUAL_ENV": sys.prefix}
-            proc = subprocess.run(
-                ["uv", "pip", "install", "-q", "--upgrade", "."],
-                capture_output=True, text=True, env=env,
-            )
-        else:
-            proc = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "-q", "--upgrade", "."],
-                capture_output=True, text=True,
-            )
+        try:
+            _pip_install("--upgrade", ".")
+            exited, stderr = 0, ""
+        except subprocess.CalledProcessError as e:
+            exited, stderr = e.returncode, e.stderr or ""
 
         class _Result:
-            exited = proc.returncode
-            stdout = proc.stdout
-            stderr = proc.stderr
+            pass
 
-        return _Result()
+        result = _Result()
+        result.exited = exited
+        result.stdout = ""
+        result.stderr = stderr
+        return result
 
 
 def test_ensure_htr2hpc_version_upgrades_kraken():

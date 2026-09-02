@@ -7,11 +7,12 @@ def slurm_get_max_acc(slurm_output, training_mode):
     """Return a tuple of (epoch #, accuracy) for the epoch with highest accuracy"""
     if training_mode == "Segment":
         re_acc = r"stage ([\d]+).+\n[^i]*val_mean_iu:\s+\n\s+([\d.]+)"
+        accuracies = re.findall(re_acc, slurm_output)
+        accuracies = [(int(i[0]), float(i[1])) for i in accuracies]
     else:
-        re_acc = r"stage ([\d]+).+\n.+(\d.\d\d\d)\s*\d/10"
-
-    accuracies = re.findall(re_acc, slurm_output)
-    accuracies = [(int(i[0]), float(i[1])) for i in accuracies]
+        stages = re.findall(r"stage (\d+)", slurm_output)
+        accs = re.findall(r"val_accuracy:[^\S\n]*\n?\s*(-?[\d.]+)", slurm_output)
+        accuracies = [(int(s), float(a)) for s, a in zip(stages, accs)]
 
     if accuracies:
         return max(accuracies, key=lambda x: x[1])

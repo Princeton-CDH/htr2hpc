@@ -1,5 +1,7 @@
 """Tests for htr2hpc.train.calculate — pure functions, no Django needed."""
 import datetime
+import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -25,14 +27,32 @@ SEGMENT_OUTPUT = (
     "stage 2 foo bar\nval_mean_iu: \n  0.61\n"
 )
 
-TRANSCRIPTION_OUTPUT = """\
-stage 0 foo bar
-baz 0.823 0/10
-stage 1 foo bar
-baz 0.951 0/10
-stage 2 foo bar
-baz 0.910 0/10
-"""
+# Fixture using real kraken 7.x non-TTY output format (same as SLURM .out files and CI):
+# val_accuracy value appears inline on the same line as the label.
+# Controlled values ensure epoch 1 has the highest accuracy.
+TRANSCRIPTION_OUTPUT = (
+    "stage 0/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 142.12it/s train_loss_step:   \n"
+    "                                                             1233.418           \n"
+    "                                                             val_accuracy: 0.823\n"
+    "                                                             val_word_accuracy: \n"
+    "                                                             0.100              \n"
+    "                                                             train_loss_epoch:  \n"
+    "                                                             962.770            \n"
+    "stage 1/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 129.28it/s train_loss_step:   \n"
+    "                                                             1236.340           \n"
+    "                                                             val_accuracy: 0.951\n"
+    "                                                             val_word_accuracy: \n"
+    "                                                             0.200              \n"
+    "                                                             train_loss_epoch:  \n"
+    "                                                             952.353            \n"
+    "stage 2/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 144.33it/s train_loss_step:   \n"
+    "                                                             1217.335           \n"
+    "                                                             val_accuracy: 0.910\n"
+    "                                                             val_word_accuracy: \n"
+    "                                                             0.300              \n"
+    "                                                             train_loss_epoch:  \n"
+    "                                                             939.577            \n"
+)
 
 
 def test_slurm_get_max_acc_segment():
@@ -242,3 +262,56 @@ def test_estimate_duration(size, mode, expected_minutes):
 )
 def test_estimate_cpu_mem(size, mode, expected):
     assert estimate_cpu_mem(size, mode) == expected
+
+
+# ---------------------------------------------------------------------------
+# integration: slurm_get_max_acc against real ketos output
+# ---------------------------------------------------------------------------
+
+RESOURCES = Path(__file__).parent / "resources"
+
+
+def test_slurm_get_max_acc_recognize_real_output(tmp_path):
+    """Run ketos train on a minimal dataset and verify slurm_get_max_acc parses
+    real output so that format changes in future kraken releases cause test failures.
+    """
+    manifest = tmp_path / "train.lst"
+    manifest.write_text(str(RESOURCES / "170025120000003,0074-lite.xml") + "\n")
+
+    result = subprocess.run(
+        [
+            "ketos",
+            "-d", "cpu",
+            "--threads", "1",
+            "--workers", "0",
+            "train",
+            "-o", str(tmp_path / "model"),
+            "-f", "xml",
+            "--spec", "[1,12,0,1 Cr3,3,8 S1(1x0)1,3]",
+            "--quit", "fixed",
+            "-N", "3",
+            "--min-epochs", "3",
+            "-F", "1",
+            "-B", "1",
+            "-t", str(manifest),
+            "-e", str(manifest),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, (
+        f"ketos train failed (exit={result.returncode})\n"
+        f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )
+    output = result.stdout + result.stderr
+    parsed = slurm_get_max_acc(output, "Recognize")
+
+    assert parsed is not None, (
+        f"slurm_get_max_acc returned None; ketos exit={result.returncode}\n"
+        f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )
+    epoch, accuracy = parsed
+    assert isinstance(epoch, int)
+    assert isinstance(accuracy, float)
+    assert 0 <= epoch < 3

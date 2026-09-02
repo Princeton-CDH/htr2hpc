@@ -135,6 +135,28 @@ class _LocalHPCConn:
         return result
 
 
+def test_pip_install_uses_pip_when_uv_unavailable():
+    """_pip_install falls back to python -m pip when uv is not in PATH."""
+    with patch("shutil.which", return_value=None):
+        with patch("subprocess.run") as mock_run:
+            _pip_install("somepackage==1.0")
+            cmd = mock_run.call_args[0][0]
+            assert cmd[0] == sys.executable
+            assert "pip" in cmd
+
+
+def test_local_hpc_conn_surfaces_pip_failure():
+    """_LocalHPCConn.run returns exited != 0 when pip install fails."""
+    with patch(
+        "tests.test_tasks._pip_install",
+        side_effect=subprocess.CalledProcessError(1, "pip", stderr="error"),
+    ):
+        conn = _LocalHPCConn()
+        result = conn.run("any cmd")
+        assert result.exited == 1
+        assert result.stderr == "error"
+
+
 def test_ensure_htr2hpc_version_upgrades_kraken():
     """Verify that ensure_htr2hpc_version upgrades kraken when it has been downgraded.
 

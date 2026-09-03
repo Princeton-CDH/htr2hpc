@@ -13,7 +13,8 @@ sys.modules.setdefault("apps", MagicMock())
 sys.modules.setdefault("apps.users", MagicMock())
 sys.modules.setdefault("apps.users.consumers", MagicMock())
 
-from django.conf import settings  # noqa: E402
+from django.test import override_settings  # noqa: E402
+from htr2hpc import __version__  # noqa: E402
 from htr2hpc.tasks import start_remote_training  # noqa: E402
 from htr2hpc.train.hpc import ensure_htr2hpc_version  # noqa: E402
 
@@ -40,16 +41,24 @@ class TestEnsureHtr2hpcVersion:
         conn.run.return_value = _mock_run_result(exited=1, stderr="some error")
         assert ensure_htr2hpc_version(conn) is False
 
-    def test_install_command_contains_gitref(self):
-        """The install command should reference HTR2HPC_GITREF and use --upgrade
-        so that dependencies (e.g. kraken) are upgraded even when htr2hpc is
-        already installed, and HPC always runs the same ref as the web server."""
+    def test_install_command_uses_version_by_default(self):
+        """Without HTR2HPC_GITREF override, the command falls back to __version__."""
         conn = MagicMock()
         conn.run.return_value = _mock_run_result(exited=0)
         ensure_htr2hpc_version(conn)
         cmd = conn.run.call_args[0][0]
-        assert f"@{settings.HTR2HPC_GITREF}" in cmd
+        assert f"@{__version__}" in cmd
         assert "--upgrade" in cmd
+
+    @override_settings(HTR2HPC_GITREF="abc123sha")
+    def test_install_command_uses_gitref_when_set(self):
+        """When HTR2HPC_GITREF is set (staging), the command uses it instead of __version__."""
+        conn = MagicMock()
+        conn.run.return_value = _mock_run_result(exited=0)
+        ensure_htr2hpc_version(conn)
+        cmd = conn.run.call_args[0][0]
+        assert "@abc123sha" in cmd
+        assert f"@{__version__}" not in cmd
 
 
 class TestStartRemoteTraining:

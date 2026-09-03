@@ -17,6 +17,9 @@ def ensure_htr2hpc_version(conn):
     Uses HTR2HPC_GITREF when set (staging deploys: exact commit SHA set by
     Ansible), otherwise falls back to the current version tag."""
     gitref = getattr(settings, "HTR2HPC_GITREF", __version__)
+    # NOTE: when installing by version, the version number must match a git tag exactly
+    # TODO: when htr2hpc is later switched to publish on PyPI, production should use
+    # pip install htr2hpc=={version} and staging should keep the git+SHA URL.
     install_cmd = (
         f"module load {settings.HPC_ANACONDA_MODULE} && "
         "conda run -n htr2hpc pip install -q --upgrade "

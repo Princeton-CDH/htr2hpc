@@ -4,7 +4,6 @@ import pathlib
 import subprocess
 from typing import Optional
 
-from htr2hpc.settings import HPC_ANACONDA_MODULE
 from simple_slurm import Slurm
 
 logger = logging.getLogger(__name__)
@@ -14,6 +13,7 @@ def segtrain(
     input_data_dir: pathlib.Path,
     output_model: pathlib.Path,
     input_model: pathlib.Path,
+    anaconda_module: str,
     num_workers: int = 8,
     mem_per_cpu: str = "4G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),
@@ -48,7 +48,7 @@ def segtrain(
 
     # add commands for setup steps
     segtrain_slurm.add_cmd("module purge")
-    segtrain_slurm.add_cmd(f"module load {HPC_ANACONDA_MODULE}")
+    segtrain_slurm.add_cmd(f"module load {anaconda_module}")
     segtrain_slurm.add_cmd("conda activate htr2hpc")
     logger.info(f"sbatch file\n: {segtrain_slurm}")
     # sbatch returns the job id for the created job
@@ -67,6 +67,7 @@ def recognition_train(
     input_data_dir: pathlib.Path,
     output_model: pathlib.Path,
     input_model: Optional[pathlib.Path] = None,
+    anaconda_module: str = "",
     num_workers: int = 8,
     mem_per_cpu: str = "2G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),
@@ -94,7 +95,7 @@ def recognition_train(
         time=training_time,
     )
     recogtrain_slurm.add_cmd("module purge")
-    recogtrain_slurm.add_cmd(f"module load {HPC_ANACONDA_MODULE}")
+    recogtrain_slurm.add_cmd(f"module load {anaconda_module}")
     recogtrain_slurm.add_cmd("conda activate htr2hpc")
     logger.info(f"sbatch file\n: {recogtrain_slurm}")
     # sbatch returns the job id for the created job

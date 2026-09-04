@@ -222,6 +222,7 @@ def segtrain(
         f"--document {document_pk}",  # document id is always required
         "--no-progress",  # disable progressbar
         f"--task-report {task_report.pk}",  # task reporting
+        f"--anaconda-module {settings.HPC_ANACONDA_MODULE}",
     ]
 
     # part ids are optional
@@ -395,6 +396,7 @@ def train(
         f"--parts {intspan(part_pks)}",
         "--no-progress",  # disable progressbar
         f"--task-report {task_report.pk}",  # task reporting
+        f"--anaconda-module {settings.HPC_ANACONDA_MODULE}",
     ]
 
     # model is technically optional for this task but it should

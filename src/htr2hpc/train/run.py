@@ -68,6 +68,7 @@ class TrainingManager:
     training_mode: str
     model_name: str
     num_workers: int
+    anaconda_module: str = "anaconda3/2025.6"
     parts: Optional[intspan] = None
     model_id: Optional[int] = None
     task_report_id: Optional[int] = None
@@ -246,6 +247,7 @@ class TrainingManager:
             abs_training_data_dir,
             abs_output_modelfile,
             abs_model_file,
+            self.anaconda_module,
             self.num_workers,
             mem_per_cpu=prelim_cpu_mem,
             training_time=prelim_train_time,
@@ -277,6 +279,7 @@ class TrainingManager:
                 abs_training_data_dir,
                 abs_output_modelfile,
                 abs_prelim_model_file,
+                self.anaconda_module,
                 self.num_workers,
                 mem_per_cpu=mem_per_cpu,
                 training_time=full_duration,
@@ -316,7 +319,8 @@ class TrainingManager:
             abs_training_data_dir,
             abs_output_modelfile,
             abs_model_file,
-            self.num_workers,
+            anaconda_module=self.anaconda_module,
+            num_workers=self.num_workers,
             mem_per_cpu=prelim_cpu_mem,
             training_time=prelim_train_time,
         )
@@ -347,7 +351,8 @@ class TrainingManager:
                 abs_training_data_dir,
                 abs_output_modelfile,
                 abs_prelim_model_file,
-                self.num_workers,
+                anaconda_module=self.anaconda_module,
+                num_workers=self.num_workers,
                 mem_per_cpu=mem_per_cpu,
                 training_time=full_duration,
                 epochs=epoch_request,
@@ -580,6 +585,13 @@ def main():
         type=int,
         default=8,
         dest="num_workers",
+    )
+    parser.add_argument(
+        "--anaconda-module",
+        help="Anaconda module to load in SLURM jobs (default: %(default)s)",
+        type=str,
+        default="anaconda3/2025.6",
+        dest="anaconda_module",
     )
     args = parser.parse_args()
     # validate argument combinations

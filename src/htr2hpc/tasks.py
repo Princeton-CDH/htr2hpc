@@ -48,7 +48,7 @@ def start_remote_training(
     # progress messages and the remote --task-report arg); error/cancel status
     # is propagated to all reports so none are left empty after eScriptorium v1.0
     # started creating one TaskReport per page instead of one per training job.
-    task_report = task_reports[0]
+    primary_task_report = task_reports[0]
 
     # assume we're using LDAP accounts only so usernames match here and on hpc
     username = user.username
@@ -61,7 +61,7 @@ def start_remote_training(
     )
 
     # add training command to task report
-    task_report.append(f"remote training command:\n  {train_cmd}\n")
+    primary_task_report.append(f"remote training command:\n  {train_cmd}\n")
 
     # note: may need to use tmux to keep from disconnecting
     try:
@@ -100,11 +100,11 @@ def start_remote_training(
                     f"remote training script completed; exit code: {result.exited}"
                 )
                 # refresh task report to get any messages added via api
-                task_report.refresh_from_db()
+                primary_task_report.refresh_from_db()
 
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
-                task_report.append(
+                primary_task_report.append(
                     f"\n\nremote script output:\n\n"
                     f"{result.stdout}\n\n{result.stderr}\n\n"
                 )
@@ -137,7 +137,7 @@ def start_remote_training(
         )
         # also store in the task report
         # but first refresh task report to get any messages added via api
-        task_report.refresh_from_db()
+        primary_task_report.refresh_from_db()
         _error_all_reports(task_reports, error_message)
 
         # send training error event
@@ -197,7 +197,7 @@ def segtrain(
     # eScriptorium v1.0 creates one TaskReport per page in part_pks;
     # fetch all so we can propagate final status to each one.
     task_reports = list(task_group.taskreport_set.all())
-    task_report = task_reports[0]
+    primary_task_report = task_reports[0]
 
     # if the model is older than the task group, then we infer that
     # overwrite was requested on the form (update an existing model)
@@ -238,7 +238,7 @@ def segtrain(
     arg_options = [
         f"--document {document_pk}",  # document id is always required
         "--no-progress",  # disable progressbar
-        f"--task-report {task_report.pk}",  # task reporting
+        f"--task-report {primary_task_report.pk}",  # task reporting
         f"--anaconda-module {settings.HPC_ANACONDA_MODULE}",
     ]
 
@@ -374,7 +374,7 @@ def train(
     # eScriptorium v1.0 creates one TaskReport per page in part_pks;
     # fetch all so we can propagate final status to each one.
     task_reports = list(task_group.taskreport_set.all())
-    task_report = task_reports[0]
+    primary_task_report = task_reports[0]
 
     # if the model is older than the task group, then we infer that
     # overwrite was requested on the form (update an existing model)
@@ -415,7 +415,7 @@ def train(
         # parse and serialize part ids with intspan
         f"--parts {intspan(part_pks)}",
         "--no-progress",  # disable progressbar
-        f"--task-report {task_report.pk}",  # task reporting
+        f"--task-report {primary_task_report.pk}",  # task reporting
         f"--anaconda-module {settings.HPC_ANACONDA_MODULE}",
     ]
 

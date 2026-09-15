@@ -1,4 +1,5 @@
 """Tests for htr2hpc tasks and htr2hpc.train.hpc."""
+
 import importlib.metadata
 import os
 import shutil
@@ -14,6 +15,7 @@ sys.modules.setdefault("apps.users", MagicMock())
 sys.modules.setdefault("apps.users.consumers", MagicMock())
 
 from django.test import override_settings  # noqa: E402
+
 from htr2hpc import __version__  # noqa: E402
 from htr2hpc.tasks import start_remote_training  # noqa: E402
 from htr2hpc.train.hpc import ensure_htr2hpc_version  # noqa: E402
@@ -62,12 +64,12 @@ class TestEnsureHtr2hpcVersion:
 
 
 class TestStartRemoteTraining:
-    def _make_mocks(self):
+    def _make_mocks(self, num_reports=1):
         user = MagicMock()
         user.username = "testuser"
         user.auth_token.key = "test-token"
-        task_report = MagicMock()
-        return user, task_report
+        task_reports = [MagicMock() for _ in range(num_reports)]
+        return user, task_reports
 
     @patch("htr2hpc.tasks.send_event")
     @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=False)
@@ -76,9 +78,9 @@ class TestStartRemoteTraining:
         self, mock_connection, mock_ensure, mock_send_event
     ):
         """When ensure_htr2hpc_version returns False, training should be aborted."""
-        user, task_report = self._make_mocks()
+        user, task_reports = self._make_mocks()
         result = start_remote_training(
-            user, "/scratch/working", "train_cmd", 1, 2, task_report
+            user, "/scratch/working", "train_cmd", 1, 2, task_reports
         )
         assert result is False
         # should notify user and record error
@@ -87,7 +89,7 @@ class TestStartRemoteTraining:
             id="training-error",
             level="danger",
         )
-        task_report.error.assert_called_once()
+        task_reports[0].error.assert_called_once()
         # should send training:error event
         mock_send_event.assert_called_once_with(
             "document", 1, "training:error", {"id": 2}
@@ -95,6 +97,18 @@ class TestStartRemoteTraining:
         # should not run the training command
         conn = mock_connection.return_value.__enter__.return_value
         assert conn.run.call_count == 0
+
+    @patch("htr2hpc.tasks.send_event")
+    @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=False)
+    @patch("htr2hpc.tasks.Connection")
+    def test_version_install_failure_errors_all_reports(
+        self, mock_connection, mock_ensure, mock_send_event
+    ):
+        """When ensure_htr2hpc_version fails, all task reports should receive error status."""
+        user, task_reports = self._make_mocks(num_reports=3)
+        start_remote_training(user, "/scratch/working", "train_cmd", 1, 2, task_reports)
+        for report in task_reports:
+            report.error.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +127,9 @@ def _pip_install(*args):
         env = {**os.environ, "VIRTUAL_ENV": sys.prefix}
         subprocess.run(["uv", "pip", "install", "-q", *args], check=True, env=env)
     else:
-        subprocess.run([sys.executable, "-m", "pip", "install", "-q", *args], check=True)
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-q", *args], check=True
+        )
 
 
 class _LocalHPCConn:
@@ -146,12 +162,11 @@ class _LocalHPCConn:
 
 def test_pip_install_uses_pip_when_uv_unavailable():
     """_pip_install falls back to python -m pip when uv is not in PATH."""
-    with patch("shutil.which", return_value=None):
-        with patch("subprocess.run") as mock_run:
-            _pip_install("somepackage==1.0")
-            cmd = mock_run.call_args[0][0]
-            assert cmd[0] == sys.executable
-            assert "pip" in cmd
+    with patch("shutil.which", return_value=None), patch("subprocess.run") as mock_run:
+        _pip_install("somepackage==1.0")
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == sys.executable
+        assert "pip" in cmd
 
 
 def test_local_hpc_conn_surfaces_pip_failure():

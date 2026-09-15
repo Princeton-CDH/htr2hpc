@@ -30,10 +30,31 @@ def directory_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
 
 
+def _error_all_reports(task_reports, message):
+    for report in task_reports:
+        report.error(message)
+
+
+def _cancel_all_reports(task_reports, message):
+    for report in task_reports:
+        report.cancel(message)
+
+
 def start_remote_training(
-    user, working_dir, train_cmd, document_pk, model_pk, task_report
+    user, working_dir, train_cmd, document_pk, model_pk, task_reports
 ):
     # common logic for segtrain and train to kick off remote training script
+    # task_reports is a list; the first report is the primary (used for detailed
+    # progress messages and the remote --task-report arg).
+    #
+    # eScriptorium v1.0 creates one TaskReport per page in part_pks.
+    # On the success path, eScriptorium's task_postrun handler automatically
+    # propagates end() to all reports by filtering on task_id. On the error
+    # and cancel paths the task function returns normally (no Celery exception),
+    # so task_postrun sees state==SUCCESS and would call end() instead of
+    # error()/cancel() — we must propagate those explicitly via _error_all_reports
+    # and _cancel_all_reports.
+    primary_task_report = task_reports[0]
 
     # assume we're using LDAP accounts only so usernames match here and on hpc
     username = user.username
@@ -46,7 +67,7 @@ def start_remote_training(
     )
 
     # add training command to task report
-    task_report.append(f"remote training command:\n  {train_cmd}\n")
+    primary_task_report.append(f"remote training command:\n  {train_cmd}\n")
 
     # note: may need to use tmux to keep from disconnecting
     try:
@@ -71,7 +92,7 @@ def start_remote_training(
             if not ensure_htr2hpc_version(conn):
                 error_message = "Could not install required htr2hpc version in conda env; aborting training."
                 user.notify(error_message, id="training-error", level="danger")
-                task_report.error(error_message)
+                _error_all_reports(task_reports, error_message)
                 send_event("document", document_pk, "training:error", {"id": model_pk})
                 return False
 
@@ -85,16 +106,16 @@ def start_remote_training(
                     f"remote training script completed; exit code: {result.exited}"
                 )
                 # refresh task report to get any messages added via api
-                task_report.refresh_from_db()
+                primary_task_report.refresh_from_db()
 
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
-                task_report.append(
+                primary_task_report.append(
                     f"\n\nremote script output:\n\n"
                     f"{result.stdout}\n\n{result.stderr}\n\n"
                 )
                 if "Slurm job was cancelled" in result.stdout:
-                    task_report.cancel("(slurm cancellation)")
+                    _cancel_all_reports(task_reports, "(slurm cancellation)")
                     # notify the user of the error
                     user.notify(
                         "Training was cancelled via slurm",
@@ -122,9 +143,8 @@ def start_remote_training(
         )
         # also store in the task report
         # but first refresh task report to get any messages added via api
-        task_report.refresh_from_db()
-        task_report.error(error_message)
-
+        primary_task_report.refresh_from_db()
+        _error_all_reports(task_reports, error_message)
 
         # send training error event
         send_event(
@@ -180,7 +200,10 @@ def segtrain(
     # use task creation time to determine if model was created just prior to training
     TaskGroup = apps.get_model("reporting", "TaskGroup")
     task_group = TaskGroup.objects.get(pk=task_group_pk)
-    task_report = task_group.taskreport_set.first()
+    # eScriptorium v1.0 creates one TaskReport per page in part_pks;
+    # fetch all so we can propagate final status to each one.
+    task_reports = list(task_group.taskreport_set.all())
+    primary_task_report = task_reports[0]
 
     # if the model is older than the task group, then we infer that
     # overwrite was requested on the form (update an existing model)
@@ -221,7 +244,7 @@ def segtrain(
     arg_options = [
         f"--document {document_pk}",  # document id is always required
         "--no-progress",  # disable progressbar
-        f"--task-report {task_report.pk}",  # task reporting
+        f"--task-report {primary_task_report.pk}",  # task reporting
         f"--anaconda-module {settings.HPC_ANACONDA_MODULE}",
     ]
 
@@ -248,7 +271,7 @@ def segtrain(
     logger.info(f"remote training command: {cmd}")
 
     success = start_remote_training(
-        user, working_dir, cmd, document_pk, model.pk, task_report
+        user, working_dir, cmd, document_pk, model.pk, task_reports
     )
 
     # refresh model data from the database,
@@ -354,7 +377,10 @@ def train(
     # use task creation time to determine if model record is new
     TaskGroup = apps.get_model("reporting", "TaskGroup")
     task_group = TaskGroup.objects.get(pk=task_group_pk)
-    task_report = task_group.taskreport_set.first()
+    # eScriptorium v1.0 creates one TaskReport per page in part_pks;
+    # fetch all so we can propagate final status to each one.
+    task_reports = list(task_group.taskreport_set.all())
+    primary_task_report = task_reports[0]
 
     # if the model is older than the task group, then we infer that
     # overwrite was requested on the form (update an existing model)
@@ -395,7 +421,7 @@ def train(
         # parse and serialize part ids with intspan
         f"--parts {intspan(part_pks)}",
         "--no-progress",  # disable progressbar
-        f"--task-report {task_report.pk}",  # task reporting
+        f"--task-report {primary_task_report.pk}",  # task reporting
         f"--anaconda-module {settings.HPC_ANACONDA_MODULE}",
     ]
 
@@ -419,7 +445,7 @@ def train(
     logger.info(f"remote training command: {cmd}")
 
     success = start_remote_training(
-        user, working_dir, cmd, document.pk, model.pk, task_report
+        user, working_dir, cmd, document.pk, model.pk, task_reports
     )
 
     # refresh model data from the database,

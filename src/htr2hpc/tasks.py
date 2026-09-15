@@ -45,9 +45,15 @@ def start_remote_training(
 ):
     # common logic for segtrain and train to kick off remote training script
     # task_reports is a list; the first report is the primary (used for detailed
-    # progress messages and the remote --task-report arg); error/cancel status
-    # is propagated to all reports so none are left empty after eScriptorium v1.0
-    # started creating one TaskReport per page instead of one per training job.
+    # progress messages and the remote --task-report arg).
+    #
+    # eScriptorium v1.0 creates one TaskReport per page in part_pks.
+    # On the success path, eScriptorium's task_postrun handler automatically
+    # propagates end() to all reports by filtering on task_id. On the error
+    # and cancel paths the task function returns normally (no Celery exception),
+    # so task_postrun sees state==SUCCESS and would call end() instead of
+    # error()/cancel() — we must propagate those explicitly via _error_all_reports
+    # and _cancel_all_reports.
     primary_task_report = task_reports[0]
 
     # assume we're using LDAP accounts only so usernames match here and on hpc

@@ -30,6 +30,16 @@ def directory_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
 
 
+def _error_all_reports(task_reports, message):
+    for report in task_reports:
+        report.error(message)
+
+
+def _cancel_all_reports(task_reports, message):
+    for report in task_reports:
+        report.cancel(message)
+
+
 def start_remote_training(
     user, working_dir, train_cmd, document_pk, model_pk, task_reports
 ):
@@ -76,8 +86,7 @@ def start_remote_training(
             if not ensure_htr2hpc_version(conn):
                 error_message = "Could not install required htr2hpc version in conda env; aborting training."
                 user.notify(error_message, id="training-error", level="danger")
-                for report in task_reports:
-                    report.error(error_message)
+                _error_all_reports(task_reports, error_message)
                 send_event("document", document_pk, "training:error", {"id": model_pk})
                 return False
 
@@ -100,8 +109,7 @@ def start_remote_training(
                     f"{result.stdout}\n\n{result.stderr}\n\n"
                 )
                 if "Slurm job was cancelled" in result.stdout:
-                    for report in task_reports:
-                        report.cancel("(slurm cancellation)")
+                    _cancel_all_reports(task_reports, "(slurm cancellation)")
                     # notify the user of the error
                     user.notify(
                         "Training was cancelled via slurm",
@@ -130,8 +138,7 @@ def start_remote_training(
         # also store in the task report
         # but first refresh task report to get any messages added via api
         task_report.refresh_from_db()
-        for report in task_reports:
-            report.error(error_message)
+        _error_all_reports(task_reports, error_message)
 
         # send training error event
         send_event(

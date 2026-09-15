@@ -11,8 +11,11 @@ def slurm_get_max_acc(slurm_output, training_mode):
         accuracies = [(int(i[0]), float(i[1])) for i in accuracies]
     else:
         stages = re.findall(r"stage (\d+)", slurm_output)
-        accs = re.findall(r"val_accuracy:[^\S\n]*\n?\s*(-?[\d.]+)", slurm_output)
-        accuracies = [(int(s), float(a)) for s, a in zip(stages, accs)]
+        accs = re.findall(
+            r"val_accuracy:[^\S\n]*\n?\s*(-?[\d.]+)",
+            slurm_output,
+        )
+        accuracies = [(int(s), float(a)) for s, a in zip(stages, accs, strict=False)]
 
     if accuracies:
         return max(accuracies, key=lambda x: x[1])

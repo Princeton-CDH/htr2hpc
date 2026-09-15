@@ -1,4 +1,5 @@
 """Tests for htr2hpc.train.calculate — pure functions, no Django needed."""
+
 import datetime
 import subprocess
 from pathlib import Path
@@ -16,7 +17,6 @@ from htr2hpc.train.calculate import (
     stats_get_max_cpu,
 )
 
-
 # ---------------------------------------------------------------------------
 # slurm_get_max_acc
 # ---------------------------------------------------------------------------
@@ -27,31 +27,28 @@ SEGMENT_OUTPUT = (
     "stage 2 foo bar\nval_mean_iu: \n  0.61\n"
 )
 
-# Fixture using real kraken 7.x non-TTY output format (same as SLURM .out files and CI):
-# val_accuracy value appears inline on the same line as the label.
+# Fixture using kraken 6.x non-TTY output format (produced when NO_COLOR=1 is set,
+# as in the SLURM job). val_accuracy: label with value on the next line.
 # Controlled values ensure epoch 1 has the highest accuracy.
 TRANSCRIPTION_OUTPUT = (
-    "stage 0/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 142.12it/s train_loss_step:   \n"
-    "                                                             1233.418           \n"
-    "                                                             val_accuracy: 0.823\n"
-    "                                                             val_word_accuracy: \n"
-    "                                                             0.100              \n"
-    "                                                             train_loss_epoch:  \n"
-    "                                                             962.770            \n"
-    "stage 1/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 129.28it/s train_loss_step:   \n"
-    "                                                             1236.340           \n"
-    "                                                             val_accuracy: 0.951\n"
-    "                                                             val_word_accuracy: \n"
-    "                                                             0.200              \n"
-    "                                                             train_loss_epoch:  \n"
-    "                                                             952.353            \n"
-    "stage 2/2 ━━━━━━━━━━━━━━━━━━ 4/4 0:01:00 • 0:00:00 144.33it/s train_loss_step:   \n"
-    "                                                             1217.335           \n"
-    "                                                             val_accuracy: 0.910\n"
-    "                                                             val_word_accuracy: \n"
-    "                                                             0.300              \n"
-    "                                                             train_loss_epoch:  \n"
-    "                                                             939.577            \n"
+    "stage 0/2 ━━━━━━━━━━━━ 274/274 0:00:19 •    14.01it/s train_loss_step:          \n"
+    "                               0:00:00                285.433      0/10 0.82300 \n"
+    "                                                      val_accuracy:             \n"
+    "                                                      0.823                     \n"
+    "                                                      val_word_accuracy:        \n"
+    "                                                      0.100                     \n"
+    "stage 1/2 ━━━━━━━━━━━━ 274/274 0:00:18 •    14.73it/s train_loss_step:          \n"
+    "                               0:00:00                266.089      1/10 0.95100 \n"
+    "                                                      val_accuracy:             \n"
+    "                                                      0.951                     \n"
+    "                                                      val_word_accuracy:        \n"
+    "                                                      0.200                     \n"
+    "stage 2/2 ━━━━━━━━━━━━ 274/274 0:00:18 •    14.73it/s train_loss_step:          \n"
+    "                               0:00:00                319.474      2/10 0.91000 \n"
+    "                                                      val_accuracy:             \n"
+    "                                                      0.910                     \n"
+    "                                                      val_word_accuracy:        \n"
+    "                                                      0.300                     \n"
 )
 
 
@@ -192,7 +189,9 @@ def test_calc_full_duration_no_epochs_short_job():
 
 def test_calc_full_duration_no_runtime():
     # No "Run Time:" in job_stats → (None, None)
-    epoch_request, duration = calc_full_duration(SLURM_WITH_EPOCHS, JOB_STATS_NO_RUNTIME)
+    epoch_request, duration = calc_full_duration(
+        SLURM_WITH_EPOCHS, JOB_STATS_NO_RUNTIME
+    )
     assert epoch_request is None
     assert duration is None
 
@@ -205,11 +204,11 @@ def test_calc_full_duration_no_runtime():
 @pytest.mark.parametrize(
     "stats, expected",
     [
-        ("(1000MB/2000MB per core)", "2G"),   # 1.0 GB → ceil(1.0 + 0.3) = 2
-        ("(1500MB/2000MB per core)", "2G"),   # 1.5 GB → ceil(1.5 + 0.3) = 2
-        ("(1800MB/2000MB per core)", "3G"),   # 1.8 GB → ceil(1.8 + 0.3) = 3
-        ("(2.5GB/4.0GB per core)", "3G"),     # 2.5 GB → ceil(2.5 + 0.3) = 3
-        ("(3.8GB/8.0GB per core)", "5G"),     # 3.8 GB → ceil(3.8 + 0.3) = 5
+        ("(1000MB/2000MB per core)", "2G"),  # 1.0 GB → ceil(1.0 + 0.3) = 2
+        ("(1500MB/2000MB per core)", "2G"),  # 1.5 GB → ceil(1.5 + 0.3) = 2
+        ("(1800MB/2000MB per core)", "3G"),  # 1.8 GB → ceil(1.8 + 0.3) = 3
+        ("(2.5GB/4.0GB per core)", "3G"),  # 2.5 GB → ceil(2.5 + 0.3) = 3
+        ("(3.8GB/8.0GB per core)", "5G"),  # 3.8 GB → ceil(3.8 + 0.3) = 5
     ],
 )
 def test_calc_cpu_mem(stats, expected):
@@ -281,20 +280,33 @@ def test_slurm_get_max_acc_recognize_real_output(tmp_path):
     result = subprocess.run(
         [
             "ketos",
-            "-d", "cpu",
-            "--threads", "1",
-            "--workers", "0",
+            "-d",
+            "cpu",
+            "--threads",
+            "1",
+            "--workers",
+            "0",
             "train",
-            "-o", str(tmp_path / "model"),
-            "-f", "xml",
-            "--spec", "[1,12,0,1 Cr3,3,8 S1(1x0)1,3]",
-            "--quit", "fixed",
-            "-N", "3",
-            "--min-epochs", "3",
-            "-F", "1",
-            "-B", "1",
-            "-t", str(manifest),
-            "-e", str(manifest),
+            "-o",
+            str(tmp_path / "model"),
+            "-f",
+            "xml",
+            "--spec",
+            "[1,12,0,1 Cr3,3,8 S1(1x0)1,3]",
+            "--quit",
+            "fixed",
+            "-N",
+            "3",
+            "--min-epochs",
+            "3",
+            "-F",
+            "1",
+            "-B",
+            "1",
+            "-t",
+            str(manifest),
+            "-e",
+            str(manifest),
         ],
         capture_output=True,
         text=True,

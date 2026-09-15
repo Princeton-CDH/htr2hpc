@@ -2,7 +2,6 @@ import datetime
 import logging
 import pathlib
 import subprocess
-from typing import Optional
 
 from simple_slurm import Slurm
 
@@ -17,7 +16,7 @@ def segtrain(
     num_workers: int = 8,
     mem_per_cpu: str = "4G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),
-    epochs: Optional[int] = None,
+    epochs: int | None = None,
     # optional param to specify name based on document? include date?
 ) -> int:
     """Run ketos segmentation training as a slurm job.
@@ -50,6 +49,13 @@ def segtrain(
     segtrain_slurm.add_cmd("module purge")
     segtrain_slurm.add_cmd(f"module load {anaconda_module}")
     segtrain_slurm.add_cmd("conda activate htr2hpc")
+    # Set a wide virtual terminal width so rich does not truncate metric column
+    # labels in the .out file (e.g. "val_accuracy:" instead of "val_accurac…").
+    # In a SLURM job, isatty() may return True (pseudo-TTY), causing rich to use
+    # the actual terminal width which is often too narrow for all metric columns.
+    # rich reads COLUMNS from the environment directly (rich/console.py), so
+    # setting it here guarantees enough space regardless of terminal conditions.
+    segtrain_slurm.add_cmd("export COLUMNS=200")
     logger.info(f"sbatch file\n: {segtrain_slurm}")
     # sbatch returns the job id for the created job
     segtrain_cmd = (
@@ -66,12 +72,12 @@ def segtrain(
 def recognition_train(
     input_data_dir: pathlib.Path,
     output_model: pathlib.Path,
-    input_model: Optional[pathlib.Path] = None,
+    input_model: pathlib.Path | None = None,
     anaconda_module: str = "",
     num_workers: int = 8,
     mem_per_cpu: str = "2G",
     training_time: datetime.timedelta = datetime.timedelta(minutes=15),
-    epochs: Optional[int] = None,
+    epochs: int | None = None,
     # optional param to specify name based on document? include date?
 ) -> int:
     """Run ketos recognition training as a slurm job.
@@ -97,6 +103,13 @@ def recognition_train(
     recogtrain_slurm.add_cmd("module purge")
     recogtrain_slurm.add_cmd(f"module load {anaconda_module}")
     recogtrain_slurm.add_cmd("conda activate htr2hpc")
+    # Set a wide virtual terminal width so rich does not truncate metric column
+    # labels in the .out file (e.g. "val_accuracy:" instead of "val_accurac…").
+    # In a SLURM job, isatty() may return True (pseudo-TTY), causing rich to use
+    # the actual terminal width which is often too narrow for all metric columns.
+    # rich reads COLUMNS from the environment directly (rich/console.py), so
+    # setting it here guarantees enough space regardless of terminal conditions.
+    recogtrain_slurm.add_cmd("export COLUMNS=200")
     logger.info(f"sbatch file\n: {recogtrain_slurm}")
     # sbatch returns the job id for the created job
 

@@ -6,14 +6,10 @@ import re
 def slurm_get_max_acc(slurm_output, training_mode):
     """Return a tuple of (epoch #, accuracy) for the epoch with highest accuracy"""
     if training_mode == "Segment":
-        # kraken 6.x output format varies: val_mean_iu may appear inline on the
-        # stage line (when metrics fit within COLUMNS width) or on a separate line.
-        # Try inline format first, fall back to next-line format.
+        # In kraken 6.x, val_mean_iu appears inline on the stage line because
+        # segmentation metrics are short enough to fit within COLUMNS=200.
         re_acc = r"stage ([\d]+)[^\n]+val_mean_iu:[^\S\n]*([\d.]+)"
         accuracies = re.findall(re_acc, slurm_output)
-        if not accuracies:
-            re_acc = r"stage ([\d]+).+\n[^i]*val_mean_iu:\s+\n\s+([\d.]+)"
-            accuracies = re.findall(re_acc, slurm_output)
         accuracies = [(int(i[0]), float(i[1])) for i in accuracies]
     else:
         stages = re.findall(r"stage (\d+)", slurm_output)

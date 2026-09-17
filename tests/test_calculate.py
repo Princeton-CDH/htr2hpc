@@ -21,10 +21,23 @@ from htr2hpc.train.calculate import (
 # slurm_get_max_acc
 # ---------------------------------------------------------------------------
 
+# Fixture using real kraken 6.x SLURM .out format for segmentation training
+# (captured from Adroit job 3370036, segtrain_doc293_2026-09-17).
+# val_mean_iu appears inline on the stage line (all metrics fit within COLUMNS=200).
+# Stage 0 has the highest val_mean_iu (0.274).
 SEGMENT_OUTPUT = (
-    "stage 0 foo bar\nval_mean_iu: \n  0.45\n"
-    "stage 1 foo bar\nval_mean_iu: \n  0.72\n"
-    "stage 2 foo bar\nval_mean_iu: \n  0.61\n"
+    "stage 0/∞ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9/9 0:00:07 • 0:00:00 2.26it/s"
+    " train_loss_step: 0.365 val_accuracy: 0.841 val_mean_acc: 0.841 val_mean_iu: 0.274"
+    "         early_stopping: 0/10 0.27399\n"
+    "                                                                                  val_freq_iu: 0.810 train_loss_epoch: 0.407\n"
+    "stage 1/∞ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9/9 0:00:08 • 0:00:00 2.02it/s"
+    " train_loss_step: 0.289 val_accuracy: 0.885 val_mean_acc: 0.885 val_mean_iu: 0.259"
+    "         early_stopping: 1/10 0.27399\n"
+    "                                                                                  val_freq_iu: 0.785 train_loss_epoch: 0.320\n"
+    "stage 2/∞ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9/9 0:00:08 • 0:00:00 2.08it/s"
+    " train_loss_step: 0.261 val_accuracy: 0.918 val_mean_acc: 0.918 val_mean_iu: 0.245"
+    "         early_stopping: 2/10 0.27399\n"
+    "                                                                                  val_freq_iu: 0.789 train_loss_epoch: 0.266\n"
 )
 
 # Fixture using kraken 6.x non-TTY output format (produced when NO_COLOR=1 is set,
@@ -54,7 +67,7 @@ TRANSCRIPTION_OUTPUT = (
 
 def test_slurm_get_max_acc_segment():
     result = slurm_get_max_acc(SEGMENT_OUTPUT, "Segment")
-    assert result == (1, 0.72)
+    assert result == (0, 0.274)
 
 
 def test_slurm_get_max_acc_transcription():

@@ -115,12 +115,19 @@ def start_remote_training(
                     f"{result.stdout}\n\n{result.stderr}\n\n"
                 )
                 if "Slurm job was cancelled" in result.stdout:
-                    _cancel_all_reports(task_reports, "(slurm cancellation)")
+                    # TaskReport.cancel() takes a username (unlike error() which takes a message).
+                    # Note: SLURM cancellations can be user-initiated or caused by a timeout.
+                    _cancel_all_reports(task_reports, username)
                     # notify the user of the error
                     user.notify(
                         "Training was cancelled via slurm",
                         id="training-warning",
                         level="warning",
+                    )
+                elif result.exited != 0:
+                    _error_all_reports(
+                        task_reports,
+                        f"Remote training failed (exit code {result.exited}).",
                     )
 
                 # normal exit code is zero;

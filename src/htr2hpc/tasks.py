@@ -122,6 +122,11 @@ def start_remote_training(
                         id="training-warning",
                         level="warning",
                     )
+                elif result.exited != 0:
+                    _error_all_reports(
+                        task_reports,
+                        f"Remote training failed (exit code {result.exited}).",
+                    )
 
                 # normal exit code is zero;
                 # if non-zero then training didn't succeed in some way

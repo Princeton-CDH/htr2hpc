@@ -110,6 +110,44 @@ class TestStartRemoteTraining:
         for report in task_reports:
             report.error.assert_called_once()
 
+    @patch("htr2hpc.tasks.send_event")
+    @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
+    @patch("htr2hpc.tasks.Connection")
+    def test_nonzero_exit_errors_all_reports(
+        self, mock_connection, mock_ensure, mock_send_event
+    ):
+        """When remote script exits nonzero (not a cancellation), all reports should be errored."""
+        conn = mock_connection.return_value.__enter__.return_value
+        conn.run.return_value = MagicMock(
+            stdout="some error output", stderr="", exited=1
+        )
+        user, task_reports = self._make_mocks(num_reports=3)
+        result = start_remote_training(
+            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+        )
+        assert result is False
+        for report in task_reports:
+            report.error.assert_called_once()
+
+    @patch("htr2hpc.tasks.send_event")
+    @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
+    @patch("htr2hpc.tasks.Connection")
+    def test_success_does_not_error_reports(
+        self, mock_connection, mock_ensure, mock_send_event
+    ):
+        """When remote script exits 0, no reports should be marked as error."""
+        conn = mock_connection.return_value.__enter__.return_value
+        conn.run.return_value = MagicMock(
+            stdout="training complete", stderr="", exited=0
+        )
+        user, task_reports = self._make_mocks(num_reports=3)
+        result = start_remote_training(
+            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+        )
+        assert result is True
+        for report in task_reports:
+            report.error.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # integration: verify ensure_htr2hpc_version actually upgrades outdated deps

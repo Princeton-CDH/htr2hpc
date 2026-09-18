@@ -50,7 +50,7 @@ class TestEnsureHtr2hpcVersion:
         ensure_htr2hpc_version(conn)
         cmd = conn.run.call_args[0][0]
         assert f"@{__version__}" in cmd
-        assert "--upgrade" in cmd
+        assert "--force-reinstall" in cmd
 
     @override_settings(HTR2HPC_GITREF="abc123sha")
     def test_install_command_uses_gitref_when_set(self):

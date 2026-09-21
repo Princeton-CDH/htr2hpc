@@ -44,7 +44,10 @@ def _cancel_all_reports(task_reports, message):
         report.workflow_state = report.WORKFLOW_STATE_CANCELED
         report.done_at = timezone.now()
         report.append(f"Canceled by {message}")
-        report.save()
+    TaskReport = apps.get_model("reporting", "TaskReport")
+    TaskReport.objects.bulk_update(
+        task_reports, ["workflow_state", "done_at", "messages"]
+    )
 
 
 def start_remote_training(

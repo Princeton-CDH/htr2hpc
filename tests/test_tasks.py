@@ -110,11 +110,12 @@ class TestStartRemoteTraining:
         for report in task_reports:
             report.error.assert_called_once()
 
+    @patch("htr2hpc.tasks.apps")
     @patch("htr2hpc.tasks.send_event")
     @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
     @patch("htr2hpc.tasks.Connection")
     def test_slurm_cancellation_cancels_all_reports(
-        self, mock_connection, mock_ensure, mock_send_event
+        self, mock_connection, mock_ensure, mock_send_event, mock_apps
     ):
         """When SLURM cancels the job, all task reports should be CANCELED.
         report.cancel() must NOT be called — it calls app.control.revoke(terminate=True)
@@ -132,7 +133,7 @@ class TestStartRemoteTraining:
             report.cancel.assert_not_called()
             report.append.assert_any_call("Canceled by testuser")
             assert report.done_at is not None
-            report.save.assert_called_once()
+            report.save.assert_not_called()  # bulk_update is used instead
 
     @patch("htr2hpc.tasks.send_event")
     @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)

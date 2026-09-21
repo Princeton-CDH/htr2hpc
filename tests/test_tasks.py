@@ -110,6 +110,35 @@ class TestStartRemoteTraining:
         for report in task_reports:
             report.error.assert_called_once()
 
+    @patch("htr2hpc.tasks.apps")
+    @patch("htr2hpc.tasks.send_event")
+    @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
+    @patch("htr2hpc.tasks.Connection")
+    def test_slurm_cancellation_cancels_all_reports(
+        self, mock_connection, mock_ensure, mock_send_event, mock_apps
+    ):
+        """When SLURM cancels the job, all task reports should be CANCELED.
+        report.cancel() must NOT be called — it calls app.control.revoke(terminate=True)
+        which would kill this running Celery task mid-loop before secondary reports are saved."""
+        conn = mock_connection.return_value.__enter__.return_value
+        conn.run.return_value = MagicMock(
+            stdout="Slurm job was cancelled", stderr="", exited=1
+        )
+        user, task_reports = self._make_mocks(num_reports=3)
+        result = start_remote_training(
+            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+        )
+        assert result is False
+        for report in task_reports:
+            report.cancel.assert_not_called()
+            report.append.assert_any_call("Canceled by testuser")
+            assert report.done_at is not None
+            report.save.assert_not_called()  # bulk_update is used instead
+        mock_apps.get_model.assert_called_once_with("reporting", "TaskReport")
+        mock_apps.get_model.return_value.objects.bulk_update.assert_called_once_with(
+            task_reports, ["workflow_state", "done_at", "messages"]
+        )
+
     @patch("htr2hpc.tasks.send_event")
     @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
     @patch("htr2hpc.tasks.Connection")

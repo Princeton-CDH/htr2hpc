@@ -8,6 +8,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from fabric import Connection
 from intspan import intspan
@@ -36,8 +37,20 @@ def _error_all_reports(task_reports, message):
 
 
 def _cancel_all_reports(task_reports, message):
+    # Do not call eScriptorium's report.cancel(), which calls app.control.revoke(terminate=True)
+    # and would terminate this running Celery task mid-loop, leaving secondary reports in
+    # non-final state and subsequently marked ERROR by task_postrun.
     for report in task_reports:
-        report.cancel(message)
+        report.workflow_state = report.WORKFLOW_STATE_CANCELED
+        report.done_at = timezone.now()
+        report.append(f"Canceled by {message}")
+    # TaskReport is an eScriptorium model and cannot be imported directly,
+    # because eScriptorium is installed as a Django application alongside htr2hpc,
+    # not as a package it depends on, so resolve via app registry instead
+    TaskReport = apps.get_model("reporting", "TaskReport")
+    TaskReport.objects.bulk_update(
+        task_reports, ["workflow_state", "done_at", "messages"]
+    )
 
 
 def start_remote_training(

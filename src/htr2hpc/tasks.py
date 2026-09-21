@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 # imports from escriptorium
 from apps.users.consumers import send_event
@@ -36,8 +36,14 @@ def _error_all_reports(task_reports, message):
 
 
 def _cancel_all_reports(task_reports, message):
+    # Do not call report.cancel() — it calls app.control.revoke(terminate=True)
+    # which can terminate this running Celery task mid-loop, leaving secondary
+    # reports in non-final state and subsequently marked ERROR by task_postrun.
     for report in task_reports:
-        report.cancel(message)
+        report.workflow_state = report.WORKFLOW_STATE_CANCELED
+        report.done_at = datetime.now(UTC)
+        report.append(f"Canceled by {message}")
+        report.save()
 
 
 def start_remote_training(

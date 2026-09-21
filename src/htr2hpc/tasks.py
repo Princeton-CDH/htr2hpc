@@ -37,9 +37,9 @@ def _error_all_reports(task_reports, message):
 
 
 def _cancel_all_reports(task_reports, message):
-    # Do not call report.cancel() — it calls app.control.revoke(terminate=True)
-    # which can terminate this running Celery task mid-loop, leaving secondary
-    # reports in non-final state and subsequently marked ERROR by task_postrun.
+    # Do not call eScriptorium's report.cancel(), which calls app.control.revoke(terminate=True)
+    # and would terminate this running Celery task mid-loop, leaving secondary reports in
+    # non-final state and subsequently marked ERROR by task_postrun.
     for report in task_reports:
         report.workflow_state = report.WORKFLOW_STATE_CANCELED
         report.done_at = timezone.now()

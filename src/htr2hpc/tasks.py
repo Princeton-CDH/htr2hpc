@@ -44,8 +44,9 @@ def _cancel_all_reports(task_reports, message):
         report.workflow_state = report.WORKFLOW_STATE_CANCELED
         report.done_at = timezone.now()
         report.append(f"Canceled by {message}")
-    # TaskReport is an eScriptorium model and cannot be imported directly
-    # so resolve via app registry
+    # TaskReport is an eScriptorium model and cannot be imported directly,
+    # because eScriptorium is installed as a Django application alongside htr2hpc,
+    # not as a package it depends on, so resolve via app registry instead
     TaskReport = apps.get_model("reporting", "TaskReport")
     TaskReport.objects.bulk_update(
         task_reports, ["workflow_state", "done_at", "messages"]

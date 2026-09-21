@@ -134,6 +134,10 @@ class TestStartRemoteTraining:
             report.append.assert_any_call("Canceled by testuser")
             assert report.done_at is not None
             report.save.assert_not_called()  # bulk_update is used instead
+        mock_apps.get_model.assert_called_once_with("reporting", "TaskReport")
+        mock_apps.get_model.return_value.objects.bulk_update.assert_called_once_with(
+            task_reports, ["workflow_state", "done_at", "messages"]
+        )
 
     @patch("htr2hpc.tasks.send_event")
     @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)

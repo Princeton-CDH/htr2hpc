@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 
 # imports from escriptorium
 from apps.users.consumers import send_event
@@ -8,6 +8,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from fabric import Connection
 from intspan import intspan
@@ -41,7 +42,7 @@ def _cancel_all_reports(task_reports, message):
     # reports in non-final state and subsequently marked ERROR by task_postrun.
     for report in task_reports:
         report.workflow_state = report.WORKFLOW_STATE_CANCELED
-        report.done_at = datetime.now(UTC)
+        report.done_at = timezone.now()
         report.append(f"Canceled by {message}")
         report.save()
 

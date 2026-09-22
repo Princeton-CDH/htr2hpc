@@ -5,7 +5,7 @@ import pathlib
 from collections import namedtuple
 from dataclasses import dataclass
 from time import sleep
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 import coremltools
 import humanize
@@ -95,9 +95,9 @@ class Task:
 
 @dataclass
 class Workflow:
-    convert: Optional[str] = None
-    segment: Optional[str] = None
-    transcribe: Optional[str] = None
+    convert: str | None = None
+    segment: str | None = None
+    transcribe: str | None = None
     # workflow status is only present when a workflow has not run,
     # so define a dataclass and make them optional
     # to handle missing values
@@ -132,7 +132,7 @@ class OCRModel:
     #: whether model is sharable
     can_share: bool
     #: parent model if this model is finetuned from another model; not always supplied
-    parent: Optional[str] = None
+    parent: str | None = None
 
 
 # keep a registry of result classes for API result objects,
@@ -196,9 +196,9 @@ class eScriptoriumAPIClient:
     def _make_request(
         self,
         url: str,
-        params: Optional[dict] = None,
-        data: Optional[dict] = None,
-        files: Optional[dict] = None,
+        params: dict | None = None,
+        data: dict | None = None,
+        files: dict | None = None,
         method: str = "GET",
         expected_status: int = requests.codes.ok,
     ):
@@ -283,8 +283,8 @@ class eScriptoriumAPIClient:
         self,
         model_id: int,
         model_file: pathlib.Path,
-        job: Optional[str] = None,
-        model_name: Optional[str] = None,
+        job: str | None = None,
+        model_name: str | None = None,
     ):
         """Update an existing model record with a new model file."""
         api_url = f"models/{model_id}/"
@@ -324,7 +324,7 @@ class eScriptoriumAPIClient:
         self,
         model_file: pathlib.Path,
         job: str,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
     ):
         """Add a new model to eScriptorium. Takes a model file, name, and job
         (Segment or Recognize)."""
@@ -417,7 +417,7 @@ class eScriptoriumAPIClient:
             return None
 
     def document_part_transcription_list(
-        self, document_id: int, part_id: int, transcription_id: Optional[int] = None
+        self, document_id: int, part_id: int, transcription_id: int | None = None
     ):
         """list of transcription lines for one part of a document"""
         api_url = f"documents/{document_id}/parts/{part_id}/transcriptions/"
@@ -551,7 +551,7 @@ class eScriptoriumAPIClient:
 
     def download_file(
         self, url: str, save_location: pathlib.Path, filename=None
-    ) -> Optional[pathlib.Path]:
+    ) -> pathlib.Path | None:
         """Convenience method to download a file to a specified location.
         Returns"""
 
@@ -598,7 +598,7 @@ class eScriptoriumAPIClient:
         return to_namedtuple("task", resp.json())
 
     def task_update(
-        self, task_id: int, label: str, user_id: int, messages: Optional[str] = None
+        self, task_id: int, label: str, user_id: int, messages: str | None = None
     ):
         """Update an existing task report."""
         api_url = f"tasks/{task_id}/"

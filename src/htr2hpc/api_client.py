@@ -125,12 +125,13 @@ class OCRModel:
     documents: list[int]
     #: model accuracy
     accuracy_percent: float
-    #: training accuracy - local override to allow write access
-    training_accuracy: float
     #: model permissions
     rights: str
     #: whether model is sharable
     can_share: bool
+    #: training accuracy - local override to allow write access;
+    #: not returned by the API, so optional
+    training_accuracy: float | None = None
     #: parent model if this model is finetuned from another model; not always supplied
     parent: str | None = None
 

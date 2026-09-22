@@ -71,26 +71,42 @@ def test_to_namedtuple_nested_list_converted_recursively():
     assert result.tags[1].name == "b"
 
 
+# Payload as returned by the eScriptorium models API — note there is no
+# training_accuracy field; that is a local override used only for writes.
+MODEL_DATA = {
+    "pk": 1,
+    "name": "test",
+    "file": "/models/test.mlmodel",
+    "file_size": 1000,
+    "job": "Recognize",
+    "owner": "alice",
+    "training": False,
+    "versions": [],
+    "documents": [],
+    "accuracy_percent": 0.95,
+    "rights": "private",
+    "can_share": True,
+}
+
+
 def test_to_namedtuple_reuses_registered_class():
     # OCRModel is pre-registered; to_namedtuple("model", ...) should use it
-    data = {
-        "pk": 1,
-        "name": "test",
-        "file": "/models/test.mlmodel",
-        "file_size": 1000,
-        "job": "Recognize",
-        "owner": "alice",
-        "training": False,
-        "versions": [],
-        "documents": [],
-        "accuracy_percent": 0.95,
-        "training_accuracy": 0.95,
-        "rights": "private",
-        "can_share": True,
-    }
-    result = to_namedtuple("model", data)
+    result = to_namedtuple("model", MODEL_DATA)
     assert isinstance(result, OCRModel)
     assert result.name == "test"
+
+
+def test_to_namedtuple_model_without_training_accuracy():
+    # api does not return training_accuracy, so it must be optional
+    result = to_namedtuple("model", MODEL_DATA)
+    assert isinstance(result, OCRModel)
+    assert result.training_accuracy is None
+
+
+def test_to_namedtuple_model_with_training_accuracy():
+    # when supplied for a write, the value is preserved
+    result = to_namedtuple("model", dict(MODEL_DATA, training_accuracy=0.95))
+    assert result.training_accuracy == 0.95
 
 
 def test_to_namedtuple_caches_new_class():

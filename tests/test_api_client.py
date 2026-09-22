@@ -1,6 +1,6 @@
 """Tests for htr2hpc.api_client — API client utilities and data structures."""
+
 import datetime
-from collections import namedtuple
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,7 +8,6 @@ import pytest
 from htr2hpc.api_client import (
     RESULTCLASS_REGISTRY,
     OCRModel,
-    ResultsList,
     Task,
     eScriptoriumAPIClient,
     to_namedtuple,
@@ -258,37 +257,43 @@ def test_export_file_url_ends_with_zip(api_client_instance):
 def test_make_request_raises_not_found(api_client_instance):
     from htr2hpc.api_client import NotFound
 
-    with patch.object(
-        api_client_instance.session,
-        "get",
-        return_value=MagicMock(status_code=404),
+    with (
+        patch.object(
+            api_client_instance.session,
+            "get",
+            return_value=MagicMock(status_code=404),
+        ),
+        pytest.raises(NotFound),
     ):
-        with pytest.raises(NotFound):
-            api_client_instance._make_request("documents/999/")
+        api_client_instance._make_request("documents/999/")
 
 
 def test_make_request_raises_not_allowed_on_401(api_client_instance):
     from htr2hpc.api_client import NotAllowed
 
-    with patch.object(
-        api_client_instance.session,
-        "get",
-        return_value=MagicMock(status_code=401),
+    with (
+        patch.object(
+            api_client_instance.session,
+            "get",
+            return_value=MagicMock(status_code=401),
+        ),
+        pytest.raises(NotAllowed),
     ):
-        with pytest.raises(NotAllowed):
-            api_client_instance._make_request("documents/1/")
+        api_client_instance._make_request("documents/1/")
 
 
 def test_make_request_raises_not_allowed_on_403(api_client_instance):
     from htr2hpc.api_client import NotAllowed
 
-    with patch.object(
-        api_client_instance.session,
-        "get",
-        return_value=MagicMock(status_code=403),
+    with (
+        patch.object(
+            api_client_instance.session,
+            "get",
+            return_value=MagicMock(status_code=403),
+        ),
+        pytest.raises(NotAllowed),
     ):
-        with pytest.raises(NotAllowed):
-            api_client_instance._make_request("documents/1/")
+        api_client_instance._make_request("documents/1/")
 
 
 def test_make_request_raises_on_unsupported_method(api_client_instance):

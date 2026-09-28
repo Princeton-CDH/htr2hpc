@@ -6,6 +6,7 @@ those pull in PostgreSQL, Redis, Celery broker, and the full eScriptorium
 stack. This file defines only what is needed to load the htr2hpc app and
 run tests against it.
 """
+
 import os
 from pathlib import Path
 
@@ -69,6 +70,7 @@ HPC_HOSTNAME = "della.princeton.edu"
 HPC_SSH_KEYFILE = "/tmp/test_ssh_key"
 HTR2HPC_INSTALL_DIR = Path(__file__).parent
 HPC_ANACONDA_MODULE = "anaconda3/2025.6"
+EXPORT_FILE_RETENTION = 168
 
 # pucas LDAP config — minimal; LDAP calls are mocked in tests
 PUCAS_LDAP = {

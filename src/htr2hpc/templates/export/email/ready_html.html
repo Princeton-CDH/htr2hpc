@@ -1,0 +1,2 @@
+{% load static htr2hpc_tags %}<p>You can find it <a href="http://{{domain}}{% get_media_prefix %}{{ export_uri }}">here {{export_uri}}</a></p>
+{% export_retention_display as retention %}{% if retention %}<p>This download will only be available for {{ retention }}.</p>{% endif %}

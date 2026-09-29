@@ -1,6 +1,6 @@
 """Tests for htr2hpc.api_client — API client utilities and data structures."""
+
 import datetime
-from collections import namedtuple
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -258,37 +258,43 @@ def test_export_file_url_ends_with_zip(api_client_instance):
 def test_make_request_raises_not_found(api_client_instance):
     from htr2hpc.api_client import NotFound
 
-    with patch.object(
-        api_client_instance.session,
-        "get",
-        return_value=MagicMock(status_code=404),
+    with (
+        patch.object(
+            api_client_instance.session,
+            "get",
+            return_value=MagicMock(status_code=404),
+        ),
+        pytest.raises(NotFound),
     ):
-        with pytest.raises(NotFound):
-            api_client_instance._make_request("documents/999/")
+        api_client_instance._make_request("documents/999/")
 
 
 def test_make_request_raises_not_allowed_on_401(api_client_instance):
     from htr2hpc.api_client import NotAllowed
 
-    with patch.object(
-        api_client_instance.session,
-        "get",
-        return_value=MagicMock(status_code=401),
+    with (
+        patch.object(
+            api_client_instance.session,
+            "get",
+            return_value=MagicMock(status_code=401),
+        ),
+        pytest.raises(NotAllowed),
     ):
-        with pytest.raises(NotAllowed):
-            api_client_instance._make_request("documents/1/")
+        api_client_instance._make_request("documents/1/")
 
 
 def test_make_request_raises_not_allowed_on_403(api_client_instance):
     from htr2hpc.api_client import NotAllowed
 
-    with patch.object(
-        api_client_instance.session,
-        "get",
-        return_value=MagicMock(status_code=403),
+    with (
+        patch.object(
+            api_client_instance.session,
+            "get",
+            return_value=MagicMock(status_code=403),
+        ),
+        pytest.raises(NotAllowed),
     ):
-        with pytest.raises(NotAllowed):
-            api_client_instance._make_request("documents/1/")
+        api_client_instance._make_request("documents/1/")
 
 
 def test_make_request_raises_on_unsupported_method(api_client_instance):
@@ -328,3 +334,306 @@ def test_model_create_raises_on_invalid_job(api_client_instance, tmp_path):
     fake_model.write_bytes(b"fake")
     with pytest.raises(ValueError, match="not a valid model job name"):
         api_client_instance.model_create(fake_model, job="Train")
+
+
+# ---------------------------------------------------------------------------
+# eScriptoriumAPIClient._make_request — success + method routing
+# ---------------------------------------------------------------------------
+
+
+def test_make_request_returns_response_on_200(api_client_instance):
+    mock_resp = MagicMock(status_code=200)
+    with patch.object(api_client_instance.session, "get", return_value=mock_resp):
+        result = api_client_instance._make_request("documents/1/")
+    assert result is mock_resp
+
+
+def test_make_request_post_routes_to_session_post(api_client_instance):
+    mock_resp = MagicMock(status_code=200)
+    with patch.object(
+        api_client_instance.session, "post", return_value=mock_resp
+    ) as mock_post:
+        api_client_instance._make_request("documents/", method="POST", data={"k": "v"})
+    mock_post.assert_called_once()
+
+
+def test_make_request_put_routes_to_session_put(api_client_instance):
+    mock_resp = MagicMock(status_code=200)
+    with patch.object(
+        api_client_instance.session, "put", return_value=mock_resp
+    ) as mock_put:
+        api_client_instance._make_request("documents/1/", method="PUT", data={"k": "v"})
+    mock_put.assert_called_once()
+
+
+def test_make_request_delete_routes_to_session_delete(api_client_instance):
+    mock_resp = MagicMock(status_code=204)
+    with patch.object(
+        api_client_instance.session, "delete", return_value=mock_resp
+    ) as mock_del:
+        api_client_instance._make_request(
+            "documents/1/", method="DELETE", expected_status=204
+        )
+    mock_del.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# get_model_accuracy
+# ---------------------------------------------------------------------------
+
+
+def test_get_model_accuracy_extracts_last_value(tmp_path):
+    import json
+
+    from htr2hpc.api_client import get_model_accuracy
+
+    fake_model = tmp_path / "model.mlmodel"
+    fake_model.write_bytes(b"fake")
+
+    mock_spec = MagicMock()
+    mock_spec.description.metadata.userDefined = {
+        "kraken_meta": json.dumps({"accuracy": [[0, 0.80], [1, 0.90], [2, 0.95]]})
+    }
+    mock_ml_model = MagicMock()
+    mock_ml_model.get_spec.return_value = mock_spec
+
+    with patch(
+        "htr2hpc.api_client.coremltools.models.MLModel", return_value=mock_ml_model
+    ):
+        result = get_model_accuracy(fake_model)
+    assert result == 0.95
+
+
+# ---------------------------------------------------------------------------
+# ResultsList.next_page
+# ---------------------------------------------------------------------------
+
+
+def test_results_list_next_page_returns_new_results_list(api_client_instance):
+
+    next_url = "https://escriptorium.example.com/api/models/?page=2"
+    page1 = ResultsList(
+        api=api_client_instance,
+        result_type="model",
+        count=2,
+        next=next_url,
+        previous=None,
+        results=[],
+    )
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 2,
+        "next": None,
+        "previous": next_url,
+        "results": [],
+    }
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        page2 = page1.next_page()
+    assert isinstance(page2, ResultsList)
+    assert page2.next is None
+
+
+# ---------------------------------------------------------------------------
+# get_current_user
+# ---------------------------------------------------------------------------
+
+
+def test_get_current_user_returns_namedtuple(api_client_instance):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"pk": 1, "username": "alice"}
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        user = api_client_instance.get_current_user()
+    assert user.pk == 1
+    assert user.username == "alice"
+
+
+# ---------------------------------------------------------------------------
+# model_list / model_details / model_delete
+# ---------------------------------------------------------------------------
+
+
+def test_model_list_no_page_returns_results_list(api_client_instance):
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
+    with patch.object(
+        api_client_instance, "_make_request", return_value=mock_resp
+    ) as mock_req:
+        result = api_client_instance.model_list()
+    assert isinstance(result, ResultsList)
+    # no page param passed
+    mock_req.assert_called_once_with("models/", params=None)
+
+
+def test_model_list_with_page_passes_param(api_client_instance):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
+    with patch.object(
+        api_client_instance, "_make_request", return_value=mock_resp
+    ) as mock_req:
+        api_client_instance.model_list(page=2)
+    mock_req.assert_called_once_with("models/", params={"page": 2})
+
+
+def test_model_details_returns_namedtuple(api_client_instance):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "pk": 7,
+        "name": "latin",
+        "file": "/models/latin.mlmodel",
+        "file_size": 500,
+        "job": "Recognize",
+        "owner": "alice",
+        "training": False,
+        "versions": [],
+        "documents": [],
+        "accuracy_percent": 0.92,
+        "training_accuracy": 0.92,
+        "rights": "private",
+        "can_share": False,
+    }
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        model = api_client_instance.model_details(7)
+    assert model.pk == 7
+    assert model.name == "latin"
+
+
+def test_model_delete_uses_delete_method(api_client_instance):
+    with patch.object(api_client_instance, "_make_request") as mock_req:
+        api_client_instance.model_delete(7)
+    mock_req.assert_called_once_with("models/7/", method="DELETE", expected_status=204)
+
+
+# ---------------------------------------------------------------------------
+# model_update / model_create
+# ---------------------------------------------------------------------------
+
+
+def test_model_update_uses_existing_job_and_name_when_not_provided(
+    api_client_instance, tmp_path
+):
+    fake_file = tmp_path / "updated.mlmodel"
+    fake_file.write_bytes(b"fake model data")
+
+    mock_details = MagicMock()
+    mock_details.job = "Recognize"
+    mock_details.name = "existing-name"
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "pk": 5,
+        "name": "existing-name",
+        "file": "/models/updated.mlmodel",
+        "file_size": 15,
+        "job": "Recognize",
+        "owner": "alice",
+        "training": False,
+        "versions": [],
+        "documents": [],
+        "accuracy_percent": None,
+        "training_accuracy": None,
+        "rights": "private",
+        "can_share": False,
+    }
+    with (
+        patch.object(api_client_instance, "model_details", return_value=mock_details),
+        patch.object(api_client_instance, "_make_request", return_value=mock_resp),
+        patch("htr2hpc.api_client.get_model_accuracy", return_value=0.91),
+    ):
+        result = api_client_instance.model_update(5, fake_file)
+    assert result.name == "existing-name"
+
+
+def test_model_create_uses_filename_stem_as_default_name(api_client_instance, tmp_path):
+    fake_file = tmp_path / "foo.mlmodel"
+    fake_file.write_bytes(b"fake model data")
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "pk": 9,
+        "name": "foo",
+        "file": "/models/foo.mlmodel",
+        "file_size": 15,
+        "job": "Recognize",
+        "owner": "alice",
+        "training": False,
+        "versions": [],
+        "documents": [],
+        "accuracy_percent": None,
+        "training_accuracy": None,
+        "rights": "private",
+        "can_share": False,
+    }
+    with (
+        patch.object(api_client_instance, "_make_request", return_value=mock_resp),
+        patch("htr2hpc.api_client.get_model_accuracy", return_value=0.88),
+    ):
+        result = api_client_instance.model_create(fake_file, job="Recognize")
+    assert result.name == "foo"
+
+
+# ---------------------------------------------------------------------------
+# document_list / document_details / document_parts_list
+# ---------------------------------------------------------------------------
+
+
+def test_document_list_returns_results_list(api_client_instance):
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        result = api_client_instance.document_list()
+    assert isinstance(result, ResultsList)
+
+
+def test_document_list_passes_page_param(api_client_instance):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
+    with patch.object(
+        api_client_instance, "_make_request", return_value=mock_resp
+    ) as mock_req:
+        api_client_instance.document_list(page=3)
+    mock_req.assert_called_once_with("documents/", params={"page": 3})
+
+
+def test_document_details_returns_namedtuple(api_client_instance):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"pk": 42, "name": "My Doc", "parts_count": 5}
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        doc = api_client_instance.document_details(42)
+    assert doc.pk == 42
+    assert doc.name == "My Doc"
+
+
+def test_document_parts_list_returns_results_list(api_client_instance):
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        result = api_client_instance.document_parts_list(42)
+    assert isinstance(result, ResultsList)

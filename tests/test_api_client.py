@@ -547,11 +547,19 @@ def test_model_update_uses_existing_job_and_name_when_not_provided(
     }
     with (
         patch.object(api_client_instance, "model_details", return_value=mock_details),
-        patch.object(api_client_instance, "_make_request", return_value=mock_resp),
-        patch("htr2hpc.api_client.get_model_accuracy", return_value=0.91),
+        patch.object(
+            api_client_instance, "_make_request", return_value=mock_resp
+        ) as mock_req,
+        patch("htr2hpc.api_client.get_model_accuracy", return_value=0.91) as mock_acc,
     ):
         result = api_client_instance.model_update(5, fake_file)
     assert result.name == "existing-name"
+    _, kwargs = mock_req.call_args
+    assert kwargs["method"] == "PUT"
+    assert kwargs["data"]["name"] == "existing-name"
+    assert kwargs["data"]["job"] == "Recognize"
+    assert kwargs["data"]["training_accuracy"] == 0.91
+    mock_acc.assert_called_once_with(fake_file)
 
 
 def test_model_create_uses_filename_stem_as_default_name(api_client_instance, tmp_path):
@@ -575,11 +583,19 @@ def test_model_create_uses_filename_stem_as_default_name(api_client_instance, tm
         "can_share": False,
     }
     with (
-        patch.object(api_client_instance, "_make_request", return_value=mock_resp),
-        patch("htr2hpc.api_client.get_model_accuracy", return_value=0.88),
+        patch.object(
+            api_client_instance, "_make_request", return_value=mock_resp
+        ) as mock_req,
+        patch("htr2hpc.api_client.get_model_accuracy", return_value=0.88) as mock_acc,
     ):
         result = api_client_instance.model_create(fake_file, job="Recognize")
     assert result.name == "foo"
+    _, kwargs = mock_req.call_args
+    assert kwargs["method"] == "POST"
+    assert kwargs["expected_status"] == 201
+    assert kwargs["data"]["name"] == "foo"
+    assert kwargs["data"]["training_accuracy"] == 0.88
+    mock_acc.assert_called_once_with(fake_file)
 
 
 # ---------------------------------------------------------------------------

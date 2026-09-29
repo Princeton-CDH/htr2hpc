@@ -2,8 +2,8 @@ from datetime import timedelta
 
 from django import template
 from django.conf import settings
-from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.utils import timezone
+from django.utils.timesince import timeuntil
 
 register = template.Library()
 
@@ -16,7 +16,7 @@ def absolute_export_url(domain, export_uri):
     present in the email template context, then appends MEDIA_URL and the
     export path.
     """
-    if not domain.startswith("http"):
+    if not domain.startswith(("http://", "https://")):
         scheme = "http" if settings.DEBUG else "https"
         domain = f"{scheme}://{domain}"
     media_url = settings.MEDIA_URL
@@ -32,5 +32,6 @@ def export_retention_display():
     hours = getattr(settings, "EXPORT_FILE_RETENTION", 0)
     if not hours:
         return ""
-    expiry = timezone.now() + timedelta(hours=hours)
-    return naturaltime(expiry)
+    now = timezone.now()
+    expiry = now + timedelta(hours=hours)
+    return f"{timeuntil(expiry, now)} from now"

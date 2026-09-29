@@ -17,6 +17,7 @@ CONTEXT = {
     [
         ("example.com", "https://"),
         ("https://example.com", "https://"),
+        ("httpbin.org", "https://"),
     ],
 )
 @override_settings(DEBUG=False, MEDIA_URL="/media/")

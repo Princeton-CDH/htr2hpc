@@ -4,6 +4,21 @@ from django.conf import settings
 register = template.Library()
 
 
+@register.simple_tag
+def absolute_export_url(domain, export_uri):
+    """Absolute URL for an export file.
+
+    Prepends https:// (or http:// in DEBUG) to the bare domain already
+    present in the email template context, then appends MEDIA_URL and the
+    export path.
+    """
+    if not domain.startswith("http"):
+        scheme = "http" if settings.DEBUG else "https"
+        domain = f"{scheme}://{domain}"
+    media_url = settings.MEDIA_URL
+    return f"{domain.rstrip('/')}{media_url}{export_uri}"
+
+
 def format_retention(hours):
     """Human-readable retention period, or empty string when cleanup is disabled."""
     if not hours:

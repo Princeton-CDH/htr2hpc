@@ -4,28 +4,12 @@ import pytest
 from django.template.loader import render_to_string
 from django.test import override_settings
 
-from htr2hpc.templatetags.htr2hpc_tags import absolute_export_url, format_retention
+from htr2hpc.templatetags.htr2hpc_tags import absolute_export_url
 
 CONTEXT = {
     "domain": "example.com",
     "export_uri": "users/1/export_doc1_alto_20260901.zip",
 }
-
-
-@pytest.mark.parametrize(
-    "hours,expected",
-    [
-        (168, "7 days"),
-        (24, "1 day"),
-        (48, "2 days"),
-        (1, "1 hour"),
-        (5, "5 hours"),
-        (36, "36 hours"),
-        (0, ""),
-    ],
-)
-def test_format_retention(hours, expected):
-    assert format_retention(hours) == expected
 
 
 @pytest.mark.parametrize(
@@ -54,7 +38,8 @@ def test_absolute_export_url_uses_http_in_debug():
 )
 def test_retention_line_included(template):
     body = render_to_string(template, CONTEXT)
-    assert "This download will only be available for 7 days." in body
+    assert "This download will expire" in body
+    assert "from now" in body
 
 
 @pytest.mark.parametrize(
@@ -63,7 +48,7 @@ def test_retention_line_included(template):
 @override_settings(EXPORT_FILE_RETENTION=0)
 def test_retention_line_omitted_when_disabled(template):
     body = render_to_string(template, CONTEXT)
-    assert "only be available" not in body
+    assert "expire" not in body
 
 
 @pytest.mark.parametrize(

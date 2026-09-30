@@ -299,6 +299,8 @@ def test_slurm_get_max_acc_recognize_real_output(tmp_path):
             "1",
             "--workers",
             "0",
+            "-s",
+            "42",
             "train",
             "-o",
             str(tmp_path / "model"),

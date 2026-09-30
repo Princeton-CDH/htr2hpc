@@ -4,14 +4,13 @@
 
 ## 0.8
 
-- Update to eScriptorium v1.0.1; constrain kraken to 6.x to match
+- Update to eScriptorium v1.0.1, with the following changes to match the new version:
+  - Constrain kraken to 6.x
+  - Fix accuracy reporting for recognition and segmentation training jobs
+  - Fix ALTO export tags for BaselineLine and Region
+  - Task errors and cancellations are now correctly reflected in all task reports
 - Auto-check and upgrade Kraken version on HPC before training begins
-- Fix kraken 6.x val_accuracy parsing for recognition and segmentation tasks, including wide-column SLURM output
-- Fix kraken 6.x tags format for BaselineLine and Region in ALTO export
-- Propagate error and canceled status to all secondary task reports
-- Pass anaconda module as CLI flag instead of importing from Django settings
-- Make `HTR2HPC_GITREF` setting optional; fall back to `__version__` when not set
-- Add file retention notice to export email notification
+- Configure a cron job to automatically clean up old user export files, and add file retention notice to export email notifications
 
 <!-- END DRAFT -->
 

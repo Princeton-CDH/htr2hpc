@@ -1,7 +1,5 @@
 # CHANGELOG
 
-<!-- DRAFT — generated from git log + closed issues/PRs; review before merge -->
-
 ## 0.8
 
 - Update to eScriptorium v1.0.1, with the following changes to match the new version:
@@ -11,8 +9,6 @@
   - Task errors and cancellations are now correctly reflected in all task reports
 - Auto-check and upgrade Kraken version on HPC before training begins
 - Configure a cron job to automatically clean up old user export files, and add file retention notice to export email notifications
-
-<!-- END DRAFT -->
 
 ## 0.7
 

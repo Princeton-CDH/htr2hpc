@@ -300,7 +300,7 @@ def test_slurm_get_max_acc_recognize_real_output(tmp_path):
             "--workers",
             "0",
             "-s",
-            "42",
+            "42",  # without a seed, loss can diverge to NaN causing exit=1
             "train",
             "-o",
             str(tmp_path / "model"),

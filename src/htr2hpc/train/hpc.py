@@ -24,7 +24,7 @@ def ensure_htr2hpc_version(conn):
     # pip install htr2hpc=={version} and staging should keep the git+SHA URL.
     install_cmd = (
         f"module load {settings.HPC_ANACONDA_MODULE} && "
-        "flock -w 300 /tmp/htr2hpc-conda-install.lock "
+        "flock -w 300 ~/.htr2hpc-conda-install.lock "
         "conda run -n htr2hpc pip install --force-reinstall "
         f"git+https://github.com/Princeton-CDH/htr2hpc.git@{gitref}#egg=htr2hpc"
     )

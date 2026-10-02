@@ -23,10 +23,12 @@ def ensure_htr2hpc_version(conn):
     # TODO: when htr2hpc is later switched to publish on PyPI, production should use
     # pip install htr2hpc=={version} and staging should keep the git+SHA URL.
     install_cmd = (
+        "( "
         f"module load {settings.HPC_ANACONDA_MODULE} && "
-        "flock -w 300 ~/.htr2hpc-conda-install.lock "
+        "flock -w 300 9 && "
         "conda run -n htr2hpc pip install --force-reinstall "
         f"git+https://github.com/Princeton-CDH/htr2hpc.git@{gitref}#egg=htr2hpc"
+        " ) 9>~/.htr2hpc-conda-install.lock"
     )
     result = conn.run(install_cmd, warn=True, hide=True)
     if result.exited != 0:

@@ -25,6 +25,9 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
+      - name: Check uv.lock is up to date
+        run: uv lock --check
+
       - name: Install htr2hpc with dev dependencies
         run: uv sync --group dev
 

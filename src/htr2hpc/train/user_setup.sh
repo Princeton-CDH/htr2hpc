@@ -8,16 +8,22 @@
 # defaults
 ssh_setup=true
 reinstall_htr2hpc=false
+htr2hpc_version=""
 
 # supported options:
 #   --skip-ssh-setup
 #   --reinstall-htr2hpc
+#   --htr2hpc-version <version>
+prev_arg=""
 for arg in "$@"; do
-  if [[ "$arg" == "--skip-ssh-setup" ]]; then
+  if [[ "$prev_arg" == "--htr2hpc-version" ]]; then
+    htr2hpc_version="$arg"
+  elif [[ "$arg" == "--skip-ssh-setup" ]]; then
     ssh_setup=false
   elif [[ "$arg" == "--reinstall-htr2hpc" ]]; then
 	reinstall_htr2hpc=true
   fi
+  prev_arg="$arg"
 done
 
 # create a lock file to prevent multiple instances of this script from running
@@ -71,25 +77,25 @@ fi
 
 # create conda environment named htr2hpc
 conda_env_name=htr2hpc
+htr2hpc_install="git+https://github.com/Princeton-CDH/htr2hpc.git@v${htr2hpc_version}#egg=htr2hpc"
 module load anaconda3/2025.6
 if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 	echo "conda env $conda_env_name already exists"
 
 	# when conda env already exists, if requested
-	# uninstall and reinstall htr2hpc
+	# uninstall and reinstall htr2hpc and ensure Kraken is up to date
 	if $reinstall_htr2hpc; then
-		echo "Reinstalling htr2hpc"
+		echo "Reinstalling htr2hpc and upgrading Kraken"
 		conda activate $conda_env_name
 		pip uninstall -q --yes htr2hpc
-		pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
+		pip install -q $htr2hpc_install
 	fi
 
 else
 	echo "Creating conda environment $conda_env_name and installing dependencies"
 	conda create -y -n $conda_env_name python=3.11 pip
 	conda activate $conda_env_name
-	pip install -q kraken==6.0.3
-	pip install -q git+https://github.com/Princeton-CDH/htr2hpc.git@develop#egg=htr2hpc
+	pip install -q $htr2hpc_install
 fi
 
 htrworkingdir=/scratch/network/$USER/htr2hpc

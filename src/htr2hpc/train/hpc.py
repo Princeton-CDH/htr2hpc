@@ -1,7 +1,6 @@
 """Utilities for managing the remote HPC conda environment."""
 
 import logging
-import tempfile
 from pathlib import Path
 
 from django.conf import settings
@@ -22,8 +21,9 @@ def ensure_htr2hpc_version(conn):
     Uses HTR2HPC_GITREF when set (staging deploys: exact commit SHA set by
     Ansible), otherwise falls back to the current version tag.
 
-    Uses a per-user file lock to prevent concurrent pip installs from
-    corrupting the shared conda environment."""
+    Uses a per-user file lock on shared NFS storage to prevent concurrent pip
+    installs from corrupting the shared conda environment across all app
+    hosts."""
     gitref = getattr(settings, "HTR2HPC_GITREF", __version__)
     # NOTE: when installing by version, the version number must match a git tag exactly
     # TODO: when htr2hpc is later switched to publish on PyPI, production should use
@@ -33,7 +33,7 @@ def ensure_htr2hpc_version(conn):
         "conda run -n htr2hpc pip install --force-reinstall "
         f"git+https://github.com/Princeton-CDH/htr2hpc.git@{gitref}#egg=htr2hpc"
     )
-    lock_path = Path(tempfile.gettempdir()) / f"htr2hpc-conda-install-{conn.user}.lock"
+    lock_path = Path(settings.MEDIA_ROOT) / f"htr2hpc-conda-install-{conn.user}.lock"
     try:
         with FileLock(lock_path, timeout=300):
             result = conn.run(install_cmd, warn=True, hide=True)

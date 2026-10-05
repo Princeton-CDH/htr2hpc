@@ -207,6 +207,8 @@ class _LocalHPCConn:
     equivalent so the function can be tested without an HPC connection.
     """
 
+    user = "testuser"
+
     def run(self, cmd, warn=False, hide=False):
         # Replace the full HPC command with a local pip install --upgrade.
         # Mirror Fabric's behaviour: always return a result object (never raise),

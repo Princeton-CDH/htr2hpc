@@ -3,6 +3,7 @@
 import logging
 
 from django.conf import settings
+from invoke.exceptions import CommandTimedOut
 
 from htr2hpc import __version__
 
@@ -22,7 +23,10 @@ def ensure_htr2hpc_version(conn):
     Uses flock on the HPC host to prevent concurrent pip installs from
     corrupting the shared conda environment. The lock is held for the full
     duration of pip install by running inside a subshell with fd redirection,
-    which keeps the file descriptor open until the subshell exits."""
+    which keeps the file descriptor open until the subshell exits.
+
+    flock waits up to 15 minutes to acquire the lock (allowing tasks to queue),
+    while conn.run times out after 5 minutes if pip install itself hangs."""
     gitref = getattr(settings, "HTR2HPC_GITREF", __version__)
     # NOTE: when installing by version, the version number must match a git tag exactly
     # TODO: when htr2hpc is later switched to publish on PyPI, production should use
@@ -30,12 +34,16 @@ def ensure_htr2hpc_version(conn):
     install_cmd = (
         "( "
         f"module load {settings.HPC_ANACONDA_MODULE} && "
-        "flock -w 300 9 && "
+        "flock -w 900 9 && "
         "conda run -n htr2hpc pip install --force-reinstall "
         f"git+https://github.com/Princeton-CDH/htr2hpc.git@{gitref}#egg=htr2hpc"
         " ) 9>~/.htr2hpc-conda-install.lock"
     )
-    result = conn.run(install_cmd, warn=True, hide=True)
+    try:
+        result = conn.run(install_cmd, warn=True, hide=True, timeout=300)
+    except CommandTimedOut:
+        logger.warning(f"pip install of htr2hpc {gitref} timed out after 300 seconds")
+        return False
     if result.exited != 0:
         logger.warning(
             f"Could not install htr2hpc {gitref} in conda env: {result.stderr}"

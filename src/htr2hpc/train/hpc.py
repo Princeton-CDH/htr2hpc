@@ -1,10 +1,8 @@
 """Utilities for managing the remote HPC conda environment."""
 
 import logging
-from pathlib import Path
 
 from django.conf import settings
-from filelock import FileLock, Timeout
 
 from htr2hpc import __version__
 
@@ -13,34 +11,35 @@ logger = logging.getLogger(__name__)
 
 def ensure_htr2hpc_version(conn):
     """Install the currently deployed version of htr2hpc in the remote conda
-    env, ensuring htr2hpc and all its dependencies (including kraken) match
-    the deployed version. Uses --force-reinstall so that pip always reinstalls
-    when the gitref changes, even if the version number has not changed (e.g.
-    two different commits at the same 0.x.dev0 version).
+    env. Uses --force-reinstall so that pip always reinstalls when the gitref
+    changes, even if the version number has not changed (e.g. two different
+    commits at the same 0.x.dev0 version). Uses --no-deps to avoid
+    reinstalling large dependencies (torch, kraken, etc.) that are already
+    present in the conda env, consistent with how ansible deploys htr2hpc.
 
     Uses HTR2HPC_GITREF when set (staging deploys: exact commit SHA set by
     Ansible), otherwise falls back to the current version tag.
 
-    Uses a per-user file lock on shared NFS storage to prevent concurrent pip
-    installs from corrupting the shared conda environment across all app
-    hosts."""
+    Uses flock on the HPC host to prevent concurrent pip installs from
+    corrupting the shared conda environment. The lock is held for the full
+    duration of pip install by running inside a subshell with fd redirection,
+    which keeps the file descriptor open until the subshell exits."""
     gitref = getattr(settings, "HTR2HPC_GITREF", __version__)
     # NOTE: when installing by version, the version number must match a git tag exactly
     # TODO: when htr2hpc is later switched to publish on PyPI, production should use
     # pip install htr2hpc=={version} and staging should keep the git+SHA URL.
+    # --no-deps avoids reinstalling large dependencies (torch, kraken, etc.)
+    # already present in the conda env. If a new dependency is added to
+    # htr2hpc it will need to be installed separately, same as ansible deploy.
     install_cmd = (
+        "( "
         f"module load {settings.HPC_ANACONDA_MODULE} && "
-        "flock -w 300 ~/.htr2hpc-conda-install.lock "
-        "conda run -n htr2hpc pip install --force-reinstall "
+        "flock -w 300 9 && "
+        "conda run -n htr2hpc pip install --force-reinstall --no-deps "
         f"git+https://github.com/Princeton-CDH/htr2hpc.git@{gitref}#egg=htr2hpc"
+        " ) 9>~/.htr2hpc-conda-install.lock"
     )
-    lock_path = Path(settings.MEDIA_ROOT) / f"htr2hpc-conda-install-{conn.user}.lock"
-    try:
-        with FileLock(lock_path, timeout=300):
-            result = conn.run(install_cmd, warn=True, hide=True)
-    except Timeout:
-        logger.warning(f"Timed out waiting for conda install lock for {conn.user}")
-        return False
+    result = conn.run(install_cmd, warn=True, hide=True)
     if result.exited != 0:
         logger.warning(
             f"Could not install htr2hpc {gitref} in conda env: {result.stderr}"

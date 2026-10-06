@@ -7,8 +7,6 @@ import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
-from filelock import Timeout
-
 # htr2hpc.tasks imports from apps.users.consumers (eScriptorium) and celery,
 # neither of which is available in the test environment; mock before importing
 sys.modules.setdefault("celery", MagicMock())
@@ -45,12 +43,14 @@ class TestEnsureHtr2hpcVersion:
         conn.run.return_value = _mock_run_result(exited=1, stderr="some error")
         assert ensure_htr2hpc_version(conn) is False
 
-    def test_lock_timeout_returns_false(self):
-        """When the file lock times out, return False without running pip install."""
+    def test_install_command_uses_flock(self):
+        """Install command uses flock with fd syntax to hold lock for full pip install."""
         conn = MagicMock()
-        with patch("htr2hpc.train.hpc.FileLock", side_effect=Timeout("lock")):
-            assert ensure_htr2hpc_version(conn) is False
-        conn.run.assert_not_called()
+        conn.run.return_value = _mock_run_result(exited=0)
+        ensure_htr2hpc_version(conn)
+        cmd = conn.run.call_args[0][0]
+        assert "flock -w 300 9" in cmd
+        assert "9>~/.htr2hpc-conda-install.lock" in cmd
 
     def test_install_command_uses_version_by_default(self):
         """Without HTR2HPC_GITREF override, the command falls back to __version__."""

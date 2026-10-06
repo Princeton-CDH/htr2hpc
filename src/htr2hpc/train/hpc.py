@@ -1,10 +1,8 @@
 """Utilities for managing the remote HPC conda environment."""
 
 import logging
-from pathlib import Path
 
 from django.conf import settings
-from filelock import FileLock, Timeout
 
 from htr2hpc import __version__
 
@@ -21,25 +19,23 @@ def ensure_htr2hpc_version(conn):
     Uses HTR2HPC_GITREF when set (staging deploys: exact commit SHA set by
     Ansible), otherwise falls back to the current version tag.
 
-    Uses a per-user file lock on shared NFS storage to prevent concurrent pip
-    installs from corrupting the shared conda environment across all app
-    hosts."""
+    Uses flock on the HPC host to prevent concurrent pip installs from
+    corrupting the shared conda environment. The lock is held for the full
+    duration of pip install by running inside a subshell with fd redirection,
+    which keeps the file descriptor open until the subshell exits."""
     gitref = getattr(settings, "HTR2HPC_GITREF", __version__)
     # NOTE: when installing by version, the version number must match a git tag exactly
     # TODO: when htr2hpc is later switched to publish on PyPI, production should use
     # pip install htr2hpc=={version} and staging should keep the git+SHA URL.
     install_cmd = (
+        "( "
         f"module load {settings.HPC_ANACONDA_MODULE} && "
+        "flock -w 300 9 && "
         "conda run -n htr2hpc pip install --force-reinstall "
         f"git+https://github.com/Princeton-CDH/htr2hpc.git@{gitref}#egg=htr2hpc"
+        " ) 9>~/.htr2hpc-conda-install.lock"
     )
-    lock_path = Path(settings.MEDIA_ROOT) / f"htr2hpc-conda-install-{conn.user}.lock"
-    try:
-        with FileLock(lock_path, timeout=300):
-            result = conn.run(install_cmd, warn=True, hide=True)
-    except Timeout:
-        logger.warning(f"Timed out waiting for conda install lock for {conn.user}")
-        return False
+    result = conn.run(install_cmd, warn=True, hide=True)
     if result.exited != 0:
         logger.warning(
             f"Could not install htr2hpc {gitref} in conda env: {result.stderr}"

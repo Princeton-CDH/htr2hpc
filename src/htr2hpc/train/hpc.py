@@ -35,7 +35,7 @@ def ensure_htr2hpc_version(conn):
     )
     lock_path = Path(settings.MEDIA_ROOT) / f"htr2hpc-conda-install-{conn.user}.lock"
     try:
-        with FileLock(lock_path, timeout=300):
+        with FileLock(lock_path, timeout=900):
             result = conn.run(install_cmd, warn=True, hide=True)
     except Timeout:
         logger.warning(f"Timed out waiting for conda install lock for {conn.user}")

@@ -7,6 +7,8 @@ import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
+from filelock import Timeout
+
 # htr2hpc.tasks imports from apps.users.consumers (eScriptorium) and celery,
 # neither of which is available in the test environment; mock before importing
 sys.modules.setdefault("celery", MagicMock())
@@ -42,6 +44,13 @@ class TestEnsureHtr2hpcVersion:
         conn = MagicMock()
         conn.run.return_value = _mock_run_result(exited=1, stderr="some error")
         assert ensure_htr2hpc_version(conn) is False
+
+    def test_lock_timeout_returns_false(self):
+        """When the file lock times out, return False without running pip install."""
+        conn = MagicMock()
+        with patch("htr2hpc.train.hpc.FileLock", side_effect=Timeout("lock")):
+            assert ensure_htr2hpc_version(conn) is False
+        conn.run.assert_not_called()
 
     def test_install_command_uses_version_by_default(self):
         """Without HTR2HPC_GITREF override, the command falls back to __version__."""
@@ -206,6 +215,8 @@ class _LocalHPCConn:
     (module load, conda run). This stub intercepts that call and runs a local
     equivalent so the function can be tested without an HPC connection.
     """
+
+    user = "testuser"
 
     def run(self, cmd, warn=False, hide=False):
         # Replace the full HPC command with a local pip install --upgrade.

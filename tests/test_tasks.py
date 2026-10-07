@@ -45,11 +45,30 @@ class TestEnsureHtr2hpcVersion:
         conn.run.return_value = _mock_run_result(exited=1, stderr="some error")
         assert ensure_htr2hpc_version(conn) is False
 
-    def test_lock_timeout_returns_false(self):
-        """When the file lock times out, return False without running pip install."""
+    def test_another_job_installing_skips_install(self):
+        """When another job holds the lock, wait for it and skip install."""
         conn = MagicMock()
-        with patch("htr2hpc.train.hpc.FileLock", side_effect=Timeout("lock")):
-            assert ensure_htr2hpc_version(conn) is False
+        lock_instance = MagicMock()
+        # First acquire (timeout=0) raises Timeout — another job has the lock
+        lock_instance.acquire.side_effect = Timeout("lock")
+        # Second acquire (timeout=900) succeeds — other job finished
+        lock_instance.__enter__ = MagicMock(return_value=lock_instance)
+        lock_instance.__exit__ = MagicMock(return_value=False)
+        with patch("htr2hpc.train.hpc.FileLock", return_value=lock_instance):
+            result = ensure_htr2hpc_version(conn)
+        assert result is True
+        conn.run.assert_not_called()
+
+    def test_wait_timeout_returns_false(self):
+        """When waiting for another job's install times out, return False."""
+        conn = MagicMock()
+        lock_instance = MagicMock()
+        lock_instance.acquire.side_effect = Timeout("lock")
+        lock_instance.__enter__ = MagicMock(side_effect=Timeout("lock"))
+        lock_instance.__exit__ = MagicMock(return_value=False)
+        with patch("htr2hpc.train.hpc.FileLock", return_value=lock_instance):
+            result = ensure_htr2hpc_version(conn)
+        assert result is False
         conn.run.assert_not_called()
 
     def test_install_command_uses_version_by_default(self):

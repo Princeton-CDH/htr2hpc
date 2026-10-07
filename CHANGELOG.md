@@ -5,9 +5,9 @@
 - Update to eScriptorium v1.0.1, with the following changes to match the new version:
   - Constrain kraken to 6.x
   - Fix accuracy reporting for recognition and segmentation training jobs
-  - Fix ALTO export tags for BaselineLine and Region
-  - Task errors and cancellations are now correctly reflected in all task reports
-- Auto-check and upgrade Kraken version on HPC before training begins
+  - Update ALTO conversion to generate BaselineLine and Region tags in kraken 6.x format
+  - Task errors and cancellations are reflected in all associated task reports (now 1 per page in eScr 1.0)
+- Training jobs on HPC automatically upgrade `htr2hpc` to the version matching the deploy, and updates all dependencies (particularly Kraken)
 - Configure a cron job to automatically clean up old user export files, and add file retention notice to export email notifications
 
 ## 0.7

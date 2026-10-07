@@ -1,13 +1,12 @@
 """Tests for htr2hpc tasks and htr2hpc.train.hpc."""
 
 import importlib.metadata
+import json
 import os
 import shutil
 import subprocess
 import sys
 from unittest.mock import MagicMock, patch
-
-from filelock import Timeout
 
 # htr2hpc.tasks imports from apps.users.consumers (eScriptorium) and celery,
 # neither of which is available in the test environment; mock before importing
@@ -20,7 +19,7 @@ from django.test import override_settings  # noqa: E402
 
 from htr2hpc import __version__  # noqa: E402
 from htr2hpc.tasks import start_remote_training  # noqa: E402
-from htr2hpc.train.hpc import ensure_htr2hpc_version  # noqa: E402
+from htr2hpc.train.hpc import VERSION_DOTFILE, ensure_htr2hpc_version  # noqa: E402
 
 
 def _mock_run_result(stdout="", stderr="", exited=0):
@@ -31,62 +30,188 @@ def _mock_run_result(stdout="", stderr="", exited=0):
     return result
 
 
-class TestEnsureHtr2hpcVersion:
-    def test_successful_install_returns_true(self):
-        """When pip install succeeds, return True."""
-        conn = MagicMock()
-        conn.run.return_value = _mock_run_result(exited=0)
-        assert ensure_htr2hpc_version(conn) is True
-        assert conn.run.call_count == 1
+def _dotfile_content(status="installed", gitref="", version=None):
+    """Helper to generate dotfile stdout content as JSON."""
+    v = version or __version__
+    return json.dumps({"gitref": gitref, "version": v, "status": status})
 
-    def test_failed_install_returns_false(self):
-        """When pip install fails, return False."""
+
+class TestEnsureHtr2hpcVersion:
+    def test_installs_when_no_dotfile(self):
+        """When no dotfile exists, atomically claim and install."""
         conn = MagicMock()
-        conn.run.return_value = _mock_run_result(exited=1, stderr="some error")
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # cat dotfile: not found
+            _mock_run_result(exited=0),  # claim dotfile (noclobber): success
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write status=installed
+        ]
+        assert ensure_htr2hpc_version(conn) is True
+
+    def test_waits_if_another_job_claims_dotfile(self):
+        """When claim fails (another job got there first), poll and wait."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # cat dotfile: not found
+            _mock_run_result(exited=1),  # claim dotfile: fails (other job claimed)
+            _mock_run_result(  # poll 1: still installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(  # poll 2: installed
+                stdout=_dotfile_content(status="installed"), exited=0
+            ),
+            _mock_run_result(  # re-read after wait
+                stdout=_dotfile_content(status="installed"), exited=0
+            ),
+        ]
+        with patch("htr2hpc.train.hpc.time.sleep"):
+            assert ensure_htr2hpc_version(conn) is True
+
+    def test_skips_when_version_matches_in_production(self):
+        """Production (no HTR2HPC_GITREF): skip if version matches."""
+        conn = MagicMock()
+        conn.run.return_value = _mock_run_result(
+            stdout=_dotfile_content(status="installed", gitref="", version=__version__),
+            exited=0,
+        )
+        assert ensure_htr2hpc_version(conn) is True
+        assert conn.run.call_count == 1  # only dotfile read
+
+    @override_settings(HTR2HPC_GITREF="abc123sha")
+    def test_skips_when_gitref_matches_in_staging(self):
+        """Staging (HTR2HPC_GITREF set): skip if gitref matches."""
+        conn = MagicMock()
+        conn.run.return_value = _mock_run_result(
+            stdout=_dotfile_content(status="installed", gitref="abc123sha"),
+            exited=0,
+        )
+        assert ensure_htr2hpc_version(conn) is True
+        assert conn.run.call_count == 1  # only dotfile read
+
+    @override_settings(HTR2HPC_GITREF="newsha456")
+    def test_reinstalls_when_gitref_mismatch(self):
+        """Staging: reinstall if gitref differs."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(  # cat dotfile: old gitref
+                stdout=_dotfile_content(status="installed", gitref="oldsha123"),
+                exited=0,
+            ),
+            _mock_run_result(exited=0),  # delete dotfile
+            _mock_run_result(exited=0),  # claim dotfile: success
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write status=installed
+        ]
+        assert ensure_htr2hpc_version(conn) is True
+
+    def test_reinstalls_when_version_mismatch_in_production(self):
+        """Production: reinstall if version differs."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(  # cat dotfile: old version
+                stdout=_dotfile_content(status="installed", gitref="", version="0.7.0"),
+                exited=0,
+            ),
+            _mock_run_result(exited=0),  # delete dotfile
+            _mock_run_result(exited=0),  # claim dotfile: success
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write status=installed
+        ]
+        assert ensure_htr2hpc_version(conn) is True
+
+    def test_deletes_dotfile_on_install_failure(self):
+        """When pip install fails, delete dotfile and return False."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # cat dotfile: not found
+            _mock_run_result(exited=0),  # claim dotfile: success
+            _mock_run_result(exited=1, stderr="pip error"),  # pip install fails
+            _mock_run_result(exited=0),  # delete dotfile
+        ]
         assert ensure_htr2hpc_version(conn) is False
 
-    def test_another_job_installing_skips_install(self):
-        """When another job holds the lock, wait for it and skip install."""
+    def test_waits_when_status_installing(self):
+        """When dotfile status is 'installing', poll until it changes."""
         conn = MagicMock()
-        lock_instance = MagicMock()
-        # First acquire (timeout=0) raises Timeout — another job has the lock
-        lock_instance.acquire.side_effect = Timeout("lock")
-        # Second acquire (timeout=900) succeeds — other job finished
-        lock_instance.__enter__ = MagicMock(return_value=lock_instance)
-        lock_instance.__exit__ = MagicMock(return_value=False)
-        with patch("htr2hpc.train.hpc.FileLock", return_value=lock_instance):
-            result = ensure_htr2hpc_version(conn)
-        assert result is True
-        conn.run.assert_not_called()
+        conn.run.side_effect = [
+            _mock_run_result(  # first read: status=installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(stdout="", exited=1),  # stale check: not stale
+            _mock_run_result(  # poll 1: still installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(  # poll 2: now installed
+                stdout=_dotfile_content(status="installed"), exited=0
+            ),
+            _mock_run_result(  # re-read after wait
+                stdout=_dotfile_content(status="installed"), exited=0
+            ),
+        ]
+        with patch("htr2hpc.train.hpc.time.sleep"):
+            assert ensure_htr2hpc_version(conn) is True
 
-    def test_wait_timeout_returns_false(self):
-        """When waiting for another job's install times out, return False."""
+    def test_fails_when_wait_times_out(self):
+        """When polling times out waiting for install, return False."""
         conn = MagicMock()
-        lock_instance = MagicMock()
-        lock_instance.acquire.side_effect = Timeout("lock")
-        lock_instance.__enter__ = MagicMock(side_effect=Timeout("lock"))
-        lock_instance.__exit__ = MagicMock(return_value=False)
-        with patch("htr2hpc.train.hpc.FileLock", return_value=lock_instance):
-            result = ensure_htr2hpc_version(conn)
-        assert result is False
-        conn.run.assert_not_called()
+        conn.run.side_effect = [
+            _mock_run_result(  # first read: status=installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(stdout="", exited=1),  # stale check: not stale
+            _mock_run_result(  # poll: still installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+        ]
+        with (
+            patch("htr2hpc.train.hpc.time.sleep"),
+            patch("htr2hpc.train.hpc.POLL_TIMEOUT", 0),
+        ):
+            assert ensure_htr2hpc_version(conn) is False
+
+    def test_takes_over_stale_installing_dotfile(self):
+        """When dotfile is stale (install crashed), take over the install."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(  # first read: status=installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(stdout=VERSION_DOTFILE, exited=0),  # stale check: IS stale
+            _mock_run_result(exited=0),  # delete stale dotfile
+            _mock_run_result(exited=0),  # claim dotfile: success
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write status=installed
+        ]
+        assert ensure_htr2hpc_version(conn) is True
 
     def test_install_command_uses_version_by_default(self):
-        """Without HTR2HPC_GITREF override, the command falls back to __version__."""
+        """Without HTR2HPC_GITREF, install command uses __version__."""
         conn = MagicMock()
-        conn.run.return_value = _mock_run_result(exited=0)
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # no dotfile
+            _mock_run_result(exited=0),  # claim dotfile
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write installed
+        ]
         ensure_htr2hpc_version(conn)
-        cmd = conn.run.call_args[0][0]
+        install_call = conn.run.call_args_list[2]
+        cmd = install_call[0][0]
         assert f"@{__version__}" in cmd
         assert "--force-reinstall" in cmd
 
     @override_settings(HTR2HPC_GITREF="abc123sha")
     def test_install_command_uses_gitref_when_set(self):
-        """When HTR2HPC_GITREF is set (staging), the command uses it instead of __version__."""
+        """When HTR2HPC_GITREF is set, install command uses it."""
         conn = MagicMock()
-        conn.run.return_value = _mock_run_result(exited=0)
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # no dotfile
+            _mock_run_result(exited=0),  # claim dotfile
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write installed
+        ]
         ensure_htr2hpc_version(conn)
-        cmd = conn.run.call_args[0][0]
+        install_call = conn.run.call_args_list[2]
+        cmd = install_call[0][0]
         assert "@abc123sha" in cmd
         assert f"@{__version__}" not in cmd
 

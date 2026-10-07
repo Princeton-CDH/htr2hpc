@@ -18,12 +18,12 @@ jobs:
 
     steps:
       - name: Check out htr2hpc
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
 
       - name: Install htr2hpc with dev dependencies
         run: uv sync --group dev
@@ -34,7 +34,7 @@ jobs:
         run: uv run pytest --cov --cov-report=xml
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml
           flags: unittests

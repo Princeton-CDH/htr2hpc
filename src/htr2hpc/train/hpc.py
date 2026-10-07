@@ -48,6 +48,11 @@ def ensure_htr2hpc_version(conn):
     # calibrate_segtrain:/calibrate_train:) to avoid false positives from
     # unrelated jobs the user may have running on the cluster.
     squeue_result = conn.run(f"squeue -u {conn.user} -h -o '%j'", warn=True, hide=True)
+    if squeue_result.exited != 0:
+        logger.warning(
+            f"squeue check failed for {conn.user}, skipping install to be safe"
+        )
+        return True
     active_htr_jobs = [
         line
         for line in squeue_result.stdout.strip().splitlines()

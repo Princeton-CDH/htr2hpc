@@ -71,6 +71,13 @@ class TestEnsureHtr2hpcVersion:
         assert ensure_htr2hpc_version(conn) is True
         assert conn.run.call_count == 2  # squeue + pip install
 
+    def test_skips_install_if_squeue_fails(self):
+        """When squeue check fails, skip install to avoid corrupting active jobs."""
+        conn = MagicMock()
+        conn.run.return_value = _mock_run_result(stdout="", exited=1)
+        assert ensure_htr2hpc_version(conn) is True
+        assert conn.run.call_count == 1  # only squeue, no pip install
+
     def test_another_job_installing_skips_install(self):
         """When another job holds the lock, wait for it and skip install."""
         conn = MagicMock()

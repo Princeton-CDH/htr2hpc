@@ -1,6 +1,7 @@
 """Tests for htr2hpc tasks and htr2hpc.train.hpc."""
 
 import importlib.metadata
+import json
 import os
 import shutil
 import subprocess
@@ -31,8 +32,6 @@ def _mock_run_result(stdout="", stderr="", exited=0):
 
 def _dotfile_content(status="installed", gitref="", version=None):
     """Helper to generate dotfile stdout content as JSON."""
-    import json
-
     v = version or __version__
     return json.dumps({"gitref": gitref, "version": v, "status": status})
 

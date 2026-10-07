@@ -53,13 +53,23 @@ class TestEnsureHtr2hpcVersion:
         assert ensure_htr2hpc_version(conn) is False
 
     def test_skips_install_if_slurm_jobs_active(self):
-        """When user has active Slurm jobs, skip install to avoid corrupting env."""
+        """When user has active htr2hpc Slurm jobs, skip install."""
         conn = MagicMock()
         conn.run.return_value = _mock_run_result(
-            stdout="3395717  calibrate  ht8933  R  0:10  1  adroit-h11g2\n", exited=0
+            stdout="segtrain:test-model\ncalibrate_segtrain:test2\n", exited=0
         )
         assert ensure_htr2hpc_version(conn) is True
         assert conn.run.call_count == 1  # only squeue, no pip install
+
+    def test_does_not_skip_install_for_unrelated_slurm_jobs(self):
+        """Unrelated Slurm jobs (other projects) do not prevent install."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(stdout="my-other-research-job\n", exited=0),  # squeue
+            _mock_run_result(exited=0),  # pip install: success
+        ]
+        assert ensure_htr2hpc_version(conn) is True
+        assert conn.run.call_count == 2  # squeue + pip install
 
     def test_another_job_installing_skips_install(self):
         """When another job holds the lock, wait for it and skip install."""

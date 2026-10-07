@@ -42,11 +42,21 @@ def ensure_htr2hpc_version(conn):
     lock_path = Path(settings.MEDIA_ROOT) / f"htr2hpc-conda-install-{conn.user}.lock"
     lock = FileLock(lock_path)
 
-    # Skip install if the user has active Slurm jobs — reinstalling packages
-    # while training is running would corrupt the conda environment mid-training.
-    squeue_result = conn.run(f"squeue -u {conn.user} -h", warn=True, hide=True)
-    if squeue_result.stdout.strip():
-        logger.info(f"User {conn.user} has active Slurm jobs, skipping htr2hpc install")
+    # Skip install if the user has active htr2hpc Slurm jobs — reinstalling
+    # packages while training is running would corrupt the conda environment
+    # mid-training. Only check for htr2hpc job names (segtrain:/train:/
+    # calibrate_segtrain:/calibrate_train:) to avoid false positives from
+    # unrelated jobs the user may have running on the cluster.
+    squeue_result = conn.run(f"squeue -u {conn.user} -h -o '%j'", warn=True, hide=True)
+    active_htr_jobs = [
+        line
+        for line in squeue_result.stdout.strip().splitlines()
+        if line.startswith(
+            ("segtrain:", "train:", "calibrate_segtrain:", "calibrate_train:")
+        )
+    ]
+    if active_htr_jobs:
+        logger.info(f"User {conn.user} has active htr2hpc Slurm jobs, skipping install")
         return True
 
     # Try to acquire the lock immediately (non-blocking).

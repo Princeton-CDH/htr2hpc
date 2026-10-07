@@ -9,15 +9,15 @@ from htr2hpc import __version__
 
 logger = logging.getLogger(__name__)
 
-DOTFILE_PATH = "~/.htr2hpc_version"
-POLL_INTERVAL = 5  # seconds between polls when status is "installing"
+VERSION_DOTFILE = "~/.htr2hpc_version"
+POLL_INTERVAL = 5  # seconds between status checks while waiting for another job's install to complete
 POLL_TIMEOUT = 900  # max seconds to wait for another install to complete
 
 
 def _read_dotfile(conn):
     """Read and parse the version dotfile from Adroit.
     Returns a dict with keys 'gitref', 'version', 'status', or None if not found."""
-    result = conn.run(f"cat {DOTFILE_PATH}", warn=True, hide=True)
+    result = conn.run(f"cat {VERSION_DOTFILE}", warn=True, hide=True)
     if result.exited != 0:
         return None
     data = {}
@@ -33,7 +33,7 @@ def _claim_dotfile(conn):
     Uses noclobber to ensure only one job can create the file.
     Returns True if this job claimed the file, False if another job already has it."""
     result = conn.run(
-        f"set -o noclobber; printf 'status=installing' > {DOTFILE_PATH}",
+        f"set -o noclobber; printf 'status=installing' > {VERSION_DOTFILE}",
         warn=True,
         hide=True,
     )
@@ -43,19 +43,19 @@ def _claim_dotfile(conn):
 def _write_dotfile(conn, status, gitref="", version=""):
     """Write the version dotfile to Adroit."""
     content = f"gitref={gitref}\\nversion={version}\\nstatus={status}"
-    conn.run(f"printf '{content}' > {DOTFILE_PATH}", warn=True, hide=True)
+    conn.run(f"printf '{content}' > {VERSION_DOTFILE}", warn=True, hide=True)
 
 
 def _delete_dotfile(conn):
     """Delete the version dotfile from Adroit."""
-    conn.run(f"rm -f {DOTFILE_PATH}", warn=True, hide=True)
+    conn.run(f"rm -f {VERSION_DOTFILE}", warn=True, hide=True)
 
 
 def _dotfile_is_stale(conn):
     """Check if the dotfile's mtime is older than POLL_TIMEOUT seconds.
     Returns True if the dotfile is stale (install likely crashed), False otherwise."""
     result = conn.run(
-        f"find {DOTFILE_PATH} -mmin +{POLL_TIMEOUT // 60} 2>/dev/null",
+        f"find {VERSION_DOTFILE} -mmin +{POLL_TIMEOUT // 60} 2>/dev/null",
         warn=True,
         hide=True,
     )

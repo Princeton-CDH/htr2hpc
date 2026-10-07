@@ -18,7 +18,7 @@ from django.test import override_settings  # noqa: E402
 
 from htr2hpc import __version__  # noqa: E402
 from htr2hpc.tasks import start_remote_training  # noqa: E402
-from htr2hpc.train.hpc import DOTFILE_PATH, ensure_htr2hpc_version  # noqa: E402
+from htr2hpc.train.hpc import VERSION_DOTFILE, ensure_htr2hpc_version  # noqa: E402
 
 
 def _mock_run_result(stdout="", stderr="", exited=0):
@@ -175,7 +175,7 @@ class TestEnsureHtr2hpcVersion:
             _mock_run_result(  # first read: status=installing
                 stdout=_dotfile_content(status="installing"), exited=0
             ),
-            _mock_run_result(stdout=DOTFILE_PATH, exited=0),  # stale check: IS stale
+            _mock_run_result(stdout=VERSION_DOTFILE, exited=0),  # stale check: IS stale
             _mock_run_result(exited=0),  # delete stale dotfile
             _mock_run_result(exited=0),  # claim dotfile: success
             _mock_run_result(exited=0),  # pip install

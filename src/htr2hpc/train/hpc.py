@@ -24,7 +24,11 @@ def ensure_htr2hpc_version(conn):
     Uses a per-user file lock on shared NFS storage to coordinate concurrent
     installs across all app hosts. If the lock is already held by another job,
     that job is already running the install — wait for it to finish and skip
-    the install. If no lock is held, acquire it and run the install."""
+    the install. If no lock is held, acquire it and run the install.
+
+    Skips the install entirely if the user has active Slurm jobs, since
+    reinstalling packages while training is running would corrupt the conda
+    environment mid-training."""
     gitref = getattr(settings, "HTR2HPC_GITREF", __version__)
     # NOTE: when installing by version, the version number must match a git tag exactly
     # TODO: when htr2hpc is later switched to publish on PyPI, production should use
@@ -37,6 +41,13 @@ def ensure_htr2hpc_version(conn):
     )
     lock_path = Path(settings.MEDIA_ROOT) / f"htr2hpc-conda-install-{conn.user}.lock"
     lock = FileLock(lock_path)
+
+    # Skip install if the user has active Slurm jobs — reinstalling packages
+    # while training is running would corrupt the conda environment mid-training.
+    squeue_result = conn.run(f"squeue -u {conn.user} -h", warn=True, hide=True)
+    if squeue_result.stdout.strip():
+        logger.info(f"User {conn.user} has active Slurm jobs, skipping htr2hpc install")
+        return True
 
     # Try to acquire the lock immediately (non-blocking).
     # If we get it, we are the first job — run the install.

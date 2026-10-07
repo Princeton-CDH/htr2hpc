@@ -35,19 +35,36 @@ class TestEnsureHtr2hpcVersion:
     def test_successful_install_returns_true(self):
         """When pip install succeeds, return True."""
         conn = MagicMock()
-        conn.run.return_value = _mock_run_result(exited=0)
+        # First call: squeue (no active jobs), second call: pip install
+        conn.run.side_effect = [
+            _mock_run_result(stdout="", exited=0),  # squeue: no jobs
+            _mock_run_result(exited=0),  # pip install: success
+        ]
         assert ensure_htr2hpc_version(conn) is True
-        assert conn.run.call_count == 1
+        assert conn.run.call_count == 2
 
     def test_failed_install_returns_false(self):
         """When pip install fails, return False."""
         conn = MagicMock()
-        conn.run.return_value = _mock_run_result(exited=1, stderr="some error")
+        conn.run.side_effect = [
+            _mock_run_result(stdout="", exited=0),  # squeue: no jobs
+            _mock_run_result(exited=1, stderr="some error"),  # pip install: fail
+        ]
         assert ensure_htr2hpc_version(conn) is False
+
+    def test_skips_install_if_slurm_jobs_active(self):
+        """When user has active Slurm jobs, skip install to avoid corrupting env."""
+        conn = MagicMock()
+        conn.run.return_value = _mock_run_result(
+            stdout="3395717  calibrate  ht8933  R  0:10  1  adroit-h11g2\n", exited=0
+        )
+        assert ensure_htr2hpc_version(conn) is True
+        assert conn.run.call_count == 1  # only squeue, no pip install
 
     def test_another_job_installing_skips_install(self):
         """When another job holds the lock, wait for it and skip install."""
         conn = MagicMock()
+        conn.run.return_value = _mock_run_result(stdout="", exited=0)  # squeue: no jobs
         lock_instance = MagicMock()
         # First acquire (timeout=0) raises Timeout — another job has the lock
         lock_instance.acquire.side_effect = Timeout("lock")
@@ -57,11 +74,12 @@ class TestEnsureHtr2hpcVersion:
         with patch("htr2hpc.train.hpc.FileLock", return_value=lock_instance):
             result = ensure_htr2hpc_version(conn)
         assert result is True
-        conn.run.assert_not_called()
+        assert conn.run.call_count == 1  # only squeue, no pip install
 
     def test_wait_timeout_returns_false(self):
         """When waiting for another job's install times out, return False."""
         conn = MagicMock()
+        conn.run.return_value = _mock_run_result(stdout="", exited=0)  # squeue: no jobs
         lock_instance = MagicMock()
         lock_instance.acquire.side_effect = Timeout("lock")
         lock_instance.__enter__ = MagicMock(side_effect=Timeout("lock"))
@@ -69,7 +87,7 @@ class TestEnsureHtr2hpcVersion:
         with patch("htr2hpc.train.hpc.FileLock", return_value=lock_instance):
             result = ensure_htr2hpc_version(conn)
         assert result is False
-        conn.run.assert_not_called()
+        assert conn.run.call_count == 1  # only squeue, no pip install
 
     def test_install_command_uses_version_by_default(self):
         """Without HTR2HPC_GITREF override, the command falls back to __version__."""

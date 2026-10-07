@@ -30,9 +30,11 @@ def _mock_run_result(stdout="", stderr="", exited=0):
 
 
 def _dotfile_content(status="installed", gitref="", version=None):
-    """Helper to generate dotfile stdout content."""
+    """Helper to generate dotfile stdout content as JSON."""
+    import json
+
     v = version or __version__
-    return f"gitref={gitref}\nversion={v}\nstatus={status}"
+    return json.dumps({"gitref": gitref, "version": v, "status": status})
 
 
 class TestEnsureHtr2hpcVersion:

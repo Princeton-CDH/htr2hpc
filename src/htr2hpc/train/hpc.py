@@ -1,5 +1,6 @@
 """Utilities for managing the remote HPC conda environment."""
 
+import json
 import logging
 import time
 
@@ -20,20 +21,19 @@ def _read_dotfile(conn):
     result = conn.run(f"cat {VERSION_DOTFILE}", warn=True, hide=True)
     if result.exited != 0:
         return None
-    data = {}
-    for line in result.stdout.strip().splitlines():
-        if "=" in line:
-            key, _, value = line.partition("=")
-            data[key.strip()] = value.strip()
-    return data
+    try:
+        return json.loads(result.stdout.strip())
+    except json.JSONDecodeError:
+        return None
 
 
 def _claim_dotfile(conn):
     """Atomically claim the dotfile by creating it with status=installing.
     Uses noclobber to ensure only one job can create the file.
     Returns True if this job claimed the file, False if another job already has it."""
+    content = json.dumps({"status": "installing"})
     result = conn.run(
-        f"set -o noclobber; printf 'status=installing' > {VERSION_DOTFILE}",
+        f"set -o noclobber; printf '%s' '{content}' > {VERSION_DOTFILE}",
         warn=True,
         hide=True,
     )
@@ -42,8 +42,8 @@ def _claim_dotfile(conn):
 
 def _write_dotfile(conn, status, gitref="", version=""):
     """Write the version dotfile to Adroit."""
-    content = f"gitref={gitref}\\nversion={version}\\nstatus={status}"
-    conn.run(f"printf '{content}' > {VERSION_DOTFILE}", warn=True, hide=True)
+    content = json.dumps({"gitref": gitref, "version": version, "status": status})
+    conn.run(f"printf '%s' '{content}' > {VERSION_DOTFILE}", warn=True, hide=True)
 
 
 def _delete_dotfile(conn):

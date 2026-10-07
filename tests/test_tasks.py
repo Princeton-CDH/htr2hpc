@@ -18,7 +18,7 @@ from django.test import override_settings  # noqa: E402
 
 from htr2hpc import __version__  # noqa: E402
 from htr2hpc.tasks import start_remote_training  # noqa: E402
-from htr2hpc.train.hpc import ensure_htr2hpc_version  # noqa: E402
+from htr2hpc.train.hpc import DOTFILE_PATH, ensure_htr2hpc_version  # noqa: E402
 
 
 def _mock_run_result(stdout="", stderr="", exited=0):
@@ -37,15 +37,34 @@ def _dotfile_content(status="installed", gitref="", version=None):
 
 class TestEnsureHtr2hpcVersion:
     def test_installs_when_no_dotfile(self):
-        """When no dotfile exists, install and write dotfile."""
+        """When no dotfile exists, atomically claim and install."""
         conn = MagicMock()
         conn.run.side_effect = [
             _mock_run_result(exited=1),  # cat dotfile: not found
-            _mock_run_result(exited=0),  # write status=installing
+            _mock_run_result(exited=0),  # claim dotfile (noclobber): success
             _mock_run_result(exited=0),  # pip install
             _mock_run_result(exited=0),  # write status=installed
         ]
         assert ensure_htr2hpc_version(conn) is True
+
+    def test_waits_if_another_job_claims_dotfile(self):
+        """When claim fails (another job got there first), poll and wait."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # cat dotfile: not found
+            _mock_run_result(exited=1),  # claim dotfile: fails (other job claimed)
+            _mock_run_result(  # poll 1: still installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(  # poll 2: installed
+                stdout=_dotfile_content(status="installed"), exited=0
+            ),
+            _mock_run_result(  # re-read after wait
+                stdout=_dotfile_content(status="installed"), exited=0
+            ),
+        ]
+        with patch("htr2hpc.train.hpc.time.sleep"):
+            assert ensure_htr2hpc_version(conn) is True
 
     def test_skips_when_version_matches_in_production(self):
         """Production (no HTR2HPC_GITREF): skip if version matches."""
@@ -77,7 +96,8 @@ class TestEnsureHtr2hpcVersion:
                 stdout=_dotfile_content(status="installed", gitref="oldsha123"),
                 exited=0,
             ),
-            _mock_run_result(exited=0),  # write status=installing
+            _mock_run_result(exited=0),  # delete dotfile
+            _mock_run_result(exited=0),  # claim dotfile: success
             _mock_run_result(exited=0),  # pip install
             _mock_run_result(exited=0),  # write status=installed
         ]
@@ -91,7 +111,8 @@ class TestEnsureHtr2hpcVersion:
                 stdout=_dotfile_content(status="installed", gitref="", version="0.7.0"),
                 exited=0,
             ),
-            _mock_run_result(exited=0),  # write status=installing
+            _mock_run_result(exited=0),  # delete dotfile
+            _mock_run_result(exited=0),  # claim dotfile: success
             _mock_run_result(exited=0),  # pip install
             _mock_run_result(exited=0),  # write status=installed
         ]
@@ -102,7 +123,7 @@ class TestEnsureHtr2hpcVersion:
         conn = MagicMock()
         conn.run.side_effect = [
             _mock_run_result(exited=1),  # cat dotfile: not found
-            _mock_run_result(exited=0),  # write status=installing
+            _mock_run_result(exited=0),  # claim dotfile: success
             _mock_run_result(exited=1, stderr="pip error"),  # pip install fails
             _mock_run_result(exited=0),  # delete dotfile
         ]
@@ -115,6 +136,7 @@ class TestEnsureHtr2hpcVersion:
             _mock_run_result(  # first read: status=installing
                 stdout=_dotfile_content(status="installing"), exited=0
             ),
+            _mock_run_result(stdout="", exited=1),  # stale check: not stale
             _mock_run_result(  # poll 1: still installing
                 stdout=_dotfile_content(status="installing"), exited=0
             ),
@@ -131,41 +153,42 @@ class TestEnsureHtr2hpcVersion:
     def test_fails_when_wait_times_out(self):
         """When polling times out waiting for install, return False."""
         conn = MagicMock()
-        conn.run.return_value = _mock_run_result(
-            stdout=_dotfile_content(status="installing"), exited=0
-        )
+        conn.run.side_effect = [
+            _mock_run_result(  # first read: status=installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(stdout="", exited=1),  # stale check: not stale
+            _mock_run_result(  # poll: still installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+        ]
         with (
             patch("htr2hpc.train.hpc.time.sleep"),
             patch("htr2hpc.train.hpc.POLL_TIMEOUT", 0),
         ):
             assert ensure_htr2hpc_version(conn) is False
 
-    def test_installs_if_dotfile_deleted_after_wait(self):
-        """If dotfile is deleted while waiting (failed install by other job), install ourselves."""
+    def test_takes_over_stale_installing_dotfile(self):
+        """When dotfile is stale (install crashed), take over the install."""
         conn = MagicMock()
         conn.run.side_effect = [
             _mock_run_result(  # first read: status=installing
                 stdout=_dotfile_content(status="installing"), exited=0
             ),
-            _mock_run_result(exited=1),  # poll: dotfile gone (other job failed)
-            _mock_run_result(exited=1),  # re-read after wait: still gone
-            _mock_run_result(exited=0),  # write status=installing
+            _mock_run_result(stdout=DOTFILE_PATH, exited=0),  # stale check: IS stale
+            _mock_run_result(exited=0),  # delete stale dotfile
+            _mock_run_result(exited=0),  # claim dotfile: success
             _mock_run_result(exited=0),  # pip install
             _mock_run_result(exited=0),  # write status=installed
         ]
-        with (
-            patch("htr2hpc.train.hpc.time.sleep"),
-            patch("htr2hpc.train.hpc.POLL_TIMEOUT", 5),
-            patch("htr2hpc.train.hpc.POLL_INTERVAL", 5),
-        ):
-            assert ensure_htr2hpc_version(conn) is True
+        assert ensure_htr2hpc_version(conn) is True
 
     def test_install_command_uses_version_by_default(self):
         """Without HTR2HPC_GITREF, install command uses __version__."""
         conn = MagicMock()
         conn.run.side_effect = [
             _mock_run_result(exited=1),  # no dotfile
-            _mock_run_result(exited=0),  # write installing
+            _mock_run_result(exited=0),  # claim dotfile
             _mock_run_result(exited=0),  # pip install
             _mock_run_result(exited=0),  # write installed
         ]
@@ -181,7 +204,7 @@ class TestEnsureHtr2hpcVersion:
         conn = MagicMock()
         conn.run.side_effect = [
             _mock_run_result(exited=1),  # no dotfile
-            _mock_run_result(exited=0),  # write installing
+            _mock_run_result(exited=0),  # claim dotfile
             _mock_run_result(exited=0),  # pip install
             _mock_run_result(exited=0),  # write installed
         ]

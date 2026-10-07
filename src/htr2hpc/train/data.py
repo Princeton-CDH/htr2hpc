@@ -84,7 +84,7 @@ def get_segmentation_data(
         region_type = block_types.get(region.typology, "default")
         regions[region_type].append(
             Region(
-                id=region.external_id, boundary=region.box, tags={"type": region_type}
+                id=region.external_id, boundary=region.box, tags={"type": [{"type": region_type}]}
             )
         )
 
@@ -108,7 +108,7 @@ def get_segmentation_data(
             regions=[region_pk_to_id[line.region]] if line.region else None,
             # mark as default if type is not in the public list
             # db includes more types but they are not marked as public
-            tags={"type": line_types.get(line.typology, "default")},
+            tags={"type": [{"type": line_types.get(line.typology, "default")}]},
             # get text transcription content for this line, if available
             # (only possible when transcription id is specified)
             text=text_lines.get(line.pk),

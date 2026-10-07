@@ -1,5 +1,8 @@
 """Tests for htr2hpc.train.calculate — pure functions, no Django needed."""
+
 import datetime
+import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -14,30 +17,57 @@ from htr2hpc.train.calculate import (
     stats_get_max_cpu,
 )
 
-
 # ---------------------------------------------------------------------------
 # slurm_get_max_acc
 # ---------------------------------------------------------------------------
 
+# Fixture using real kraken 6.x SLURM .out format for segmentation training
+# (captured from Adroit job 3370036, segtrain_doc293_2026-09-17).
+# val_mean_iu appears inline on the stage line (all metrics fit within COLUMNS=200).
+# Stage 0 has the highest val_mean_iu (0.274).
 SEGMENT_OUTPUT = (
-    "stage 0 foo bar\nval_mean_iu: \n  0.45\n"
-    "stage 1 foo bar\nval_mean_iu: \n  0.72\n"
-    "stage 2 foo bar\nval_mean_iu: \n  0.61\n"
+    "stage 0/∞ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9/9 0:00:07 • 0:00:00 2.26it/s"
+    " train_loss_step: 0.365 val_accuracy: 0.841 val_mean_acc: 0.841 val_mean_iu: 0.274"
+    "         early_stopping: 0/10 0.27399\n"
+    "                                                                                  val_freq_iu: 0.810 train_loss_epoch: 0.407\n"
+    "stage 1/∞ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9/9 0:00:08 • 0:00:00 2.02it/s"
+    " train_loss_step: 0.289 val_accuracy: 0.885 val_mean_acc: 0.885 val_mean_iu: 0.259"
+    "         early_stopping: 1/10 0.27399\n"
+    "                                                                                  val_freq_iu: 0.785 train_loss_epoch: 0.320\n"
+    "stage 2/∞ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9/9 0:00:08 • 0:00:00 2.08it/s"
+    " train_loss_step: 0.261 val_accuracy: 0.918 val_mean_acc: 0.918 val_mean_iu: 0.245"
+    "         early_stopping: 2/10 0.27399\n"
+    "                                                                                  val_freq_iu: 0.789 train_loss_epoch: 0.266\n"
 )
 
-TRANSCRIPTION_OUTPUT = """\
-stage 0 foo bar
-baz 0.823 0/10
-stage 1 foo bar
-baz 0.951 0/10
-stage 2 foo bar
-baz 0.910 0/10
-"""
+# Fixture using kraken 6.x non-TTY output format (produced when NO_COLOR=1 is set,
+# as in the SLURM job). val_accuracy: label with value on the next line.
+# Controlled values ensure epoch 1 has the highest accuracy.
+TRANSCRIPTION_OUTPUT = (
+    "stage 0/2 ━━━━━━━━━━━━ 274/274 0:00:19 •    14.01it/s train_loss_step:          \n"
+    "                               0:00:00                285.433      0/10 0.82300 \n"
+    "                                                      val_accuracy:             \n"
+    "                                                      0.823                     \n"
+    "                                                      val_word_accuracy:        \n"
+    "                                                      0.100                     \n"
+    "stage 1/2 ━━━━━━━━━━━━ 274/274 0:00:18 •    14.73it/s train_loss_step:          \n"
+    "                               0:00:00                266.089      1/10 0.95100 \n"
+    "                                                      val_accuracy:             \n"
+    "                                                      0.951                     \n"
+    "                                                      val_word_accuracy:        \n"
+    "                                                      0.200                     \n"
+    "stage 2/2 ━━━━━━━━━━━━ 274/274 0:00:18 •    14.73it/s train_loss_step:          \n"
+    "                               0:00:00                319.474      2/10 0.91000 \n"
+    "                                                      val_accuracy:             \n"
+    "                                                      0.910                     \n"
+    "                                                      val_word_accuracy:        \n"
+    "                                                      0.300                     \n"
+)
 
 
 def test_slurm_get_max_acc_segment():
     result = slurm_get_max_acc(SEGMENT_OUTPUT, "Segment")
-    assert result == (1, 0.72)
+    assert result == (0, 0.274)
 
 
 def test_slurm_get_max_acc_transcription():
@@ -172,7 +202,9 @@ def test_calc_full_duration_no_epochs_short_job():
 
 def test_calc_full_duration_no_runtime():
     # No "Run Time:" in job_stats → (None, None)
-    epoch_request, duration = calc_full_duration(SLURM_WITH_EPOCHS, JOB_STATS_NO_RUNTIME)
+    epoch_request, duration = calc_full_duration(
+        SLURM_WITH_EPOCHS, JOB_STATS_NO_RUNTIME
+    )
     assert epoch_request is None
     assert duration is None
 
@@ -185,11 +217,11 @@ def test_calc_full_duration_no_runtime():
 @pytest.mark.parametrize(
     "stats, expected",
     [
-        ("(1000MB/2000MB per core)", "2G"),   # 1.0 GB → ceil(1.0 + 0.3) = 2
-        ("(1500MB/2000MB per core)", "2G"),   # 1.5 GB → ceil(1.5 + 0.3) = 2
-        ("(1800MB/2000MB per core)", "3G"),   # 1.8 GB → ceil(1.8 + 0.3) = 3
-        ("(2.5GB/4.0GB per core)", "3G"),     # 2.5 GB → ceil(2.5 + 0.3) = 3
-        ("(3.8GB/8.0GB per core)", "5G"),     # 3.8 GB → ceil(3.8 + 0.3) = 5
+        ("(1000MB/2000MB per core)", "2G"),  # 1.0 GB → ceil(1.0 + 0.3) = 2
+        ("(1500MB/2000MB per core)", "2G"),  # 1.5 GB → ceil(1.5 + 0.3) = 2
+        ("(1800MB/2000MB per core)", "3G"),  # 1.8 GB → ceil(1.8 + 0.3) = 3
+        ("(2.5GB/4.0GB per core)", "3G"),  # 2.5 GB → ceil(2.5 + 0.3) = 3
+        ("(3.8GB/8.0GB per core)", "5G"),  # 3.8 GB → ceil(3.8 + 0.3) = 5
     ],
 )
 def test_calc_cpu_mem(stats, expected):
@@ -242,3 +274,71 @@ def test_estimate_duration(size, mode, expected_minutes):
 )
 def test_estimate_cpu_mem(size, mode, expected):
     assert estimate_cpu_mem(size, mode) == expected
+
+
+# ---------------------------------------------------------------------------
+# integration: slurm_get_max_acc against real ketos output
+# ---------------------------------------------------------------------------
+
+RESOURCES = Path(__file__).parent / "resources"
+
+
+def test_slurm_get_max_acc_recognize_real_output(tmp_path):
+    """Run ketos train on a minimal dataset and verify slurm_get_max_acc parses
+    real output so that format changes in future kraken releases cause test failures.
+    """
+    manifest = tmp_path / "train.lst"
+    manifest.write_text(str(RESOURCES / "170025120000003,0074-lite.xml") + "\n")
+
+    result = subprocess.run(
+        [
+            "ketos",
+            "-d",
+            "cpu",
+            "--threads",
+            "1",
+            "--workers",
+            "0",
+            "-s",
+            "42",  # without a seed, loss can diverge to NaN causing exit=1
+            "train",
+            "-o",
+            str(tmp_path / "model"),
+            "-f",
+            "xml",
+            "--spec",
+            "[1,12,0,1 Cr3,3,8 S1(1x0)1,3]",
+            "--quit",
+            "fixed",
+            "-N",
+            "3",
+            "--min-epochs",
+            "3",
+            "-F",
+            "1",
+            "-B",
+            "1",
+            "-t",
+            str(manifest),
+            "-e",
+            str(manifest),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, (
+        f"ketos train failed (exit={result.returncode})\n"
+        f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )
+    output = result.stdout + result.stderr
+    parsed = slurm_get_max_acc(output, "Recognize")
+
+    assert parsed is not None, (
+        f"slurm_get_max_acc returned None; ketos exit={result.returncode}\n"
+        f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )
+    epoch, accuracy = parsed
+    assert isinstance(epoch, int)
+    assert isinstance(accuracy, float)
+    assert 0 <= epoch < 3

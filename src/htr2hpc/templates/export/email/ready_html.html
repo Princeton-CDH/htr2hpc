@@ -1,0 +1,2 @@
+{% load htr2hpc_tags %}<p>You can find it <a href="{% absolute_export_url domain export_uri %}">here {{export_uri}}</a></p>
+{% export_retention_display as retention %}{% if retention %}<p>This download will expire {{ retention }}.</p>{% endif %}

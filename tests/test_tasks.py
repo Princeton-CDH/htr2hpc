@@ -1,0 +1,432 @@
+"""Tests for htr2hpc tasks and htr2hpc.train.hpc."""
+
+import importlib.metadata
+import json
+import os
+import shutil
+import subprocess
+import sys
+from unittest.mock import MagicMock, patch
+
+# htr2hpc.tasks imports from apps.users.consumers (eScriptorium) and celery,
+# neither of which is available in the test environment; mock before importing
+sys.modules.setdefault("celery", MagicMock())
+sys.modules.setdefault("apps", MagicMock())
+sys.modules.setdefault("apps.users", MagicMock())
+sys.modules.setdefault("apps.users.consumers", MagicMock())
+
+from django.test import override_settings  # noqa: E402
+
+from htr2hpc import __version__  # noqa: E402
+from htr2hpc.tasks import start_remote_training  # noqa: E402
+from htr2hpc.train.hpc import VERSION_DOTFILE, ensure_htr2hpc_version  # noqa: E402
+
+
+def _mock_run_result(stdout="", stderr="", exited=0):
+    result = MagicMock()
+    result.stdout = stdout
+    result.stderr = stderr
+    result.exited = exited
+    return result
+
+
+def _dotfile_content(status="installed", gitref="", version=None):
+    """Helper to generate dotfile stdout content as JSON."""
+    v = version or __version__
+    return json.dumps({"gitref": gitref, "version": v, "status": status})
+
+
+class TestEnsureHtr2hpcVersion:
+    def test_installs_when_no_dotfile(self):
+        """When no dotfile exists, atomically claim and install."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # cat dotfile: not found
+            _mock_run_result(exited=0),  # claim dotfile (noclobber): success
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write status=installed
+        ]
+        assert ensure_htr2hpc_version(conn) is True
+
+    def test_waits_if_another_job_claims_dotfile(self):
+        """When claim fails (another job got there first), poll and wait."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # cat dotfile: not found
+            _mock_run_result(exited=1),  # claim dotfile: fails (other job claimed)
+            _mock_run_result(  # poll 1: still installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(  # poll 2: installed
+                stdout=_dotfile_content(status="installed"), exited=0
+            ),
+            _mock_run_result(  # re-read after wait
+                stdout=_dotfile_content(status="installed"), exited=0
+            ),
+        ]
+        with patch("htr2hpc.train.hpc.time.sleep"):
+            assert ensure_htr2hpc_version(conn) is True
+
+    def test_skips_when_version_matches_in_production(self):
+        """Production (no HTR2HPC_GITREF): skip if version matches."""
+        conn = MagicMock()
+        conn.run.return_value = _mock_run_result(
+            stdout=_dotfile_content(status="installed", gitref="", version=__version__),
+            exited=0,
+        )
+        assert ensure_htr2hpc_version(conn) is True
+        assert conn.run.call_count == 1  # only dotfile read
+
+    @override_settings(HTR2HPC_GITREF="abc123sha")
+    def test_skips_when_gitref_matches_in_staging(self):
+        """Staging (HTR2HPC_GITREF set): skip if gitref matches."""
+        conn = MagicMock()
+        conn.run.return_value = _mock_run_result(
+            stdout=_dotfile_content(status="installed", gitref="abc123sha"),
+            exited=0,
+        )
+        assert ensure_htr2hpc_version(conn) is True
+        assert conn.run.call_count == 1  # only dotfile read
+
+    @override_settings(HTR2HPC_GITREF="newsha456")
+    def test_reinstalls_when_gitref_mismatch(self):
+        """Staging: reinstall if gitref differs."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(  # cat dotfile: old gitref
+                stdout=_dotfile_content(status="installed", gitref="oldsha123"),
+                exited=0,
+            ),
+            _mock_run_result(exited=0),  # delete dotfile
+            _mock_run_result(exited=0),  # claim dotfile: success
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write status=installed
+        ]
+        assert ensure_htr2hpc_version(conn) is True
+
+    def test_reinstalls_when_version_mismatch_in_production(self):
+        """Production: reinstall if version differs."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(  # cat dotfile: old version
+                stdout=_dotfile_content(status="installed", gitref="", version="0.7.0"),
+                exited=0,
+            ),
+            _mock_run_result(exited=0),  # delete dotfile
+            _mock_run_result(exited=0),  # claim dotfile: success
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write status=installed
+        ]
+        assert ensure_htr2hpc_version(conn) is True
+
+    def test_deletes_dotfile_on_install_failure(self):
+        """When pip install fails, delete dotfile and return False."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # cat dotfile: not found
+            _mock_run_result(exited=0),  # claim dotfile: success
+            _mock_run_result(exited=1, stderr="pip error"),  # pip install fails
+            _mock_run_result(exited=0),  # delete dotfile
+        ]
+        assert ensure_htr2hpc_version(conn) is False
+
+    def test_waits_when_status_installing(self):
+        """When dotfile status is 'installing', poll until it changes."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(  # first read: status=installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(stdout="", exited=1),  # stale check: not stale
+            _mock_run_result(  # poll 1: still installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(  # poll 2: now installed
+                stdout=_dotfile_content(status="installed"), exited=0
+            ),
+            _mock_run_result(  # re-read after wait
+                stdout=_dotfile_content(status="installed"), exited=0
+            ),
+        ]
+        with patch("htr2hpc.train.hpc.time.sleep"):
+            assert ensure_htr2hpc_version(conn) is True
+
+    def test_fails_when_wait_times_out(self):
+        """When polling times out waiting for install, return False."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(  # first read: status=installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(stdout="", exited=1),  # stale check: not stale
+            _mock_run_result(  # poll: still installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+        ]
+        with (
+            patch("htr2hpc.train.hpc.time.sleep"),
+            patch("htr2hpc.train.hpc.POLL_TIMEOUT", 0),
+        ):
+            assert ensure_htr2hpc_version(conn) is False
+
+    def test_takes_over_stale_installing_dotfile(self):
+        """When dotfile is stale (install crashed), take over the install."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(  # first read: status=installing
+                stdout=_dotfile_content(status="installing"), exited=0
+            ),
+            _mock_run_result(stdout=VERSION_DOTFILE, exited=0),  # stale check: IS stale
+            _mock_run_result(exited=0),  # delete stale dotfile
+            _mock_run_result(exited=0),  # claim dotfile: success
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write status=installed
+        ]
+        assert ensure_htr2hpc_version(conn) is True
+
+    def test_install_command_uses_version_by_default(self):
+        """Without HTR2HPC_GITREF, install command uses __version__."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # no dotfile
+            _mock_run_result(exited=0),  # claim dotfile
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write installed
+        ]
+        ensure_htr2hpc_version(conn)
+        install_call = conn.run.call_args_list[2]
+        cmd = install_call[0][0]
+        assert f"@{__version__}" in cmd
+        assert "--force-reinstall" in cmd
+
+    @override_settings(HTR2HPC_GITREF="abc123sha")
+    def test_install_command_uses_gitref_when_set(self):
+        """When HTR2HPC_GITREF is set, install command uses it."""
+        conn = MagicMock()
+        conn.run.side_effect = [
+            _mock_run_result(exited=1),  # no dotfile
+            _mock_run_result(exited=0),  # claim dotfile
+            _mock_run_result(exited=0),  # pip install
+            _mock_run_result(exited=0),  # write installed
+        ]
+        ensure_htr2hpc_version(conn)
+        install_call = conn.run.call_args_list[2]
+        cmd = install_call[0][0]
+        assert "@abc123sha" in cmd
+        assert f"@{__version__}" not in cmd
+
+
+class TestStartRemoteTraining:
+    def _make_mocks(self, num_reports=1):
+        user = MagicMock()
+        user.username = "testuser"
+        user.auth_token.key = "test-token"
+        task_reports = [MagicMock() for _ in range(num_reports)]
+        return user, task_reports
+
+    @patch("htr2hpc.tasks.send_event")
+    @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=False)
+    @patch("htr2hpc.tasks.Connection")
+    def test_version_install_failure_aborts_training(
+        self, mock_connection, mock_ensure, mock_send_event
+    ):
+        """When ensure_htr2hpc_version returns False, training should be aborted."""
+        user, task_reports = self._make_mocks()
+        result = start_remote_training(
+            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+        )
+        assert result is False
+        # should notify user and record error
+        user.notify.assert_called_with(
+            "Could not install required htr2hpc version in conda env; aborting training.",
+            id="training-error",
+            level="danger",
+        )
+        task_reports[0].error.assert_called_once()
+        # should send training:error event
+        mock_send_event.assert_called_once_with(
+            "document", 1, "training:error", {"id": 2}
+        )
+        # should not run the training command
+        conn = mock_connection.return_value.__enter__.return_value
+        assert conn.run.call_count == 0
+
+    @patch("htr2hpc.tasks.send_event")
+    @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=False)
+    @patch("htr2hpc.tasks.Connection")
+    def test_version_install_failure_errors_all_reports(
+        self, mock_connection, mock_ensure, mock_send_event
+    ):
+        """When ensure_htr2hpc_version fails, all task reports should receive error status."""
+        user, task_reports = self._make_mocks(num_reports=3)
+        start_remote_training(user, "/scratch/working", "train_cmd", 1, 2, task_reports)
+        for report in task_reports:
+            report.error.assert_called_once()
+
+    @patch("htr2hpc.tasks.apps")
+    @patch("htr2hpc.tasks.send_event")
+    @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
+    @patch("htr2hpc.tasks.Connection")
+    def test_slurm_cancellation_cancels_all_reports(
+        self, mock_connection, mock_ensure, mock_send_event, mock_apps
+    ):
+        """When SLURM cancels the job, all task reports should be CANCELED.
+        report.cancel() must NOT be called — it calls app.control.revoke(terminate=True)
+        which would kill this running Celery task mid-loop before secondary reports are saved."""
+        conn = mock_connection.return_value.__enter__.return_value
+        conn.run.return_value = MagicMock(
+            stdout="Slurm job was cancelled", stderr="", exited=1
+        )
+        user, task_reports = self._make_mocks(num_reports=3)
+        result = start_remote_training(
+            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+        )
+        assert result is False
+        for report in task_reports:
+            report.cancel.assert_not_called()
+            report.append.assert_any_call("Canceled by testuser")
+            assert report.done_at is not None
+            report.save.assert_not_called()  # bulk_update is used instead
+        mock_apps.get_model.assert_called_once_with("reporting", "TaskReport")
+        mock_apps.get_model.return_value.objects.bulk_update.assert_called_once_with(
+            task_reports, ["workflow_state", "done_at", "messages"]
+        )
+
+    @patch("htr2hpc.tasks.send_event")
+    @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
+    @patch("htr2hpc.tasks.Connection")
+    def test_nonzero_exit_errors_all_reports(
+        self, mock_connection, mock_ensure, mock_send_event
+    ):
+        """When remote script exits nonzero (not a cancellation), all reports should be errored."""
+        conn = mock_connection.return_value.__enter__.return_value
+        conn.run.return_value = MagicMock(
+            stdout="some error output", stderr="", exited=1
+        )
+        user, task_reports = self._make_mocks(num_reports=3)
+        result = start_remote_training(
+            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+        )
+        assert result is False
+        for report in task_reports:
+            report.error.assert_called_once()
+
+    @patch("htr2hpc.tasks.send_event")
+    @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
+    @patch("htr2hpc.tasks.Connection")
+    def test_success_does_not_error_reports(
+        self, mock_connection, mock_ensure, mock_send_event
+    ):
+        """When remote script exits 0, no reports should be marked as error."""
+        conn = mock_connection.return_value.__enter__.return_value
+        conn.run.return_value = MagicMock(
+            stdout="training complete", stderr="", exited=0
+        )
+        user, task_reports = self._make_mocks(num_reports=3)
+        result = start_remote_training(
+            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+        )
+        assert result is True
+        for report in task_reports:
+            report.error.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# integration: verify ensure_htr2hpc_version actually upgrades outdated deps
+# ---------------------------------------------------------------------------
+
+
+def _get_installed_version(package):
+    return importlib.metadata.version(package)
+
+
+def _pip_install(*args):
+    # uv-managed venvs do not include pip; use uv pip when available.
+    # Pass VIRTUAL_ENV to ensure uv targets the same venv as the running Python.
+    if shutil.which("uv"):
+        env = {**os.environ, "VIRTUAL_ENV": sys.prefix}
+        subprocess.run(["uv", "pip", "install", "-q", *args], check=True, env=env)
+    else:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-q", *args], check=True
+        )
+
+
+class _LocalHPCConn:
+    """Fake Fabric connection that runs pip install locally instead of on HPC.
+
+    ensure_htr2hpc_version constructs a command that uses HPC-specific tools
+    (module load, conda run). This stub intercepts that call and runs a local
+    equivalent so the function can be tested without an HPC connection.
+    """
+
+    user = "testuser"
+
+    def run(self, cmd, warn=False, hide=False):
+        # Replace the full HPC command with a local pip install --upgrade.
+        # Mirror Fabric's behaviour: always return a result object (never raise),
+        # and surface the exit code so ensure_htr2hpc_version can handle failures.
+        try:
+            _pip_install("--upgrade", ".")
+            exited, stderr = 0, ""
+        except subprocess.CalledProcessError as e:
+            exited, stderr = e.returncode, e.stderr or ""
+
+        class _Result:
+            pass
+
+        result = _Result()
+        result.exited = exited
+        result.stdout = ""
+        result.stderr = stderr
+        return result
+
+
+def test_pip_install_uses_pip_when_uv_unavailable():
+    """_pip_install falls back to python -m pip when uv is not in PATH."""
+    with patch("shutil.which", return_value=None), patch("subprocess.run") as mock_run:
+        _pip_install("somepackage==1.0")
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == sys.executable
+        assert "pip" in cmd
+
+
+def test_local_hpc_conn_surfaces_pip_failure():
+    """_LocalHPCConn.run returns exited != 0 when pip install fails."""
+    with patch(
+        "tests.test_tasks._pip_install",
+        side_effect=subprocess.CalledProcessError(1, "pip", stderr="error"),
+    ):
+        conn = _LocalHPCConn()
+        result = conn.run("any cmd")
+        assert result.exited == 1
+        assert result.stderr == "error"
+
+
+def test_ensure_htr2hpc_version_upgrades_kraken():
+    """Verify that ensure_htr2hpc_version upgrades kraken when it has been downgraded.
+
+    Uses a local stub connection that runs pip install --upgrade locally instead
+    of on HPC, so the actual function is called end-to-end.
+    Uses --no-deps when downgrading kraken to avoid torch dependency conflicts.
+    """
+    original_kraken = _get_installed_version("kraken")
+
+    try:
+        # Simulate a user with kraken 5.x in their conda env.
+        # --no-deps avoids torch/torchvision dependency conflicts from kraken 5.x.
+        _pip_install("--no-deps", "kraken==5.2.9")
+        assert _get_installed_version("kraken") == "5.2.9"
+
+        # Call the actual function under test with a local stub connection
+        conn = _LocalHPCConn()
+        assert ensure_htr2hpc_version(conn) is True
+
+        # kraken must now satisfy kraken>=6.0
+        restored = _get_installed_version("kraken")
+        assert int(restored.split(".")[0]) >= 6, (
+            f"Expected kraken >= 6.0 after upgrade, got {restored}"
+        )
+    finally:
+        # Restore original kraken so the dev environment is unchanged.
+        _pip_install("--no-deps", f"kraken=={original_kraken}")

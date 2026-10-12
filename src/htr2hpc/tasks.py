@@ -8,11 +8,15 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from fabric import Connection
 from intspan import intspan
 from invoke.exceptions import UnexpectedExit
 from paramiko.ssh_exception import AuthenticationException
+
+from htr2hpc import __version__
+from htr2hpc.train.hpc import ensure_htr2hpc_version
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +31,43 @@ def directory_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
 
 
+def _error_all_reports(task_reports, message):
+    for report in task_reports:
+        report.error(message)
+
+
+def _cancel_all_reports(task_reports, message):
+    # Do not call eScriptorium's report.cancel(), which calls app.control.revoke(terminate=True)
+    # and would terminate this running Celery task mid-loop, leaving secondary reports in
+    # non-final state and subsequently marked ERROR by task_postrun.
+    for report in task_reports:
+        report.workflow_state = report.WORKFLOW_STATE_CANCELED
+        report.done_at = timezone.now()
+        report.append(f"Canceled by {message}")
+    # TaskReport is an eScriptorium model and cannot be imported directly,
+    # because eScriptorium is installed as a Django application alongside htr2hpc,
+    # not as a package it depends on, so resolve via app registry instead
+    TaskReport = apps.get_model("reporting", "TaskReport")
+    TaskReport.objects.bulk_update(
+        task_reports, ["workflow_state", "done_at", "messages"]
+    )
+
+
 def start_remote_training(
-    user, working_dir, train_cmd, document_pk, model_pk, task_report
+    user, working_dir, train_cmd, document_pk, model_pk, task_reports
 ):
     # common logic for segtrain and train to kick off remote training script
+    # task_reports is a list; the first report is the primary (used for detailed
+    # progress messages and the remote --task-report arg).
+    #
+    # eScriptorium v1.0 creates one TaskReport per page in part_pks.
+    # On the success path, eScriptorium's task_postrun handler automatically
+    # propagates end() to all reports by filtering on task_id. On the error
+    # and cancel paths the task function returns normally (no Celery exception),
+    # so task_postrun sees state==SUCCESS and would call end() instead of
+    # error()/cancel() — we must propagate those explicitly via _error_all_reports
+    # and _cancel_all_reports.
+    primary_task_report = task_reports[0]
 
     # assume we're using LDAP accounts only so usernames match here and on hpc
     username = user.username
@@ -43,7 +80,7 @@ def start_remote_training(
     )
 
     # add training command to task report
-    task_report.append(f"remote training command:\n  {train_cmd}\n")
+    primary_task_report.append(f"remote training command:\n  {train_cmd}\n")
 
     # note: may need to use tmux to keep from disconnecting
     try:
@@ -64,9 +101,17 @@ def start_remote_training(
                 ],
             )
 
+            # ensure htr2hpc version on HPC matches the deployed version
+            if not ensure_htr2hpc_version(conn):
+                error_message = "Could not install required htr2hpc version in conda env; aborting training."
+                user.notify(error_message, id="training-error", level="danger")
+                _error_all_reports(task_reports, error_message)
+                send_event("document", document_pk, "training:error", {"id": model_pk})
+                return False
+
             with conn.cd(working_dir):
                 result = conn.run(
-                    f"module load anaconda3/2024.6 && conda run -n htr2hpc {train_cmd}",
+                    f"module load {settings.HPC_ANACONDA_MODULE} && conda run -n htr2hpc {train_cmd}",
                     env={"ESCRIPTORIUM_API_TOKEN": api_token},
                     warn=True,  # don't throw unexpected error on exit != 0
                 )
@@ -74,21 +119,28 @@ def start_remote_training(
                     f"remote training script completed; exit code: {result.exited}"
                 )
                 # refresh task report to get any messages added via api
-                task_report.refresh_from_db()
+                primary_task_report.refresh_from_db()
 
                 # script output is stored in result.stdout/result.stderr
                 # add output to task report
-                task_report.append(
+                primary_task_report.append(
                     f"\n\nremote script output:\n\n"
                     f"{result.stdout}\n\n{result.stderr}\n\n"
                 )
                 if "Slurm job was cancelled" in result.stdout:
-                    task_report.cancel("(slurm cancellation)")
+                    # TaskReport.cancel() takes a username (unlike error() which takes a message).
+                    # Note: SLURM cancellations can be user-initiated or caused by a timeout.
+                    _cancel_all_reports(task_reports, username)
                     # notify the user of the error
                     user.notify(
                         "Training was cancelled via slurm",
                         id="training-warning",
                         level="warning",
+                    )
+                elif result.exited != 0:
+                    _error_all_reports(
+                        task_reports,
+                        f"Remote training failed (exit code {result.exited}).",
                     )
 
                 # normal exit code is zero;
@@ -111,9 +163,8 @@ def start_remote_training(
         )
         # also store in the task report
         # but first refresh task report to get any messages added via api
-        task_report.refresh_from_db()
-        task_report.error(error_message)
-
+        primary_task_report.refresh_from_db()
+        _error_all_reports(task_reports, error_message)
 
         # send training error event
         send_event(
@@ -169,7 +220,10 @@ def segtrain(
     # use task creation time to determine if model was created just prior to training
     TaskGroup = apps.get_model("reporting", "TaskGroup")
     task_group = TaskGroup.objects.get(pk=task_group_pk)
-    task_report = task_group.taskreport_set.first()
+    # eScriptorium v1.0 creates one TaskReport per page in part_pks;
+    # fetch all so we can propagate final status to each one.
+    task_reports = list(task_group.taskreport_set.all())
+    primary_task_report = task_reports[0]
 
     # if the model is older than the task group, then we infer that
     # overwrite was requested on the form (update an existing model)
@@ -210,7 +264,8 @@ def segtrain(
     arg_options = [
         f"--document {document_pk}",  # document id is always required
         "--no-progress",  # disable progressbar
-        f"--task-report {task_report.pk}",  # task reporting
+        f"--task-report {primary_task_report.pk}",  # task reporting
+        f"--anaconda-module {settings.HPC_ANACONDA_MODULE}",
     ]
 
     # part ids are optional
@@ -236,7 +291,7 @@ def segtrain(
     logger.info(f"remote training command: {cmd}")
 
     success = start_remote_training(
-        user, working_dir, cmd, document_pk, model.pk, task_report
+        user, working_dir, cmd, document_pk, model.pk, task_reports
     )
 
     # refresh model data from the database,
@@ -342,7 +397,10 @@ def train(
     # use task creation time to determine if model record is new
     TaskGroup = apps.get_model("reporting", "TaskGroup")
     task_group = TaskGroup.objects.get(pk=task_group_pk)
-    task_report = task_group.taskreport_set.first()
+    # eScriptorium v1.0 creates one TaskReport per page in part_pks;
+    # fetch all so we can propagate final status to each one.
+    task_reports = list(task_group.taskreport_set.all())
+    primary_task_report = task_reports[0]
 
     # if the model is older than the task group, then we infer that
     # overwrite was requested on the form (update an existing model)
@@ -383,7 +441,8 @@ def train(
         # parse and serialize part ids with intspan
         f"--parts {intspan(part_pks)}",
         "--no-progress",  # disable progressbar
-        f"--task-report {task_report.pk}",  # task reporting
+        f"--task-report {primary_task_report.pk}",  # task reporting
+        f"--anaconda-module {settings.HPC_ANACONDA_MODULE}",
     ]
 
     # model is technically optional for this task but it should
@@ -406,7 +465,7 @@ def train(
     logger.info(f"remote training command: {cmd}")
 
     success = start_remote_training(
-        user, working_dir, cmd, document.pk, model.pk, task_report
+        user, working_dir, cmd, document.pk, model.pk, task_reports
     )
 
     # refresh model data from the database,
@@ -507,6 +566,7 @@ def hpc_user_setup(self, user_pk=None):
 
             setup_cmd = (
                 f"./{user_setup_script.name}  --skip-ssh-setup --reinstall-htr2hpc"
+                f" --htr2hpc-version {__version__}"
             )
             # document setup command options in task report
             if task_report:

@@ -1,0 +1,2 @@
+{% load htr2hpc_tags %}You can find it here: {% absolute_export_url domain export_uri %}
+{% export_retention_display as retention %}{% if retention %}This download will expire {{ retention }}.{% endif %}

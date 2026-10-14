@@ -8,7 +8,7 @@ class HpcJobStats(models.Model):
     """Stores resource usage statistics for completed HPC training jobs.
 
     Populated by the celery worker after each training job completes.
-    Tracks memory usage (from sacct) and scratch storage per user.
+    Tracks memory usage, elapsed time, GPU usage, and scratch storage per user.
     """
 
     task_report_id = models.IntegerField(
@@ -34,6 +34,16 @@ class HpcJobStats(models.Model):
         null=True,
         blank=True,
         help_text="Average memory usage in MB (AveRSS from sacct).",
+    )
+    elapsed_seconds = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Wall-clock runtime in seconds (ElapsedRaw from sacct).",
+    )
+    gpu_utilization = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="GPU utilization as a fraction 0-1 (from TRESUsageInTot gres/gpu).",
     )
     scratch_storage_mb = models.FloatField(
         null=True,

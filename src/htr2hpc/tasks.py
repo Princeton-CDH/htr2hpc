@@ -55,11 +55,13 @@ def _save_hpc_job_stats(conn, user, job_type, task_report_id):
         logger.warning("Failed to collect scratch storage stats", exc_info=True)
         scratch_storage_mb = None
 
-    # memory: parsed from sacct using the slurm job ID from the task report messages
+    # memory/elapsed/gpu: parsed from sacct using the slurm job ID from the task report messages
     # The primary task report messages contain the slurm job ID after run.py appends stats
     slurm_job_id = ""
     max_memory_mb = None
     avg_memory_mb = None
+    elapsed_seconds = None
+    gpu_utilization = None
     try:
         TaskReport = apps.get_model("reporting", "TaskReport")
         task_report = TaskReport.objects.get(pk=task_report_id)
@@ -68,11 +70,13 @@ def _save_hpc_job_stats(conn, user, job_type, task_report_id):
         match = re.search(r"(?:train|segtrain)_(\d+)\.out", task_report.messages or "")
         if match:
             slurm_job_id = match.group(1)
-            memory = slurm_job_memory(conn, int(slurm_job_id))
-            max_memory_mb = memory["max_memory_mb"]
-            avg_memory_mb = memory["avg_memory_mb"]
+            stats = slurm_job_memory(conn, int(slurm_job_id))
+            max_memory_mb = stats["max_memory_mb"]
+            avg_memory_mb = stats["avg_memory_mb"]
+            elapsed_seconds = stats["elapsed_seconds"]
+            gpu_utilization = stats["gpu_utilization"]
     except Exception:
-        logger.warning("Failed to collect memory stats from sacct", exc_info=True)
+        logger.warning("Failed to collect stats from sacct", exc_info=True)
 
     try:
         HpcJobStats.objects.create(
@@ -82,6 +86,8 @@ def _save_hpc_job_stats(conn, user, job_type, task_report_id):
             slurm_job_id=slurm_job_id,
             max_memory_mb=max_memory_mb,
             avg_memory_mb=avg_memory_mb,
+            elapsed_seconds=elapsed_seconds,
+            gpu_utilization=gpu_utilization,
             scratch_storage_mb=scratch_storage_mb,
         )
     except Exception:

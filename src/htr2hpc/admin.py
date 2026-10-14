@@ -28,6 +28,8 @@ class HpcJobStatsAdmin(admin.ModelAdmin):  # pragma: no cover
         "slurm_job_id",
         "max_memory_mb",
         "avg_memory_mb",
+        "elapsed_seconds",
+        "gpu_utilization",
         "scratch_storage_mb",
         "created_at",
     )

@@ -174,61 +174,104 @@ def slurm_job_stats(job_id: int) -> str:
     return result.stdout.strip()
 
 
-def _parse_memory_output(stdout: str) -> dict:
-    """Parse sacct --parsable2 output into max/avg memory in MB.
+def _parse_kb(val_str: str) -> float | None:
+    """Parse a memory value string like '12345K', '12M', '2G' into kilobytes."""
+    if not val_str:
+        return None
+    try:
+        if val_str.endswith("K"):
+            return float(val_str[:-1])
+        elif val_str.endswith("M"):
+            return float(val_str[:-1]) * 1024
+        elif val_str.endswith("G"):
+            return float(val_str[:-1]) * 1024 * 1024
+        else:
+            return float(val_str)
+    except ValueError:
+        return None
 
+
+def _parse_memory_output(stdout: str) -> dict:
+    """Parse sacct --parsable2 output into max/avg memory in MB, elapsed time, and GPU utilization.
+
+    Expected sacct format: MaxRSS|AveRSS|ElapsedRaw|TRESUsageInTot
     sacct reports memory as e.g. '12345678K', '12M', '2G'.
-    Returns dict with max_memory_mb and avg_memory_mb (None if unavailable).
+    TRESUsageInTot contains e.g. 'cpu=100,gres/gpu=50' where the GPU value
+    is a percentage (0-100); stored as a fraction 0-1.
+
+    Returns dict with max_memory_mb, avg_memory_mb, elapsed_seconds,
+    gpu_utilization (all None if unavailable).
     """
     max_kb = None
     avg_kb = None
+    elapsed_seconds = None
+    gpu_utilization = None
+
     for line in stdout.strip().splitlines():
         parts = line.split("|")
-        if len(parts) < 2:
+        if len(parts) < 4:
             continue
-        max_str, avg_str = parts[0].strip(), parts[1].strip()
-        for val_str, storage in [(max_str, "max"), (avg_str, "avg")]:
-            if not val_str:
-                continue
-            try:
-                if val_str.endswith("K"):
-                    kb = float(val_str[:-1])
-                elif val_str.endswith("M"):
-                    kb = float(val_str[:-1]) * 1024
-                elif val_str.endswith("G"):
-                    kb = float(val_str[:-1]) * 1024 * 1024
-                else:
-                    kb = float(val_str)
-                if storage == "max" and (max_kb is None or kb > max_kb):
-                    max_kb = kb
-                elif storage == "avg" and avg_kb is None:
-                    avg_kb = kb
-            except ValueError:
-                continue
+        max_str, avg_str, elapsed_str, tres_str = (
+            parts[0].strip(),
+            parts[1].strip(),
+            parts[2].strip(),
+            parts[3].strip(),
+        )
+
+        kb = _parse_kb(max_str)
+        if kb is not None and (max_kb is None or kb > max_kb):
+            max_kb = kb
+
+        kb = _parse_kb(avg_str)
+        if kb is not None and avg_kb is None:
+            avg_kb = kb
+
+        import contextlib
+
+        if elapsed_str and elapsed_seconds is None:
+            with contextlib.suppress(ValueError):
+                elapsed_seconds = int(elapsed_str)
+
+        # TRESUsageInTot: "cpu=200,gres/gpu=75,mem=8000M" — GPU is a percentage
+        if tres_str and gpu_utilization is None:
+            for item in tres_str.split(","):
+                if item.startswith("gres/gpu="):
+                    with contextlib.suppress(ValueError, IndexError):
+                        gpu_utilization = float(item.split("=")[1]) / 100
 
     return {
         "max_memory_mb": round(max_kb / 1024, 2) if max_kb is not None else None,
         "avg_memory_mb": round(avg_kb / 1024, 2) if avg_kb is not None else None,
+        "elapsed_seconds": elapsed_seconds,
+        "gpu_utilization": gpu_utilization,
     }
 
 
 def slurm_job_memory(conn, job_id: int) -> dict:
-    """Use `sacct` on the HPC host to get structured memory usage for a completed Slurm job.
+    """Use `sacct` on the HPC host to get resource usage for a completed Slurm job.
 
     Runs sacct via the existing SSH connection so it executes on the HPC host
     where Slurm is installed.
 
     Returns a dict with keys:
-      - max_memory_mb: peak memory usage in MB (MaxRSS across all steps)
-      - avg_memory_mb: average memory usage in MB (AveRSS across all steps)
+      - max_memory_mb: peak memory usage in MB (MaxRSS)
+      - avg_memory_mb: average memory usage in MB (AveRSS)
+      - elapsed_seconds: wall-clock runtime in seconds (ElapsedRaw)
+      - gpu_utilization: GPU utilization as fraction 0-1 (from TRESUsageInTot)
 
     Values are None if sacct fails or data is unavailable.
     """
     result = conn.run(
-        f"sacct --jobs={job_id} --format=MaxRSS,AveRSS --noheader --parsable2",
+        f"sacct --jobs={job_id} --format=MaxRSS,AveRSS,ElapsedRaw,TRESUsageInTot"
+        " --noheader --parsable2",
         warn=True,
         hide=True,
     )
     if result.exited != 0:
-        return {"max_memory_mb": None, "avg_memory_mb": None}
+        return {
+            "max_memory_mb": None,
+            "avg_memory_mb": None,
+            "elapsed_seconds": None,
+            "gpu_utilization": None,
+        }
     return _parse_memory_output(result.stdout)

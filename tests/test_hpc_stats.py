@@ -20,15 +20,20 @@ User = get_user_model()
 
 def test_parse_memory_output_parses_kb():
     """Parses MaxRSS/AveRSS values in KB correctly."""
-    result = _parse_memory_output("4096K|2048K\n512K|256K\n")
+    result = _parse_memory_output(
+        "4096K|2048K|120|cpu=100,gres/gpu=75\n512K|256K|60|\n"
+    )
     assert result["max_memory_mb"] == pytest.approx(4.0)
     assert result["avg_memory_mb"] == pytest.approx(2.0)
+    assert result["elapsed_seconds"] == 120
+    assert result["gpu_utilization"] == pytest.approx(0.75)
 
 
 def test_parse_memory_output_parses_gb():
     """Parses MaxRSS values in GB correctly."""
-    result = _parse_memory_output("2G|1G\n")
+    result = _parse_memory_output("2G|1G|300|\n")
     assert result["max_memory_mb"] == pytest.approx(2048.0)
+    assert result["elapsed_seconds"] == 300
 
 
 def test_parse_memory_output_returns_none_on_empty():
@@ -36,6 +41,15 @@ def test_parse_memory_output_returns_none_on_empty():
     result = _parse_memory_output("\n")
     assert result["max_memory_mb"] is None
     assert result["avg_memory_mb"] is None
+    assert result["elapsed_seconds"] is None
+    assert result["gpu_utilization"] is None
+
+
+def test_parse_memory_output_no_gpu():
+    """Returns None for gpu_utilization when no GPU data in TRESUsageInTot."""
+    result = _parse_memory_output("4096K|2048K|120|cpu=100\n")
+    assert result["gpu_utilization"] is None
+    assert result["elapsed_seconds"] == 120
 
 
 # ---------------------------------------------------------------------------
@@ -53,11 +67,13 @@ def _mock_conn_run(stdout="", exited=0):
 
 
 def test_slurm_job_memory_success():
-    """Returns parsed memory values on successful sacct call."""
-    conn = _mock_conn_run(stdout="4096K|2048K\n", exited=0)
+    """Returns parsed memory, elapsed, and GPU values on successful sacct call."""
+    conn = _mock_conn_run(stdout="4096K|2048K|120|cpu=100,gres/gpu=75\n", exited=0)
     result = slurm_job_memory(conn, 12345)
     assert result["max_memory_mb"] == pytest.approx(4.0)
     assert result["avg_memory_mb"] == pytest.approx(2.0)
+    assert result["elapsed_seconds"] == 120
+    assert result["gpu_utilization"] == pytest.approx(0.75)
 
 
 def test_slurm_job_memory_returns_none_on_failure():

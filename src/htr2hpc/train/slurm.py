@@ -135,6 +135,7 @@ def slurm_job_queue_status(job_id: int) -> str:
         ["squeue", f"--jobs={job_id}", "--only-job-state", "--format=%T", "--noheader"],
         capture_output=True,
         text=True,
+        check=False,
     )
     # raise subprocess.CalledProcessError if return code indicates an error
     result.check_returncode()
@@ -152,6 +153,7 @@ def slurm_job_status(job_id: int) -> set:
         ["sacct", f"--jobs={job_id}", "--format=state%15", "--noheader"],
         capture_output=True,
         text=True,
+        check=False,
     )
     # raise subprocess.CalledProcessError if return code indicates an error
     result.check_returncode()
@@ -166,6 +168,66 @@ def slurm_job_stats(job_id: int) -> str:
         ["jobstats", str(job_id)],
         capture_output=True,
         text=True,
+        check=False,
     )
     # return task status without any whitespace
     return result.stdout.strip()
+
+
+def slurm_job_memory(job_id: int) -> dict:
+    """Use `sacct` to get structured memory usage for a completed Slurm job.
+
+    Returns a dict with keys:
+      - max_memory_mb: peak memory usage in MB (MaxRSS across all steps)
+      - avg_memory_mb: average memory usage in MB (AveRSS across all steps)
+
+    Values are None if sacct fails or data is unavailable.
+    """
+    result = subprocess.run(
+        [
+            "sacct",
+            f"--jobs={job_id}",
+            "--format=MaxRSS,AveRSS",
+            "--noheader",
+            "--parsable2",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return {"max_memory_mb": None, "avg_memory_mb": None}
+
+    max_kb = None
+    avg_kb = None
+    for line in result.stdout.strip().splitlines():
+        parts = line.split("|")
+        if len(parts) < 2:
+            continue
+        max_str, avg_str = parts[0].strip(), parts[1].strip()
+        # sacct reports memory as e.g. "12345678K" or "12G"; parse KB values
+        for val_str, storage in [(max_str, "max"), (avg_str, "avg")]:
+            if not val_str:
+                continue
+            try:
+                if val_str.endswith("K"):
+                    kb = float(val_str[:-1])
+                elif val_str.endswith("M"):
+                    kb = float(val_str[:-1]) * 1024
+                elif val_str.endswith("G"):
+                    kb = float(val_str[:-1]) * 1024 * 1024
+                else:
+                    kb = float(val_str)
+                mb = kb / 1024
+                if storage == "max" and (max_kb is None or kb > max_kb):
+                    max_kb = kb
+                    _ = mb  # used below
+                elif storage == "avg" and avg_kb is None:
+                    avg_kb = kb
+            except ValueError:
+                continue
+
+    return {
+        "max_memory_mb": round(max_kb / 1024, 2) if max_kb is not None else None,
+        "avg_memory_mb": round(avg_kb / 1024, 2) if avg_kb is not None else None,
+    }

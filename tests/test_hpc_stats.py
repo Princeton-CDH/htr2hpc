@@ -159,6 +159,16 @@ def test_report_hpc_usage_text_output(stats_data):
 
 
 @pytest.mark.django_db
+def test_report_hpc_usage_filter_by_days(stats_data):
+    """--days flag filters output to recent jobs."""
+    out = StringIO()
+    call_command("report_hpc_usage", days=30, stdout=out)
+    output = out.getvalue()
+    # stats_data was just created so should appear within 30 days
+    assert "alice" in output
+
+
+@pytest.mark.django_db
 def test_report_hpc_usage_filter_by_user(stats_data):
     """--user flag filters output to a single user."""
     out = StringIO()

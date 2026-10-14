@@ -55,7 +55,7 @@ class Command(BaseCommand):
                 job_count=Count("pk"),
                 avg_memory_mb=Avg("max_memory_mb"),
                 max_memory_mb=Max("max_memory_mb"),
-                latest_storage_mb=Max("scratch_storage_mb"),
+                max_storage_mb=Max("scratch_storage_mb"),
             )
             .order_by("user__username", "job_type")
         )
@@ -81,7 +81,7 @@ class Command(BaseCommand):
                 f"{row['job_count']:>6} "
                 f"{self._fmt(row['avg_memory_mb']):>14} "
                 f"{self._fmt(row['max_memory_mb']):>14} "
-                f"{self._fmt(row['latest_storage_mb']):>14}"
+                f"{self._fmt(row['max_storage_mb']):>14}"
             )
 
     def _write_csv(self, rows):
@@ -93,7 +93,7 @@ class Command(BaseCommand):
                 "job_count",
                 "avg_memory_mb",
                 "max_memory_mb",
-                "latest_storage_mb",
+                "max_storage_mb",
             ],
         )
         writer.writeheader()
@@ -105,7 +105,7 @@ class Command(BaseCommand):
                     "job_count": row["job_count"],
                     "avg_memory_mb": row["avg_memory_mb"] or "",
                     "max_memory_mb": row["max_memory_mb"] or "",
-                    "latest_storage_mb": row["latest_storage_mb"] or "",
+                    "max_storage_mb": row["max_storage_mb"] or "",
                 }
             )
 

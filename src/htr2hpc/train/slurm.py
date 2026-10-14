@@ -174,38 +174,19 @@ def slurm_job_stats(job_id: int) -> str:
     return result.stdout.strip()
 
 
-def slurm_job_memory(job_id: int) -> dict:
-    """Use `sacct` to get structured memory usage for a completed Slurm job.
+def _parse_memory_output(stdout: str) -> dict:
+    """Parse sacct --parsable2 output into max/avg memory in MB.
 
-    Returns a dict with keys:
-      - max_memory_mb: peak memory usage in MB (MaxRSS across all steps)
-      - avg_memory_mb: average memory usage in MB (AveRSS across all steps)
-
-    Values are None if sacct fails or data is unavailable.
+    sacct reports memory as e.g. '12345678K', '12M', '2G'.
+    Returns dict with max_memory_mb and avg_memory_mb (None if unavailable).
     """
-    result = subprocess.run(
-        [
-            "sacct",
-            f"--jobs={job_id}",
-            "--format=MaxRSS,AveRSS",
-            "--noheader",
-            "--parsable2",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        return {"max_memory_mb": None, "avg_memory_mb": None}
-
     max_kb = None
     avg_kb = None
-    for line in result.stdout.strip().splitlines():
+    for line in stdout.strip().splitlines():
         parts = line.split("|")
         if len(parts) < 2:
             continue
         max_str, avg_str = parts[0].strip(), parts[1].strip()
-        # sacct reports memory as e.g. "12345678K" or "12G"; parse KB values
         for val_str, storage in [(max_str, "max"), (avg_str, "avg")]:
             if not val_str:
                 continue
@@ -218,10 +199,8 @@ def slurm_job_memory(job_id: int) -> dict:
                     kb = float(val_str[:-1]) * 1024 * 1024
                 else:
                     kb = float(val_str)
-                mb = kb / 1024
                 if storage == "max" and (max_kb is None or kb > max_kb):
                     max_kb = kb
-                    _ = mb  # used below
                 elif storage == "avg" and avg_kb is None:
                     avg_kb = kb
             except ValueError:
@@ -231,3 +210,25 @@ def slurm_job_memory(job_id: int) -> dict:
         "max_memory_mb": round(max_kb / 1024, 2) if max_kb is not None else None,
         "avg_memory_mb": round(avg_kb / 1024, 2) if avg_kb is not None else None,
     }
+
+
+def slurm_job_memory(conn, job_id: int) -> dict:
+    """Use `sacct` on the HPC host to get structured memory usage for a completed Slurm job.
+
+    Runs sacct via the existing SSH connection so it executes on the HPC host
+    where Slurm is installed.
+
+    Returns a dict with keys:
+      - max_memory_mb: peak memory usage in MB (MaxRSS across all steps)
+      - avg_memory_mb: average memory usage in MB (AveRSS across all steps)
+
+    Values are None if sacct fails or data is unavailable.
+    """
+    result = conn.run(
+        f"sacct --jobs={job_id} --format=MaxRSS,AveRSS --noheader --parsable2",
+        warn=True,
+        hide=True,
+    )
+    if result.exited != 0:
+        return {"max_memory_mb": None, "avg_memory_mb": None}
+    return _parse_memory_output(result.stdout)

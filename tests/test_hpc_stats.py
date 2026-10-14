@@ -1,61 +1,69 @@
 """Tests for HpcJobStats model, slurm_job_memory, and report_hpc_usage command."""
 
 from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 
 from htr2hpc.models import HpcJobStats
-from htr2hpc.train.slurm import slurm_job_memory
+from htr2hpc.train.slurm import _parse_memory_output, slurm_job_memory
 
 User = get_user_model()
 
 
 # ---------------------------------------------------------------------------
-# slurm_job_memory tests
+# _parse_memory_output tests (pure function, no SSH needed)
 # ---------------------------------------------------------------------------
 
 
-def test_slurm_job_memory_parses_kb():
+def test_parse_memory_output_parses_kb():
     """Parses MaxRSS/AveRSS values in KB correctly."""
-    mock_result = MagicMock()
-    mock_result.returncode = 0
-    mock_result.stdout = "4096K|2048K\n512K|256K\n"
-    with patch("subprocess.run", return_value=mock_result):
-        result = slurm_job_memory(12345)
+    result = _parse_memory_output("4096K|2048K\n512K|256K\n")
     assert result["max_memory_mb"] == pytest.approx(4.0)
     assert result["avg_memory_mb"] == pytest.approx(2.0)
 
 
-def test_slurm_job_memory_parses_gb():
+def test_parse_memory_output_parses_gb():
     """Parses MaxRSS values in GB correctly."""
-    mock_result = MagicMock()
-    mock_result.returncode = 0
-    mock_result.stdout = "2G|1G\n"
-    with patch("subprocess.run", return_value=mock_result):
-        result = slurm_job_memory(12345)
+    result = _parse_memory_output("2G|1G\n")
     assert result["max_memory_mb"] == pytest.approx(2048.0)
 
 
-def test_slurm_job_memory_returns_none_on_failure():
-    """Returns None values when sacct fails."""
-    mock_result = MagicMock()
-    mock_result.returncode = 1
-    with patch("subprocess.run", return_value=mock_result):
-        result = slurm_job_memory(12345)
+def test_parse_memory_output_returns_none_on_empty():
+    """Returns None values for empty output."""
+    result = _parse_memory_output("\n")
     assert result["max_memory_mb"] is None
     assert result["avg_memory_mb"] is None
 
 
-def test_slurm_job_memory_handles_empty_output():
-    """Returns None values when sacct returns empty output."""
-    mock_result = MagicMock()
-    mock_result.returncode = 0
-    mock_result.stdout = "\n"
-    with patch("subprocess.run", return_value=mock_result):
-        result = slurm_job_memory(12345)
+# ---------------------------------------------------------------------------
+# slurm_job_memory tests (SSH via conn)
+# ---------------------------------------------------------------------------
+
+
+def _mock_conn_run(stdout="", exited=0):
+    result = MagicMock()
+    result.stdout = stdout
+    result.exited = exited
+    conn = MagicMock()
+    conn.run.return_value = result
+    return conn
+
+
+def test_slurm_job_memory_success():
+    """Returns parsed memory values on successful sacct call."""
+    conn = _mock_conn_run(stdout="4096K|2048K\n", exited=0)
+    result = slurm_job_memory(conn, 12345)
+    assert result["max_memory_mb"] == pytest.approx(4.0)
+    assert result["avg_memory_mb"] == pytest.approx(2.0)
+
+
+def test_slurm_job_memory_returns_none_on_failure():
+    """Returns None values when sacct exits nonzero."""
+    conn = _mock_conn_run(exited=1)
+    result = slurm_job_memory(conn, 12345)
     assert result["max_memory_mb"] is None
     assert result["avg_memory_mb"] is None
 

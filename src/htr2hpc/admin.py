@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model  # pragma: no cover
 from pucas.admin import CasUserAdmin  # pragma: no cover
 from users.admin import MyUserAdmin  # pragma: no cover
 
-from htr2hpc.models import HpcJobStats  # pragma: no cover
+from htr2hpc.models import HpcJobStats, SiteContent  # pragma: no cover
 
 
 class Htr2HpcUserAdmin(CasUserAdmin, MyUserAdmin):  # pragma: no cover
@@ -37,3 +37,11 @@ class HpcJobStatsAdmin(admin.ModelAdmin):  # pragma: no cover
     search_fields = ("user__username", "slurm_job_id")
     ordering = ("-created_at",)
     readonly_fields = ("created_at",)
+
+
+@admin.register(SiteContent)  # pragma: no cover
+class SiteContentAdmin(admin.ModelAdmin):  # pragma: no cover
+    list_display = ("key", "label", "updated_at")
+    search_fields = ("key", "label", "body")
+    readonly_fields = ("updated_at",)
+    ordering = ("key",)

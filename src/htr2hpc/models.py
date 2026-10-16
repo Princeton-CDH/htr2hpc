@@ -4,6 +4,31 @@ from django.conf import settings
 from django.db import models
 
 
+class SiteContent(models.Model):
+    """Admin-editable content snippets injected into specific pages.
+
+    Allows staff to update page content (contact info, announcements, model
+    descriptions) without a code change or deployment. Each record is identified
+    by a slug key used in the ``{% site_content %}`` template tag.
+    """
+
+    key = models.SlugField(max_length=100, unique=True)
+    label = models.CharField(max_length=200)
+    body = models.TextField(
+        blank=True,
+        help_text="HTML content to inject into the page. Leave blank to hide the slot.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "site content"
+        verbose_name_plural = "site content"
+        ordering: ClassVar[list] = ["key"]
+
+    def __str__(self):
+        return self.label or self.key
+
+
 class HpcJobStats(models.Model):
     """Stores resource usage statistics for completed HPC training jobs.
 

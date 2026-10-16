@@ -1,4 +1,5 @@
 {# customize heading for homepage #}
+{% load htr2hpc_tags %}
 <h1 class="jumbotron-heading">eScriptorium</h1>
-<p class="lead text-muted">A project providing digital recognition of handwritten documents using machine learning techniques.</p>
-<p>This is a limited-access eScriptorium instance managed by Princeton's Center for Digital Humanities to support affiliated research.</p>
+{% site_content "home_intro" %}
+{% site_content "announcement" %}

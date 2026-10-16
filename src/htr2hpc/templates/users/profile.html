@@ -1,4 +1,5 @@
 {% extends "users/profile.html" %}
+{% load htr2hpc_tags %}
 
 {% block body %}
 {{ block.super }}
@@ -6,8 +7,7 @@
 <div class="container pt-5">
     <h2>HPC account management</h2>
         <h3>First time setup</h3>
-        <p>To enable key-based ssh access to your account from the eScriptorium server, follow
-            the below three steps. (This is a one-time process.)</p>
+        {% site_content "hpc_setup_intro" %}
         <ol>
             <li>Ensure that you are either on-campus connected to the University wifi or
                 that you are connected to the Princeton network through the VPN
@@ -28,8 +28,8 @@
             </li>
         </ol>
     <h3>HPC account updates</h3>
-    <p>This instance of eScriptorium will receive occasional upgrades where updates to your HPC account may be necessary. 
-        When prompted to update your HPC account, simply click the "HPC setup" button above to automatically 
+    <p>This instance of eScriptorium will receive occasional upgrades where updates to your HPC account may be necessary.
+        When prompted to update your HPC account, simply click the "HPC setup" button above to automatically
         run the update process.</p>
 </div>
 

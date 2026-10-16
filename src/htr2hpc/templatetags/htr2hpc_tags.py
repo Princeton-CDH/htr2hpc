@@ -3,9 +3,26 @@ from datetime import timedelta
 from django import template
 from django.conf import settings
 from django.utils import timezone
+from django.utils.safestring import mark_safe
 from django.utils.timesince import timeuntil
 
 register = template.Library()
+
+
+@register.simple_tag
+def site_content(key):
+    """Return the body of a SiteContent record by key, or empty string if not found.
+
+    The body is marked safe for HTML rendering; only staff users can edit
+    SiteContent through the admin interface.
+    """
+    from htr2hpc.models import SiteContent
+
+    try:
+        obj = SiteContent.objects.get(key=key)
+        return mark_safe(obj.body)
+    except SiteContent.DoesNotExist:
+        return ""
 
 
 @register.simple_tag

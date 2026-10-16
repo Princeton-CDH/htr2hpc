@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime
 
 # imports from escriptorium
@@ -16,7 +17,9 @@ from invoke.exceptions import UnexpectedExit
 from paramiko.ssh_exception import AuthenticationException
 
 from htr2hpc import __version__
+from htr2hpc.models import HpcJobStats
 from htr2hpc.train.hpc import ensure_htr2hpc_version
+from htr2hpc.train.slurm import slurm_job_memory
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +31,70 @@ User = get_user_model()
 def directory_timestamp():
     # use timestamps to ensure working directories for training data
     # are unique; use human-readable date with time including microseconds
-    return datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
+    return datetime.now(tz=timezone.utc).strftime("%Y-%m-%d_%H%M%S_%f")
+
+
+def _save_hpc_job_stats(conn, user, job_type, task_report_id):
+    """Collect and save HPC resource usage stats after a training job completes.
+
+    Runs storage check and sacct memory query via the existing SSH connection,
+    then saves results to HpcJobStats. Failures are logged but do not affect
+    training outcome.
+    """
+    try:
+        # storage: total size of user's htr2hpc scratch directory
+        scratch_storage_mb = None
+        storage_result = conn.run(
+            f"du -sm /scratch/network/{conn.user}/htr2hpc/ 2>/dev/null",
+            warn=True,
+            hide=True,
+        )
+        if storage_result.exited == 0 and storage_result.stdout.strip():
+            scratch_storage_mb = float(storage_result.stdout.strip().split()[0])
+    except Exception:
+        logger.warning("Failed to collect scratch storage stats", exc_info=True)
+        scratch_storage_mb = None
+
+    # memory/elapsed/gpu: parsed from sacct using the slurm job ID from the task report messages
+    # The primary task report messages contain the slurm job ID after run.py appends stats
+    slurm_job_id = ""
+    max_memory_mb = None
+    avg_memory_mb = None
+    elapsed_seconds = None
+    gpu_utilization = None
+    try:
+        TaskReport = apps.get_model("reporting", "TaskReport")
+        task_report = TaskReport.objects.get(pk=task_report_id)
+        # extract slurm job ID from messages — run.py writes "Job output is in {dir}/train_{job_id}.out"
+        # or "Job output is in {dir}/segtrain_{job_id}.out"; take the last match
+        matches = re.findall(
+            r"Job output is in \S*?(?:seg)?train_(\d+)\.out", task_report.messages or ""
+        )
+        match = matches[-1] if matches else None
+        if match:
+            slurm_job_id = match
+            stats = slurm_job_memory(conn, int(slurm_job_id))
+            max_memory_mb = stats["max_memory_mb"]
+            avg_memory_mb = stats["avg_memory_mb"]
+            elapsed_seconds = stats["elapsed_seconds"]
+            gpu_utilization = stats["gpu_utilization"]
+    except Exception:
+        logger.warning("Failed to collect stats from sacct", exc_info=True)
+
+    try:
+        HpcJobStats.objects.create(
+            task_report_id=task_report_id,
+            user=user,
+            job_type=job_type,
+            slurm_job_id=slurm_job_id,
+            max_memory_mb=max_memory_mb,
+            avg_memory_mb=avg_memory_mb,
+            elapsed_seconds=elapsed_seconds,
+            gpu_utilization=gpu_utilization,
+            scratch_storage_mb=scratch_storage_mb,
+        )
+    except Exception:
+        logger.warning("Failed to save HpcJobStats", exc_info=True)
 
 
 def _error_all_reports(task_reports, message):
@@ -54,7 +120,7 @@ def _cancel_all_reports(task_reports, message):
 
 
 def start_remote_training(
-    user, working_dir, train_cmd, document_pk, model_pk, task_reports
+    user, working_dir, train_cmd, document_pk, model_pk, task_reports, job_type
 ):
     # common logic for segtrain and train to kick off remote training script
     # task_reports is a list; the first report is the primary (used for detailed
@@ -118,6 +184,7 @@ def start_remote_training(
                 logger.info(
                     f"remote training script completed; exit code: {result.exited}"
                 )
+
                 # refresh task report to get any messages added via api
                 primary_task_report.refresh_from_db()
 
@@ -126,6 +193,15 @@ def start_remote_training(
                 primary_task_report.append(
                     f"\n\nremote script output:\n\n"
                     f"{result.stdout}\n\n{result.stderr}\n\n"
+                )
+
+                # collect HPC resource usage stats after appending output,
+                # so the slurm job ID is available in task report messages
+                _save_hpc_job_stats(
+                    conn=conn,
+                    user=user,
+                    job_type=job_type,
+                    task_report_id=primary_task_report.pk,
                 )
                 if "Slurm job was cancelled" in result.stdout:
                     # TaskReport.cancel() takes a username (unlike error() which takes a message).
@@ -291,7 +367,7 @@ def segtrain(
     logger.info(f"remote training command: {cmd}")
 
     success = start_remote_training(
-        user, working_dir, cmd, document_pk, model.pk, task_reports
+        user, working_dir, cmd, document_pk, model.pk, task_reports, job_type="segtrain"
     )
 
     # refresh model data from the database,
@@ -465,7 +541,7 @@ def train(
     logger.info(f"remote training command: {cmd}")
 
     success = start_remote_training(
-        user, working_dir, cmd, document.pk, model.pk, task_reports
+        user, working_dir, cmd, document.pk, model.pk, task_reports, job_type="train"
     )
 
     # refresh model data from the database,

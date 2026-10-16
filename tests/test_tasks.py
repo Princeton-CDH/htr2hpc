@@ -15,11 +15,11 @@ sys.modules.setdefault("apps", MagicMock())
 sys.modules.setdefault("apps.users", MagicMock())
 sys.modules.setdefault("apps.users.consumers", MagicMock())
 
-from django.test import override_settings  # noqa: E402
+from django.test import override_settings
 
-from htr2hpc import __version__  # noqa: E402
-from htr2hpc.tasks import start_remote_training  # noqa: E402
-from htr2hpc.train.hpc import VERSION_DOTFILE, ensure_htr2hpc_version  # noqa: E402
+from htr2hpc import __version__
+from htr2hpc.tasks import start_remote_training
+from htr2hpc.train.hpc import VERSION_DOTFILE, ensure_htr2hpc_version
 
 
 def _mock_run_result(stdout="", stderr="", exited=0):
@@ -224,16 +224,23 @@ class TestStartRemoteTraining:
         task_reports = [MagicMock() for _ in range(num_reports)]
         return user, task_reports
 
+    @patch("htr2hpc.tasks._save_hpc_job_stats")
     @patch("htr2hpc.tasks.send_event")
     @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=False)
     @patch("htr2hpc.tasks.Connection")
     def test_version_install_failure_aborts_training(
-        self, mock_connection, mock_ensure, mock_send_event
+        self, mock_connection, mock_ensure, mock_send_event, mock_save_stats
     ):
         """When ensure_htr2hpc_version returns False, training should be aborted."""
         user, task_reports = self._make_mocks()
         result = start_remote_training(
-            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+            user,
+            "/scratch/working",
+            "train_cmd",
+            1,
+            2,
+            task_reports,
+            job_type="segtrain",
         )
         assert result is False
         # should notify user and record error
@@ -251,24 +258,34 @@ class TestStartRemoteTraining:
         conn = mock_connection.return_value.__enter__.return_value
         assert conn.run.call_count == 0
 
+    @patch("htr2hpc.tasks._save_hpc_job_stats")
     @patch("htr2hpc.tasks.send_event")
     @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=False)
     @patch("htr2hpc.tasks.Connection")
     def test_version_install_failure_errors_all_reports(
-        self, mock_connection, mock_ensure, mock_send_event
+        self, mock_connection, mock_ensure, mock_send_event, mock_save_stats
     ):
         """When ensure_htr2hpc_version fails, all task reports should receive error status."""
         user, task_reports = self._make_mocks(num_reports=3)
-        start_remote_training(user, "/scratch/working", "train_cmd", 1, 2, task_reports)
+        start_remote_training(
+            user,
+            "/scratch/working",
+            "train_cmd",
+            1,
+            2,
+            task_reports,
+            job_type="segtrain",
+        )
         for report in task_reports:
             report.error.assert_called_once()
 
+    @patch("htr2hpc.tasks._save_hpc_job_stats")
     @patch("htr2hpc.tasks.apps")
     @patch("htr2hpc.tasks.send_event")
     @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
     @patch("htr2hpc.tasks.Connection")
     def test_slurm_cancellation_cancels_all_reports(
-        self, mock_connection, mock_ensure, mock_send_event, mock_apps
+        self, mock_connection, mock_ensure, mock_send_event, mock_apps, mock_save_stats
     ):
         """When SLURM cancels the job, all task reports should be CANCELED.
         report.cancel() must NOT be called — it calls app.control.revoke(terminate=True)
@@ -279,7 +296,13 @@ class TestStartRemoteTraining:
         )
         user, task_reports = self._make_mocks(num_reports=3)
         result = start_remote_training(
-            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+            user,
+            "/scratch/working",
+            "train_cmd",
+            1,
+            2,
+            task_reports,
+            job_type="segtrain",
         )
         assert result is False
         for report in task_reports:
@@ -292,11 +315,12 @@ class TestStartRemoteTraining:
             task_reports, ["workflow_state", "done_at", "messages"]
         )
 
+    @patch("htr2hpc.tasks._save_hpc_job_stats")
     @patch("htr2hpc.tasks.send_event")
     @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
     @patch("htr2hpc.tasks.Connection")
     def test_nonzero_exit_errors_all_reports(
-        self, mock_connection, mock_ensure, mock_send_event
+        self, mock_connection, mock_ensure, mock_send_event, mock_save_stats
     ):
         """When remote script exits nonzero (not a cancellation), all reports should be errored."""
         conn = mock_connection.return_value.__enter__.return_value
@@ -305,17 +329,24 @@ class TestStartRemoteTraining:
         )
         user, task_reports = self._make_mocks(num_reports=3)
         result = start_remote_training(
-            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+            user,
+            "/scratch/working",
+            "train_cmd",
+            1,
+            2,
+            task_reports,
+            job_type="segtrain",
         )
         assert result is False
         for report in task_reports:
             report.error.assert_called_once()
 
+    @patch("htr2hpc.tasks._save_hpc_job_stats")
     @patch("htr2hpc.tasks.send_event")
     @patch("htr2hpc.tasks.ensure_htr2hpc_version", return_value=True)
     @patch("htr2hpc.tasks.Connection")
     def test_success_does_not_error_reports(
-        self, mock_connection, mock_ensure, mock_send_event
+        self, mock_connection, mock_ensure, mock_send_event, mock_save_stats
     ):
         """When remote script exits 0, no reports should be marked as error."""
         conn = mock_connection.return_value.__enter__.return_value
@@ -324,7 +355,7 @@ class TestStartRemoteTraining:
         )
         user, task_reports = self._make_mocks(num_reports=3)
         result = start_remote_training(
-            user, "/scratch/working", "train_cmd", 1, 2, task_reports
+            user, "/scratch/working", "train_cmd", 1, 2, task_reports, job_type="train"
         )
         assert result is True
         for report in task_reports:

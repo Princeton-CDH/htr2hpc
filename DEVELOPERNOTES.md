@@ -93,7 +93,7 @@ The built documentation will be in `sphinx-docs/_build/html/`. Documentation is 
 
 Follow the release checklist in the GitHub issue template for full release prep steps, including acceptance testing and changelog review.
 
-Release tags must use the `X.Y.Z` format without a `v` prefix (e.g. `0.9.0`, not `v0.9.0`). Both `user_setup.sh` and the Django-side `ensure_htr2hpc_version()` install htr2hpc directly from the git tag, so the tag must match `__version__` exactly or pip will fail with a pathspec error.
+Release tags must use the `X.Y.Z` format without a `v` prefix (e.g. `0.9.0`, not `v0.9.0`). Both `user_setup.sh` and the Django-side `ensure_htr2hpc_version()` use the version string directly in the pip install URL. When `HTR2HPC_GITREF` is not set (production), `ensure_htr2hpc_version()` falls back to `__version__`, so the tag must match `__version__` exactly or pip will fail with a pathspec error. Staging deployments set `HTR2HPC_GITREF` to a commit SHA and are not affected by this constraint.
 
 ## Deploying a new release
 

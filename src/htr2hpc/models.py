@@ -43,7 +43,7 @@ class HpcJobStats(models.Model):
     gpu_utilization = models.FloatField(
         null=True,
         blank=True,
-        help_text="GPU utilization as a fraction 0-1 (from TRESUsageInTot gres/gpu).",
+        help_text="GPU utilization as a fraction 0-1 (from TRESUsageInAve gres/gpuutil).",
     )
     scratch_storage_mb = models.FloatField(
         null=True,

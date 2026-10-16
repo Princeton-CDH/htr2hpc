@@ -127,12 +127,24 @@ Field explanations:
                     "username": row["user__username"],
                     "job_type": row["job_type"],
                     "job_count": row["job_count"],
-                    "avg_memory_mb": row["avg_memory_mb"] or "",
-                    "max_memory_mb": row["max_memory_mb"] or "",
-                    "avg_elapsed_seconds": row["avg_elapsed_seconds"] or "",
-                    "max_elapsed_seconds": row["max_elapsed_seconds"] or "",
-                    "avg_gpu_utilization": row["avg_gpu_utilization"] or "",
-                    "max_storage_mb": row["max_storage_mb"] or "",
+                    "avg_memory_mb": ""
+                    if row["avg_memory_mb"] is None
+                    else row["avg_memory_mb"],
+                    "max_memory_mb": ""
+                    if row["max_memory_mb"] is None
+                    else row["max_memory_mb"],
+                    "avg_elapsed_seconds": ""
+                    if row["avg_elapsed_seconds"] is None
+                    else row["avg_elapsed_seconds"],
+                    "max_elapsed_seconds": ""
+                    if row["max_elapsed_seconds"] is None
+                    else row["max_elapsed_seconds"],
+                    "avg_gpu_utilization": ""
+                    if row["avg_gpu_utilization"] is None
+                    else row["avg_gpu_utilization"],
+                    "max_storage_mb": ""
+                    if row["max_storage_mb"] is None
+                    else row["max_storage_mb"],
                 }
             )
 

@@ -66,10 +66,13 @@ def _save_hpc_job_stats(conn, user, job_type, task_report_id):
         TaskReport = apps.get_model("reporting", "TaskReport")
         task_report = TaskReport.objects.get(pk=task_report_id)
         # extract slurm job ID from messages — run.py writes "Job output is in {dir}/train_{job_id}.out"
-        # or "Job output is in {dir}/segtrain_{job_id}.out"
-        match = re.search(r"(?:train|segtrain)_(\d+)\.out", task_report.messages or "")
+        # or "Job output is in {dir}/segtrain_{job_id}.out"; take the last match
+        matches = re.findall(
+            r"Job output is in \S*?(?:seg)?train_(\d+)\.out", task_report.messages or ""
+        )
+        match = matches[-1] if matches else None
         if match:
-            slurm_job_id = match.group(1)
+            slurm_job_id = match
             stats = slurm_job_memory(conn, int(slurm_job_id))
             max_memory_mb = stats["max_memory_mb"]
             avg_memory_mb = stats["avg_memory_mb"]

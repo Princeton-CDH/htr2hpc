@@ -21,7 +21,7 @@ User = get_user_model()
 def test_parse_memory_output_parses_kb():
     """Parses MaxRSS/AveRSS values in KB correctly."""
     result = _parse_memory_output(
-        "4096K|2048K|120|cpu=100,gres/gpu=75\n512K|256K|60|\n"
+        "4096K|2048K|120|cpu=100,gres/gpuutil=75\n512K|256K|60|\n"
     )
     assert result["max_memory_mb"] == pytest.approx(4.0)
     assert result["avg_memory_mb"] == pytest.approx(2.0)
@@ -68,7 +68,7 @@ def _mock_conn_run(stdout="", exited=0):
 
 def test_slurm_job_memory_success():
     """Returns parsed memory, elapsed, and GPU values on successful sacct call."""
-    conn = _mock_conn_run(stdout="4096K|2048K|120|cpu=100,gres/gpu=75\n", exited=0)
+    conn = _mock_conn_run(stdout="4096K|2048K|120|cpu=100,gres/gpuutil=75\n", exited=0)
     result = slurm_job_memory(conn, 12345)
     assert result["max_memory_mb"] == pytest.approx(4.0)
     assert result["avg_memory_mb"] == pytest.approx(2.0)

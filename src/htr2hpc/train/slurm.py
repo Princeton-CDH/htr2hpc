@@ -175,7 +175,13 @@ def slurm_job_stats(job_id: int) -> str:
 
 
 def _parse_kb(val_str: str) -> float | None:
-    """Parse a memory value string like '12345K', '12M', '2G' into kilobytes."""
+    """Parse a memory value string like '12345K', '12M', '2G' into kilobytes.
+
+    Adroit's sacct consistently outputs memory with a 'K' suffix (kilobytes).
+    Bare numeric values (no suffix) are treated as kilobytes as a fallback,
+    consistent with the most common sacct default. The 'T' suffix is not
+    handled as terabyte-scale memory is not expected for training jobs.
+    """
     if not val_str:
         return None
     try:
@@ -194,10 +200,10 @@ def _parse_kb(val_str: str) -> float | None:
 def _parse_memory_output(stdout: str) -> dict:
     """Parse sacct --parsable2 output into max/avg memory in MB, elapsed time, and GPU utilization.
 
-    Expected sacct format: MaxRSS|AveRSS|ElapsedRaw|TRESUsageInTot
+    Expected sacct format: MaxRSS|AveRSS|ElapsedRaw|TRESUsageInAve
     sacct reports memory as e.g. '12345678K', '12M', '2G'.
-    TRESUsageInTot contains e.g. 'cpu=100,gres/gpu=50' where the GPU value
-    is a percentage (0-100); stored as a fraction 0-1.
+    TRESUsageInAve contains e.g. 'cpu=...,gres/gpuutil=50' where the GPU
+    utilization value is a percentage (0-100); stored as a fraction 0-1.
 
     Returns dict with max_memory_mb, avg_memory_mb, elapsed_seconds,
     gpu_utilization (all None if unavailable).
@@ -232,10 +238,10 @@ def _parse_memory_output(stdout: str) -> dict:
             with contextlib.suppress(ValueError):
                 elapsed_seconds = int(elapsed_str)
 
-        # TRESUsageInTot: "cpu=200,gres/gpu=75,mem=8000M" — GPU is a percentage
+        # TRESUsageInAve: "cpu=...,gres/gpuutil=54,..." — GPU utilization is a percentage
         if tres_str and gpu_utilization is None:
             for item in tres_str.split(","):
-                if item.startswith("gres/gpu="):
+                if item.startswith("gres/gpuutil="):
                     with contextlib.suppress(ValueError, IndexError):
                         gpu_utilization = float(item.split("=")[1]) / 100
 
@@ -257,12 +263,12 @@ def slurm_job_memory(conn, job_id: int) -> dict:
       - max_memory_mb: peak memory usage in MB (MaxRSS)
       - avg_memory_mb: average memory usage in MB (AveRSS)
       - elapsed_seconds: wall-clock runtime in seconds (ElapsedRaw)
-      - gpu_utilization: GPU utilization as fraction 0-1 (from TRESUsageInTot)
+      - gpu_utilization: GPU utilization as fraction 0-1 (from TRESUsageInAve gres/gpuutil)
 
     Values are None if sacct fails or data is unavailable.
     """
     result = conn.run(
-        f"sacct --jobs={job_id} --format=MaxRSS,AveRSS,ElapsedRaw,TRESUsageInTot"
+        f"sacct --jobs={job_id} --format=MaxRSS,AveRSS,ElapsedRaw,TRESUsageInAve"
         " --noheader --parsable2",
         warn=True,
         hide=True,

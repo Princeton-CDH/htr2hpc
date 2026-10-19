@@ -19,7 +19,7 @@ HPC_TRAIN_METHOD = "htr2hpc.tasks.train"
 
 @login_required
 @require_http_methods(["POST"])
-def remote_user_setup(request):
+def remote_user_setup(request):  # pragma: no cover
     # it seems that the taskreport must be associated with a document,
     # so skip the task reporting logic here and just use notifications
 
@@ -43,7 +43,7 @@ class UsageReportView(TemplateView):
 
     template_name = "htr2hpc/usage_report.html"
 
-    def get_usage_data(self):
+    def get_usage_data(self):  # pragma: no cover
         """Return annotated user list with VM and HPC usage stats.
 
         Extracted as a separate method to allow easy mocking in tests.

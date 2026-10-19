@@ -51,10 +51,12 @@ class UsageReportView(TemplateView):
         """Return annotated user list with VM and HPC usage stats.
 
         Extracted as a separate method to allow easy mocking in tests.
+        Disk usage is queried separately to avoid row multiplication from
+        joining both taskreport and ocrmodel relations simultaneously.
         """
-        today = datetime.now(tz=UTC).date()
-        filter_last_week = Q(taskreport__started_at__gte=today - timedelta(days=7))
-        filter_last_month = Q(taskreport__started_at__gte=today - timedelta(days=30))
+        now = datetime.now(tz=UTC)
+        filter_last_week = Q(taskreport__started_at__gte=now - timedelta(days=7))
+        filter_last_month = Q(taskreport__started_at__gte=now - timedelta(days=30))
         filter_hpc_segtrain = Q(taskreport__method=HPC_SEGTRAIN_METHOD)
         filter_hpc_train = Q(taskreport__method=HPC_TRAIN_METHOD)
         filter_vm_segment = Q(taskreport__method=VM_SEGMENT_METHOD)
@@ -65,9 +67,12 @@ class UsageReportView(TemplateView):
             F("taskreport__done_at") - F("taskreport__started_at"),
             output_field=DurationField(),
         )
-        return list(
-            User.objects.all()
-            .annotate(
+
+        # Query task stats separately from disk usage to avoid row multiplication.
+        # Joining both ocrmodel and taskreport in one annotate multiplies counts.
+        task_stats = {
+            u.pk: u
+            for u in User.objects.all().annotate(
                 total_tasks=Count("taskreport"),
                 last_week_tasks=Count("taskreport", filter=filter_last_week),
                 last_month_tasks=Count("taskreport", filter=filter_last_month),
@@ -88,7 +93,6 @@ class UsageReportView(TemplateView):
                 last_month_gpu_usage=Sum(
                     "taskreport__gpu_cost", filter=filter_last_month
                 ),
-                # VM task type breakdown
                 vm_segment_total=Count("taskreport", filter=filter_vm_segment),
                 vm_segment_last_week=Count(
                     "taskreport", filter=filter_vm_segment & filter_last_week
@@ -117,7 +121,6 @@ class UsageReportView(TemplateView):
                 vm_train_last_month=Count(
                     "taskreport", filter=filter_vm_train & filter_last_month
                 ),
-                # HPC task counts
                 hpc_segtrain_total=Count("taskreport", filter=filter_hpc_segtrain),
                 hpc_segtrain_last_week=Count(
                     "taskreport", filter=filter_hpc_segtrain & filter_last_week
@@ -132,10 +135,22 @@ class UsageReportView(TemplateView):
                 hpc_train_last_month=Count(
                     "taskreport", filter=filter_hpc_train & filter_last_month
                 ),
-                disk_usage=Sum("ocrmodel__file_size"),
             )
-            .order_by("username")
+        }
+
+        # Query disk usage separately
+        disk_usages = dict(
+            User.objects.all()
+            .annotate(disk_usage=Sum("ocrmodel__file_size"))
+            .values_list("pk", "disk_usage")
         )
+
+        # Merge disk usage into task stats results
+        results = list(task_stats.values())
+        for user in results:
+            user.disk_usage = disk_usages.get(user.pk) or 0
+        results.sort(key=lambda u: u.username)
+        return results
 
     def post(self, request, *args, **kwargs):
         today = datetime.now(tz=UTC).date()

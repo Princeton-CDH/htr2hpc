@@ -55,21 +55,9 @@ def staff_user(db):
 
 
 @pytest.fixture
-def regular_user(db):
-    return User.objects.create_user(username="regular", password="pass")
-
-
-@pytest.fixture
 def staff_client(staff_user):
     client = Client()
     client.force_login(staff_user)
-    return client
-
-
-@pytest.fixture
-def regular_client(regular_user):
-    client = Client()
-    client.force_login(regular_user)
     return client
 
 

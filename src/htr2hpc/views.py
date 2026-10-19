@@ -15,6 +15,10 @@ User = get_user_model()
 
 HPC_SEGTRAIN_METHOD = "htr2hpc.tasks.segtrain"
 HPC_TRAIN_METHOD = "htr2hpc.tasks.train"
+VM_SEGMENT_METHOD = "core.tasks.segment"
+VM_TRANSCRIBE_METHOD = "core.tasks.transcribe"
+VM_SEGTRAIN_METHOD = "core.tasks.segtrain"
+VM_TRAIN_METHOD = "core.tasks.train"
 
 
 @login_required
@@ -53,6 +57,10 @@ class UsageReportView(TemplateView):
         filter_last_month = Q(taskreport__started_at__gte=today - timedelta(days=30))
         filter_hpc_segtrain = Q(taskreport__method=HPC_SEGTRAIN_METHOD)
         filter_hpc_train = Q(taskreport__method=HPC_TRAIN_METHOD)
+        filter_vm_segment = Q(taskreport__method=VM_SEGMENT_METHOD)
+        filter_vm_transcribe = Q(taskreport__method=VM_TRANSCRIBE_METHOD)
+        filter_vm_segtrain = Q(taskreport__method=VM_SEGTRAIN_METHOD)
+        filter_vm_train = Q(taskreport__method=VM_TRAIN_METHOD)
         runtime = ExpressionWrapper(
             F("taskreport__done_at") - F("taskreport__started_at"),
             output_field=DurationField(),
@@ -80,6 +88,36 @@ class UsageReportView(TemplateView):
                 last_month_gpu_usage=Sum(
                     "taskreport__gpu_cost", filter=filter_last_month
                 ),
+                # VM task type breakdown
+                vm_segment_total=Count("taskreport", filter=filter_vm_segment),
+                vm_segment_last_week=Count(
+                    "taskreport", filter=filter_vm_segment & filter_last_week
+                ),
+                vm_segment_last_month=Count(
+                    "taskreport", filter=filter_vm_segment & filter_last_month
+                ),
+                vm_transcribe_total=Count("taskreport", filter=filter_vm_transcribe),
+                vm_transcribe_last_week=Count(
+                    "taskreport", filter=filter_vm_transcribe & filter_last_week
+                ),
+                vm_transcribe_last_month=Count(
+                    "taskreport", filter=filter_vm_transcribe & filter_last_month
+                ),
+                vm_segtrain_total=Count("taskreport", filter=filter_vm_segtrain),
+                vm_segtrain_last_week=Count(
+                    "taskreport", filter=filter_vm_segtrain & filter_last_week
+                ),
+                vm_segtrain_last_month=Count(
+                    "taskreport", filter=filter_vm_segtrain & filter_last_month
+                ),
+                vm_train_total=Count("taskreport", filter=filter_vm_train),
+                vm_train_last_week=Count(
+                    "taskreport", filter=filter_vm_train & filter_last_week
+                ),
+                vm_train_last_month=Count(
+                    "taskreport", filter=filter_vm_train & filter_last_month
+                ),
+                # HPC task counts
                 hpc_segtrain_total=Count("taskreport", filter=filter_hpc_segtrain),
                 hpc_segtrain_last_week=Count(
                     "taskreport", filter=filter_hpc_segtrain & filter_last_week
@@ -122,6 +160,20 @@ class UsageReportView(TemplateView):
             "total_gpu_usage",
             "last_week_gpu_usage",
             "last_month_gpu_usage",
+            # VM task type breakdown
+            "vm_segment_total",
+            "vm_segment_last_week",
+            "vm_segment_last_month",
+            "vm_transcribe_total",
+            "vm_transcribe_last_week",
+            "vm_transcribe_last_month",
+            "vm_segtrain_total",
+            "vm_segtrain_last_week",
+            "vm_segtrain_last_month",
+            "vm_train_total",
+            "vm_train_last_week",
+            "vm_train_last_month",
+            # HPC task counts
             "hpc_segtrain_total",
             "hpc_segtrain_last_week",
             "hpc_segtrain_last_month",
@@ -158,6 +210,18 @@ class UsageReportView(TemplateView):
                     "total_gpu_usage": user.total_gpu_usage or 0,
                     "last_week_gpu_usage": user.last_week_gpu_usage or 0,
                     "last_month_gpu_usage": user.last_month_gpu_usage or 0,
+                    "vm_segment_total": user.vm_segment_total,
+                    "vm_segment_last_week": user.vm_segment_last_week,
+                    "vm_segment_last_month": user.vm_segment_last_month,
+                    "vm_transcribe_total": user.vm_transcribe_total,
+                    "vm_transcribe_last_week": user.vm_transcribe_last_week,
+                    "vm_transcribe_last_month": user.vm_transcribe_last_month,
+                    "vm_segtrain_total": user.vm_segtrain_total,
+                    "vm_segtrain_last_week": user.vm_segtrain_last_week,
+                    "vm_segtrain_last_month": user.vm_segtrain_last_month,
+                    "vm_train_total": user.vm_train_total,
+                    "vm_train_last_week": user.vm_train_last_week,
+                    "vm_train_last_month": user.vm_train_last_month,
                     "hpc_segtrain_total": user.hpc_segtrain_total,
                     "hpc_segtrain_last_week": user.hpc_segtrain_last_week,
                     "hpc_segtrain_last_month": user.hpc_segtrain_last_month,

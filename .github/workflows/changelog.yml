@@ -41,10 +41,17 @@ jobs:
           if ${HAS_LABEL}; then
             echo "Check passes, since 'no changelog' label is set"
             exit 0
-          elif git diff --exit-code "origin/${BASE_REF}" -- "${CHANGELOG}"; then
-            echo "Error: User-visible changes should come with an entry in the changelog."
-            echo "For changes not user-visible, add the 'no changelog' label to override this behavior."
-            exit 1
           else
-            echo "Check passes, changes detected in ${CHANGELOG}"
+            git diff --exit-code "origin/${BASE_REF}" -- "${CHANGELOG}"
+            exit_code=$?
+            if [ $exit_code -eq 0 ]; then
+              echo "Error: User-visible changes should come with an entry in the changelog."
+              echo "For changes not user-visible, add the 'no changelog' label to override this behavior."
+              exit 1
+            elif [ $exit_code -eq 1 ]; then
+              echo "Check passes, changes detected in ${CHANGELOG}"
+            else
+              echo "Error: git diff failed with exit code ${exit_code}"
+              exit $exit_code
+            fi
           fi

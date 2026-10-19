@@ -1,9 +1,20 @@
+import csv
+from datetime import UTC, datetime, timedelta
+
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseRedirect
+from django.db.models import Count, DurationField, ExpressionWrapper, F, Q, Sum
+from django.http import HttpResponse, HttpResponseRedirect
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
+from django.views.generic import TemplateView
 
 from htr2hpc.tasks import hpc_user_setup
+
+User = get_user_model()
+
+HPC_SEGTRAIN_METHOD = "htr2hpc.tasks.segtrain"
+HPC_TRAIN_METHOD = "htr2hpc.tasks.train"
 
 
 @login_required
@@ -18,3 +29,141 @@ def remote_user_setup(request):
     redirect = HttpResponseRedirect(reverse("profile-api-key"))
     redirect.status_code = 303  # See other
     return redirect
+
+
+class UsageReportView(TemplateView):
+    """Admin-only page to download a CSV of per-user VM and HPC task usage stats.
+
+    Restricted to staff via staff_member_required in urls.py.
+
+    GET:  renders a simple page with a Download CSV button.
+    POST: returns a CSV file with per-user aggregated stats sourced from
+          eScriptorium's existing TaskReport model — no new models required.
+    """
+
+    template_name = "htr2hpc/usage_report.html"
+
+    def get_usage_data(self):
+        """Return annotated user list with VM and HPC usage stats.
+
+        Extracted as a separate method to allow easy mocking in tests.
+        """
+        today = datetime.now(tz=UTC).date()
+        filter_last_week = Q(taskreport__started_at__gte=today - timedelta(days=7))
+        filter_last_month = Q(taskreport__started_at__gte=today - timedelta(days=30))
+        filter_hpc_segtrain = Q(taskreport__method=HPC_SEGTRAIN_METHOD)
+        filter_hpc_train = Q(taskreport__method=HPC_TRAIN_METHOD)
+        runtime = ExpressionWrapper(
+            F("taskreport__done_at") - F("taskreport__started_at"),
+            output_field=DurationField(),
+        )
+        return list(
+            User.objects.all()
+            .annotate(
+                total_tasks=Count("taskreport"),
+                last_week_tasks=Count("taskreport", filter=filter_last_week),
+                last_month_tasks=Count("taskreport", filter=filter_last_month),
+                total_runtime=Sum(runtime),
+                last_week_runtime=Sum(runtime, filter=filter_last_week),
+                last_month_runtime=Sum(runtime, filter=filter_last_month),
+                total_cpu_usage=Sum("taskreport__cpu_cost"),
+                last_week_cpu_usage=Sum(
+                    "taskreport__cpu_cost", filter=filter_last_week
+                ),
+                last_month_cpu_usage=Sum(
+                    "taskreport__cpu_cost", filter=filter_last_month
+                ),
+                total_gpu_usage=Sum("taskreport__gpu_cost"),
+                last_week_gpu_usage=Sum(
+                    "taskreport__gpu_cost", filter=filter_last_week
+                ),
+                last_month_gpu_usage=Sum(
+                    "taskreport__gpu_cost", filter=filter_last_month
+                ),
+                hpc_segtrain_total=Count("taskreport", filter=filter_hpc_segtrain),
+                hpc_segtrain_last_week=Count(
+                    "taskreport", filter=filter_hpc_segtrain & filter_last_week
+                ),
+                hpc_segtrain_last_month=Count(
+                    "taskreport", filter=filter_hpc_segtrain & filter_last_month
+                ),
+                hpc_train_total=Count("taskreport", filter=filter_hpc_train),
+                hpc_train_last_week=Count(
+                    "taskreport", filter=filter_hpc_train & filter_last_week
+                ),
+                hpc_train_last_month=Count(
+                    "taskreport", filter=filter_hpc_train & filter_last_month
+                ),
+                disk_usage=Sum("ocrmodel__file_size"),
+            )
+            .order_by("username")
+        )
+
+    def post(self, request, *args, **kwargs):
+        today = datetime.now(tz=UTC).date()
+        results = self.get_usage_data()
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = (
+            f'attachment; filename="htr-usage-{today}.csv"'
+        )
+        fieldnames = [
+            "username",
+            "disk_usage_bytes",
+            "total_tasks",
+            "last_week_tasks",
+            "last_month_tasks",
+            "total_runtime_seconds",
+            "last_week_runtime_seconds",
+            "last_month_runtime_seconds",
+            "total_cpu_usage",
+            "last_week_cpu_usage",
+            "last_month_cpu_usage",
+            "total_gpu_usage",
+            "last_week_gpu_usage",
+            "last_month_gpu_usage",
+            "hpc_segtrain_total",
+            "hpc_segtrain_last_week",
+            "hpc_segtrain_last_month",
+            "hpc_train_total",
+            "hpc_train_last_week",
+            "hpc_train_last_month",
+        ]
+        writer = csv.DictWriter(response, fieldnames=fieldnames)
+        writer.writeheader()
+        for user in results:
+            writer.writerow(
+                {
+                    "username": user.username,
+                    "disk_usage_bytes": user.disk_usage or 0,
+                    "total_tasks": user.total_tasks,
+                    "last_week_tasks": user.last_week_tasks,
+                    "last_month_tasks": user.last_month_tasks,
+                    "total_runtime_seconds": int(user.total_runtime.total_seconds())
+                    if user.total_runtime
+                    else 0,
+                    "last_week_runtime_seconds": int(
+                        user.last_week_runtime.total_seconds()
+                    )
+                    if user.last_week_runtime
+                    else 0,
+                    "last_month_runtime_seconds": int(
+                        user.last_month_runtime.total_seconds()
+                    )
+                    if user.last_month_runtime
+                    else 0,
+                    "total_cpu_usage": user.total_cpu_usage or 0,
+                    "last_week_cpu_usage": user.last_week_cpu_usage or 0,
+                    "last_month_cpu_usage": user.last_month_cpu_usage or 0,
+                    "total_gpu_usage": user.total_gpu_usage or 0,
+                    "last_week_gpu_usage": user.last_week_gpu_usage or 0,
+                    "last_month_gpu_usage": user.last_month_gpu_usage or 0,
+                    "hpc_segtrain_total": user.hpc_segtrain_total,
+                    "hpc_segtrain_last_week": user.hpc_segtrain_last_week,
+                    "hpc_segtrain_last_month": user.hpc_segtrain_last_month,
+                    "hpc_train_total": user.hpc_train_total,
+                    "hpc_train_last_week": user.hpc_train_last_week,
+                    "hpc_train_last_month": user.hpc_train_last_month,
+                }
+            )
+        return response

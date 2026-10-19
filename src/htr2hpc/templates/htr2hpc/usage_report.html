@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block body %}
+<div class="container mt-4">
+  <h1>{% trans "Usage Report" %}</h1>
+  <p>{% trans "Download a CSV with per-user VM and HPC training usage statistics." %}</p>
+  <p>{% trans "Includes task counts and runtimes for all time, last 30 days, and last 7 days." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">
+      {% trans "Download CSV" %}
+    </button>
+  </form>
+</div>
+{% endblock %}

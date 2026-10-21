@@ -2,7 +2,7 @@
 
 ## 0.9
 
-- Admin usage report CSV export available from the Leaderboard page, with per-user stats for VM tasks (broken down by type) and HPC training jobs, across total, last 7 days, and last 30 days
+- Admin usage report CSV export available from the Leaderboard page, with per-user stats for VM tasks (broken down by type) and HPC training jobs, across total, current week (starting Monday), and current calendar month
 
 ## 0.8
 

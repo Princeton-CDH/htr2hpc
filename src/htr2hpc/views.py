@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseRedirect, StreamingHttpResponse
 from django.urls import reverse
+from django.views import View
 from django.views.decorators.http import require_http_methods
-from django.views.generic import TemplateView
 
 from htr2hpc.exports import USAGE_REPORT_FIELDS, get_usage_data, user_to_csv_row
 from htr2hpc.tasks import hpc_user_setup
@@ -39,14 +39,13 @@ def remote_user_setup(request):  # pragma: no cover
     return redirect
 
 
-class UsageReportView(TemplateView):
-    """Admin-only page to download a CSV of per-user VM and HPC task usage stats.
+class UsageReportView(View):
+    """Admin-only CSV export of per-user VM and HPC task usage stats.
 
     Restricted to staff via staff_member_required in urls.py.
-    GET streams the CSV directly so download begins as data is generated.
+    The download link is placed on the existing Leaderboard page
+    via a template override in templates/reporting/quotas_leaderboard.html.
     """
-
-    template_name = "htr2hpc/usage_report.html"
 
     def get(self, request, *args, **kwargs):  # pragma: no cover
         today = datetime.now(tz=UTC).date()

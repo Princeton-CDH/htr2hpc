@@ -1,9 +1,19 @@
 import csv
 from datetime import UTC, datetime, timedelta
 
+from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, DurationField, ExpressionWrapper, F, Q, Sum
+from django.db.models import (
+    Count,
+    DurationField,
+    ExpressionWrapper,
+    F,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+)
 from django.http import HttpResponse, HttpResponseRedirect
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
@@ -68,11 +78,20 @@ class UsageReportView(TemplateView):
             output_field=DurationField(),
         )
 
-        # Query task stats separately from disk usage to avoid row multiplication.
-        # Joining both ocrmodel and taskreport in one annotate multiplies counts.
-        task_stats = {
-            u.pk: u
-            for u in User.objects.all().annotate(
+        # Use a Subquery for disk_usage to avoid row multiplication from
+        # joining both ocrmodel and taskreport relations simultaneously.
+        OcrModel = apps.get_model("core", "OcrModel")
+        disk_subquery = (
+            OcrModel.objects.filter(owner=OuterRef("pk"))
+            .values("owner")
+            .annotate(total=Sum("file_size"))
+            .values("total")
+        )
+
+        return list(
+            User.objects.all()
+            .annotate(
+                disk_usage=Subquery(disk_subquery),
                 total_tasks=Count("taskreport"),
                 last_week_tasks=Count("taskreport", filter=filter_last_week),
                 last_month_tasks=Count("taskreport", filter=filter_last_month),
@@ -136,21 +155,8 @@ class UsageReportView(TemplateView):
                     "taskreport", filter=filter_hpc_train & filter_last_month
                 ),
             )
-        }
-
-        # Query disk usage separately
-        disk_usages = dict(
-            User.objects.all()
-            .annotate(disk_usage=Sum("ocrmodel__file_size"))
-            .values_list("pk", "disk_usage")
+            .order_by("username")
         )
-
-        # Merge disk usage into task stats results
-        results = list(task_stats.values())
-        for user in results:
-            user.disk_usage = disk_usages.get(user.pk) or 0
-        results.sort(key=lambda u: u.username)
-        return results
 
     def get(self, request, *args, **kwargs):
         today = datetime.now(tz=UTC).date()

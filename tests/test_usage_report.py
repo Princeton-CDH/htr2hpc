@@ -77,7 +77,7 @@ def staff_client(staff_user):
 def test_usage_report_page_accessible_to_staff(staff_client):
     """Staff can access the usage report page — GET now returns CSV directly."""
     with patch(
-        "htr2hpc.views.UsageReportView.get_usage_data",
+        "htr2hpc.exports.get_usage_data",
         return_value=[_make_fake_user()],
     ):
         response = staff_client.get(reverse("usage-report"))
@@ -96,7 +96,7 @@ def test_usage_report_page_redirects_anonymous():
 def test_usage_report_csv_content_type(staff_client):
     """POST returns a CSV file with correct content-type and filename."""
     with patch(
-        "htr2hpc.views.UsageReportView.get_usage_data",
+        "htr2hpc.exports.get_usage_data",
         return_value=[_make_fake_user()],
     ):
         response = staff_client.get(reverse("usage-report"))
@@ -110,7 +110,7 @@ def test_usage_report_csv_content_type(staff_client):
 def test_usage_report_csv_has_required_columns(staff_client):
     """CSV includes all required columns."""
     with patch(
-        "htr2hpc.views.UsageReportView.get_usage_data",
+        "htr2hpc.exports.get_usage_data",
         return_value=[_make_fake_user()],
     ):
         response = staff_client.get(reverse("usage-report"))
@@ -156,7 +156,7 @@ def test_usage_report_csv_has_required_columns(staff_client):
 def test_usage_report_csv_values(staff_client):
     """CSV row contains correct values from the queryset."""
     fake = _make_fake_user(username="alice", hpc_segtrain_total=5, total_cpu_usage=5.0)
-    with patch("htr2hpc.views.UsageReportView.get_usage_data", return_value=[fake]):
+    with patch("htr2hpc.views.get_usage_data", return_value=[fake]):
         response = staff_client.get(reverse("usage-report"))
     rows = list(csv.DictReader(StringIO(response.content.decode())))
     assert rows[0]["username"] == "alice"

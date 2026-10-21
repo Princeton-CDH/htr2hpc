@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.9
+
+- Admin usage report CSV export available from the Leaderboard page, with per-user stats for VM tasks (broken down by type) and HPC training jobs, across total, last 7 days, and last 30 days
+
 ## 0.8
 
 - Update to eScriptorium v1.0.1, with the following changes to match the new version:

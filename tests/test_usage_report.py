@@ -75,8 +75,12 @@ def staff_client(staff_user):
 
 @pytest.mark.django_db
 def test_usage_report_page_accessible_to_staff(staff_client):
-    """Staff can access the usage report page."""
-    response = staff_client.get(reverse("usage-report"))
+    """Staff can access the usage report page — GET now returns CSV directly."""
+    with patch(
+        "htr2hpc.views.UsageReportView.get_usage_data",
+        return_value=[_make_fake_user()],
+    ):
+        response = staff_client.get(reverse("usage-report"))
     assert response.status_code == 200
 
 
@@ -95,7 +99,7 @@ def test_usage_report_csv_content_type(staff_client):
         "htr2hpc.views.UsageReportView.get_usage_data",
         return_value=[_make_fake_user()],
     ):
-        response = staff_client.post(reverse("usage-report"))
+        response = staff_client.get(reverse("usage-report"))
     assert response.status_code == 200
     assert response["Content-Type"] == "text/csv"
     assert "attachment" in response["Content-Disposition"]
@@ -109,7 +113,7 @@ def test_usage_report_csv_has_required_columns(staff_client):
         "htr2hpc.views.UsageReportView.get_usage_data",
         return_value=[_make_fake_user()],
     ):
-        response = staff_client.post(reverse("usage-report"))
+        response = staff_client.get(reverse("usage-report"))
     rows = list(csv.DictReader(StringIO(response.content.decode())))
     assert len(rows) == 1
     assert set(rows[0].keys()) == {
@@ -153,7 +157,7 @@ def test_usage_report_csv_values(staff_client):
     """CSV row contains correct values from the queryset."""
     fake = _make_fake_user(username="alice", hpc_segtrain_total=5, total_cpu_usage=5.0)
     with patch("htr2hpc.views.UsageReportView.get_usage_data", return_value=[fake]):
-        response = staff_client.post(reverse("usage-report"))
+        response = staff_client.get(reverse("usage-report"))
     rows = list(csv.DictReader(StringIO(response.content.decode())))
     assert rows[0]["username"] == "alice"
     assert rows[0]["hpc_segtrain_total"] == "5"

@@ -152,7 +152,7 @@ class UsageReportView(TemplateView):
         results.sort(key=lambda u: u.username)
         return results
 
-    def post(self, request, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         today = datetime.now(tz=UTC).date()
         results = self.get_usage_data()
 

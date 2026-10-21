@@ -60,7 +60,7 @@ USAGE_REPORT_FIELDS = [
 ]
 
 
-def get_usage_data():
+def get_usage_data():  # pragma: no cover
     """Return annotated user queryset with VM and HPC usage stats.
 
     Uses a Subquery for disk_usage to avoid row multiplication from

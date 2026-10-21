@@ -28,35 +28,35 @@ USAGE_REPORT_FIELDS = [
     "username",
     "disk_usage_bytes",
     "total_tasks",
-    "last_week_tasks",
-    "last_month_tasks",
+    "this_week_tasks",
+    "this_month_tasks",
     "total_runtime_seconds",
-    "last_week_runtime_seconds",
-    "last_month_runtime_seconds",
+    "this_week_runtime_seconds",
+    "this_month_runtime_seconds",
     "total_cpu_usage",
-    "last_week_cpu_usage",
-    "last_month_cpu_usage",
+    "this_week_cpu_usage",
+    "this_month_cpu_usage",
     "total_gpu_usage",
-    "last_week_gpu_usage",
-    "last_month_gpu_usage",
+    "this_week_gpu_usage",
+    "this_month_gpu_usage",
     "vm_segment_total",
-    "vm_segment_last_week",
-    "vm_segment_last_month",
+    "vm_segment_this_week",
+    "vm_segment_this_month",
     "vm_transcribe_total",
-    "vm_transcribe_last_week",
-    "vm_transcribe_last_month",
+    "vm_transcribe_this_week",
+    "vm_transcribe_this_month",
     "vm_segtrain_total",
-    "vm_segtrain_last_week",
-    "vm_segtrain_last_month",
+    "vm_segtrain_this_week",
+    "vm_segtrain_this_month",
     "vm_train_total",
-    "vm_train_last_week",
-    "vm_train_last_month",
+    "vm_train_this_week",
+    "vm_train_this_month",
     "hpc_segtrain_total",
-    "hpc_segtrain_last_week",
-    "hpc_segtrain_last_month",
+    "hpc_segtrain_this_week",
+    "hpc_segtrain_this_month",
     "hpc_train_total",
-    "hpc_train_last_week",
-    "hpc_train_last_month",
+    "hpc_train_this_week",
+    "hpc_train_this_month",
 ]
 
 
@@ -67,8 +67,13 @@ def get_usage_data():  # pragma: no cover
     joining both ocrmodel and taskreport relations simultaneously.
     """
     now = datetime.now(tz=UTC)
-    filter_last_week = Q(taskreport__started_at__gte=now - timedelta(days=7))
-    filter_last_month = Q(taskreport__started_at__gte=now - timedelta(days=30))
+    # Use calendar month (1st of current month) and fixed week (Monday)
+    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    start_of_week = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    filter_this_week = Q(taskreport__started_at__gte=start_of_week)
+    filter_this_month = Q(taskreport__started_at__gte=start_of_month)
     filter_hpc_segtrain = Q(taskreport__method=HPC_SEGTRAIN_METHOD)
     filter_hpc_train = Q(taskreport__method=HPC_TRAIN_METHOD)
     filter_vm_segment = Q(taskreport__method=VM_SEGMENT_METHOD)
@@ -93,58 +98,58 @@ def get_usage_data():  # pragma: no cover
         .annotate(
             disk_usage=Subquery(disk_subquery),
             total_tasks=Count("taskreport"),
-            last_week_tasks=Count("taskreport", filter=filter_last_week),
-            last_month_tasks=Count("taskreport", filter=filter_last_month),
+            this_week_tasks=Count("taskreport", filter=filter_this_week),
+            this_month_tasks=Count("taskreport", filter=filter_this_month),
             total_runtime=Sum(runtime),
-            last_week_runtime=Sum(runtime, filter=filter_last_week),
-            last_month_runtime=Sum(runtime, filter=filter_last_month),
+            this_week_runtime=Sum(runtime, filter=filter_this_week),
+            this_month_runtime=Sum(runtime, filter=filter_this_month),
             total_cpu_usage=Sum("taskreport__cpu_cost"),
-            last_week_cpu_usage=Sum("taskreport__cpu_cost", filter=filter_last_week),
-            last_month_cpu_usage=Sum("taskreport__cpu_cost", filter=filter_last_month),
+            this_week_cpu_usage=Sum("taskreport__cpu_cost", filter=filter_this_week),
+            this_month_cpu_usage=Sum("taskreport__cpu_cost", filter=filter_this_month),
             total_gpu_usage=Sum("taskreport__gpu_cost"),
-            last_week_gpu_usage=Sum("taskreport__gpu_cost", filter=filter_last_week),
-            last_month_gpu_usage=Sum("taskreport__gpu_cost", filter=filter_last_month),
+            this_week_gpu_usage=Sum("taskreport__gpu_cost", filter=filter_this_week),
+            this_month_gpu_usage=Sum("taskreport__gpu_cost", filter=filter_this_month),
             vm_segment_total=Count("taskreport", filter=filter_vm_segment),
-            vm_segment_last_week=Count(
-                "taskreport", filter=filter_vm_segment & filter_last_week
+            vm_segment_this_week=Count(
+                "taskreport", filter=filter_vm_segment & filter_this_week
             ),
-            vm_segment_last_month=Count(
-                "taskreport", filter=filter_vm_segment & filter_last_month
+            vm_segment_this_month=Count(
+                "taskreport", filter=filter_vm_segment & filter_this_month
             ),
             vm_transcribe_total=Count("taskreport", filter=filter_vm_transcribe),
-            vm_transcribe_last_week=Count(
-                "taskreport", filter=filter_vm_transcribe & filter_last_week
+            vm_transcribe_this_week=Count(
+                "taskreport", filter=filter_vm_transcribe & filter_this_week
             ),
-            vm_transcribe_last_month=Count(
-                "taskreport", filter=filter_vm_transcribe & filter_last_month
+            vm_transcribe_this_month=Count(
+                "taskreport", filter=filter_vm_transcribe & filter_this_month
             ),
             vm_segtrain_total=Count("taskreport", filter=filter_vm_segtrain),
-            vm_segtrain_last_week=Count(
-                "taskreport", filter=filter_vm_segtrain & filter_last_week
+            vm_segtrain_this_week=Count(
+                "taskreport", filter=filter_vm_segtrain & filter_this_week
             ),
-            vm_segtrain_last_month=Count(
-                "taskreport", filter=filter_vm_segtrain & filter_last_month
+            vm_segtrain_this_month=Count(
+                "taskreport", filter=filter_vm_segtrain & filter_this_month
             ),
             vm_train_total=Count("taskreport", filter=filter_vm_train),
-            vm_train_last_week=Count(
-                "taskreport", filter=filter_vm_train & filter_last_week
+            vm_train_this_week=Count(
+                "taskreport", filter=filter_vm_train & filter_this_week
             ),
-            vm_train_last_month=Count(
-                "taskreport", filter=filter_vm_train & filter_last_month
+            vm_train_this_month=Count(
+                "taskreport", filter=filter_vm_train & filter_this_month
             ),
             hpc_segtrain_total=Count("taskreport", filter=filter_hpc_segtrain),
-            hpc_segtrain_last_week=Count(
-                "taskreport", filter=filter_hpc_segtrain & filter_last_week
+            hpc_segtrain_this_week=Count(
+                "taskreport", filter=filter_hpc_segtrain & filter_this_week
             ),
-            hpc_segtrain_last_month=Count(
-                "taskreport", filter=filter_hpc_segtrain & filter_last_month
+            hpc_segtrain_this_month=Count(
+                "taskreport", filter=filter_hpc_segtrain & filter_this_month
             ),
             hpc_train_total=Count("taskreport", filter=filter_hpc_train),
-            hpc_train_last_week=Count(
-                "taskreport", filter=filter_hpc_train & filter_last_week
+            hpc_train_this_week=Count(
+                "taskreport", filter=filter_hpc_train & filter_this_week
             ),
-            hpc_train_last_month=Count(
-                "taskreport", filter=filter_hpc_train & filter_last_month
+            hpc_train_this_month=Count(
+                "taskreport", filter=filter_hpc_train & filter_this_month
             ),
         )
         .order_by("username")
@@ -157,39 +162,39 @@ def user_to_csv_row(user):
         "username": user.username,
         "disk_usage_bytes": user.disk_usage or 0,
         "total_tasks": user.total_tasks,
-        "last_week_tasks": user.last_week_tasks,
-        "last_month_tasks": user.last_month_tasks,
+        "this_week_tasks": user.this_week_tasks,
+        "this_month_tasks": user.this_month_tasks,
         "total_runtime_seconds": int(user.total_runtime.total_seconds())
         if user.total_runtime
         else 0,
-        "last_week_runtime_seconds": int(user.last_week_runtime.total_seconds())
-        if user.last_week_runtime
+        "this_week_runtime_seconds": int(user.this_week_runtime.total_seconds())
+        if user.this_week_runtime
         else 0,
-        "last_month_runtime_seconds": int(user.last_month_runtime.total_seconds())
-        if user.last_month_runtime
+        "this_month_runtime_seconds": int(user.this_month_runtime.total_seconds())
+        if user.this_month_runtime
         else 0,
         "total_cpu_usage": user.total_cpu_usage or 0,
-        "last_week_cpu_usage": user.last_week_cpu_usage or 0,
-        "last_month_cpu_usage": user.last_month_cpu_usage or 0,
+        "this_week_cpu_usage": user.this_week_cpu_usage or 0,
+        "this_month_cpu_usage": user.this_month_cpu_usage or 0,
         "total_gpu_usage": user.total_gpu_usage or 0,
-        "last_week_gpu_usage": user.last_week_gpu_usage or 0,
-        "last_month_gpu_usage": user.last_month_gpu_usage or 0,
+        "this_week_gpu_usage": user.this_week_gpu_usage or 0,
+        "this_month_gpu_usage": user.this_month_gpu_usage or 0,
         "vm_segment_total": user.vm_segment_total,
-        "vm_segment_last_week": user.vm_segment_last_week,
-        "vm_segment_last_month": user.vm_segment_last_month,
+        "vm_segment_this_week": user.vm_segment_this_week,
+        "vm_segment_this_month": user.vm_segment_this_month,
         "vm_transcribe_total": user.vm_transcribe_total,
-        "vm_transcribe_last_week": user.vm_transcribe_last_week,
-        "vm_transcribe_last_month": user.vm_transcribe_last_month,
+        "vm_transcribe_this_week": user.vm_transcribe_this_week,
+        "vm_transcribe_this_month": user.vm_transcribe_this_month,
         "vm_segtrain_total": user.vm_segtrain_total,
-        "vm_segtrain_last_week": user.vm_segtrain_last_week,
-        "vm_segtrain_last_month": user.vm_segtrain_last_month,
+        "vm_segtrain_this_week": user.vm_segtrain_this_week,
+        "vm_segtrain_this_month": user.vm_segtrain_this_month,
         "vm_train_total": user.vm_train_total,
-        "vm_train_last_week": user.vm_train_last_week,
-        "vm_train_last_month": user.vm_train_last_month,
+        "vm_train_this_week": user.vm_train_this_week,
+        "vm_train_this_month": user.vm_train_this_month,
         "hpc_segtrain_total": user.hpc_segtrain_total,
-        "hpc_segtrain_last_week": user.hpc_segtrain_last_week,
-        "hpc_segtrain_last_month": user.hpc_segtrain_last_month,
+        "hpc_segtrain_this_week": user.hpc_segtrain_this_week,
+        "hpc_segtrain_this_month": user.hpc_segtrain_this_month,
         "hpc_train_total": user.hpc_train_total,
-        "hpc_train_last_week": user.hpc_train_last_week,
-        "hpc_train_last_month": user.hpc_train_last_month,
+        "hpc_train_this_week": user.hpc_train_this_week,
+        "hpc_train_this_month": user.hpc_train_this_month,
     }

@@ -114,7 +114,7 @@ def test_usage_report_csv_has_required_columns(staff_client):
         return_value=[_make_fake_user()],
     ):
         response = staff_client.get(reverse("usage-report"))
-    rows = list(csv.DictReader(StringIO(response.content.decode())))
+    rows = list(csv.DictReader(StringIO(b"".join(response.streaming_content).decode())))
     assert len(rows) == 1
     assert set(rows[0].keys()) == {
         "username",
@@ -158,7 +158,7 @@ def test_usage_report_csv_values(staff_client):
     fake = _make_fake_user(username="alice", hpc_segtrain_total=5, total_cpu_usage=5.0)
     with patch("htr2hpc.views.get_usage_data", return_value=[fake]):
         response = staff_client.get(reverse("usage-report"))
-    rows = list(csv.DictReader(StringIO(response.content.decode())))
+    rows = list(csv.DictReader(StringIO(b"".join(response.streaming_content).decode())))
     assert rows[0]["username"] == "alice"
     assert rows[0]["hpc_segtrain_total"] == "5"
     assert rows[0]["total_cpu_usage"] == "5.0"

@@ -1,7 +1,7 @@
 """Tests for htr2hpc.train.data — training data utilities."""
+
 import pathlib
-import shutil
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from kraken.containers import Region, Segmentation
@@ -13,18 +13,24 @@ from htr2hpc.train.data import (
     split_segmentation,
 )
 
-
 # ---------------------------------------------------------------------------
 # serialize_segmentation — kraken 6.x tags generate TAGREFS in ALTO output
 # ---------------------------------------------------------------------------
 
 
 def test_kraken6_tags_generate_tagrefs_in_alto():
-    region = Region(id="r1", boundary=[[0, 0], [0, 100], [100, 100], [100, 0]], tags={"type": [{"type": "paragraph"}]})
+    region = Region(
+        id="r1",
+        boundary=[[0, 0], [0, 100], [100, 100], [100, 0]],
+        tags={"type": [{"type": "paragraph"}]},
+    )
     seg = Segmentation(
-        type="baselines", imagename="test.jpg",
-        text_direction="horizontal-lr", script_detection=False,
-        regions={"paragraph": [region]}, lines=[],
+        type="baselines",
+        imagename="test.jpg",
+        text_direction="horizontal-lr",
+        script_detection=False,
+        regions={"paragraph": [region]},
+        lines=[],
     )
     assert "<OtherTag" in serialize(seg, image_size=(100, 100))
 
@@ -154,7 +160,7 @@ class TestGetBestModel:
 
     def test_returns_best_mlmodel_file_when_present(self, tmp_path):
         best = _make_mlmodel(tmp_path, "model_best.mlmodel", 0.95)
-        other = _make_mlmodel(tmp_path, "model_0.mlmodel", 0.80)
+        _make_mlmodel(tmp_path, "model_0.mlmodel", 0.80)
 
         with patch("htr2hpc.train.data.get_model_accuracy", return_value=0.95):
             result = get_best_model(tmp_path)
@@ -166,7 +172,7 @@ class TestGetBestModel:
         assert result is None
 
     def test_best_file_not_returned_if_below_original_accuracy(self, tmp_path):
-        best = _make_mlmodel(tmp_path, "model_best.mlmodel", 0.70)
+        _make_mlmodel(tmp_path, "model_best.mlmodel", 0.70)
         original = _make_mlmodel(tmp_path, "original.mlmodel", 0.90)
 
         def fake_accuracy(path):
@@ -229,3 +235,155 @@ class TestGetBestModel:
         assert result == best
 
 
+# ---------------------------------------------------------------------------
+# get_transcription_lines
+# ---------------------------------------------------------------------------
+
+
+def _make_text_line(line_id, content):
+    line = MagicMock()
+    line.line = line_id
+    line.content = content
+    return line
+
+
+def _make_transcription_page(lines, next_url=None):
+    page = MagicMock()
+    page.results = lines
+    page.next = next_url
+    return page
+
+
+def test_get_transcription_lines_single_page():
+    from htr2hpc.train.data import get_transcription_lines
+
+    api = MagicMock()
+    lines = [_make_text_line(1, "hello"), _make_text_line(2, "world")]
+    api.document_part_transcription_list.return_value = _make_transcription_page(lines)
+
+    result = get_transcription_lines(api, document_id=10, part_id=5, transcription_id=3)
+
+    assert result == {1: "hello", 2: "world"}
+
+
+def test_get_transcription_lines_multiple_pages():
+    from htr2hpc.train.data import get_transcription_lines
+
+    api = MagicMock()
+    page2 = _make_transcription_page([_make_text_line(3, "page2line")])
+    page1 = _make_transcription_page(
+        [_make_text_line(1, "a"), _make_text_line(2, "b")],
+        next_url="http://example.com/api/lines/?page=2",
+    )
+    page1.next_page.return_value = page2
+    api.document_part_transcription_list.return_value = page1
+
+    result = get_transcription_lines(api, document_id=10, part_id=5, transcription_id=3)
+
+    assert result == {1: "a", 2: "b", 3: "page2line"}
+
+
+# ---------------------------------------------------------------------------
+# get_document_parts
+# ---------------------------------------------------------------------------
+
+
+def _make_parts_page(pks, next_url=None):
+    page = MagicMock()
+    page.results = [MagicMock(pk=pk) for pk in pks]
+    page.next = next_url
+    return page
+
+
+def test_get_document_parts_single_page():
+    from htr2hpc.train.data import get_document_parts
+
+    api = MagicMock()
+    api.document_parts_list.return_value = _make_parts_page([101, 102, 103])
+
+    result = get_document_parts(api, document_id=42)
+
+    assert result == [101, 102, 103]
+
+
+def test_get_document_parts_multiple_pages():
+    from htr2hpc.train.data import get_document_parts
+
+    api = MagicMock()
+    page2 = _make_parts_page([104, 105])
+    page1 = _make_parts_page(
+        [101, 102, 103], next_url="http://example.com/api/parts/?page=2"
+    )
+    page1.next_page.return_value = page2
+    api.document_parts_list.return_value = page1
+
+    result = get_document_parts(api, document_id=42)
+
+    assert result == [101, 102, 103, 104, 105]
+
+
+# ---------------------------------------------------------------------------
+# get_model_file
+# ---------------------------------------------------------------------------
+
+
+def test_get_model_file_recognize_downloads_file(tmp_path):
+    from htr2hpc.train.data import get_model_file
+
+    api = MagicMock()
+    api.model_details.return_value = MagicMock(
+        job="Recognize", file="/models/foo.mlmodel"
+    )
+    expected_path = tmp_path / "foo.mlmodel"
+    api.download_file.return_value = expected_path
+
+    result = get_model_file(
+        api, model_id=7, training_type="Recognize", output_dir=tmp_path
+    )
+
+    assert result == expected_path
+    api.download_file.assert_called_once_with("/models/foo.mlmodel", tmp_path)
+
+
+def test_get_model_file_segment_downloads_file(tmp_path):
+    from htr2hpc.train.data import get_model_file
+
+    api = MagicMock()
+    api.model_details.return_value = MagicMock(
+        job="Segment", file="/models/seg.mlmodel"
+    )
+    expected_path = tmp_path / "seg.mlmodel"
+    api.download_file.return_value = expected_path
+
+    result = get_model_file(
+        api, model_id=8, training_type="Segment", output_dir=tmp_path
+    )
+
+    assert result == expected_path
+
+
+def test_get_model_file_raises_on_job_mismatch():
+    from htr2hpc.train.data import get_model_file
+
+    api = MagicMock()
+    api.model_details.return_value = MagicMock(
+        job="Segment", file="/models/seg.mlmodel"
+    )
+
+    with pytest.raises(ValueError, match="Recognize requested"):
+        get_model_file(
+            api, model_id=8, training_type="Recognize", output_dir=MagicMock()
+        )
+
+
+def test_get_model_file_returns_none_when_no_file():
+    from htr2hpc.train.data import get_model_file
+
+    api = MagicMock()
+    api.model_details.return_value = MagicMock(job="Recognize", file=None)
+
+    result = get_model_file(
+        api, model_id=5, training_type="Recognize", output_dir=MagicMock()
+    )
+
+    assert result is None

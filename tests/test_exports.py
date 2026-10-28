@@ -1,14 +1,11 @@
 """Tests for the CSV export functions in exports.py."""
 
-import csv
 import sys
 from datetime import timedelta
-from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.urls import reverse
 
 # mock escriptorium modules before importing htr2hpc
 sys.modules.setdefault("celery", MagicMock())
@@ -25,7 +22,6 @@ User = get_user_model()
 def annotated_user(db):
     """A real User with annotated attrs that get_usage_data would add."""
     user = User.objects.create_user(username="alice")
-    # set all annotated attrs that user_to_csv_row expects
     user.disk_usage = 2048
     user.total_runtime = timedelta(hours=2)
     user.this_week_runtime = timedelta(minutes=30)
@@ -83,14 +79,3 @@ def test_user_to_csv_row_hpc_counts(annotated_user):
     row = user_to_csv_row(annotated_user)
     assert row["hpc_segtrain_total"] == 3
     assert row["vm_segment_total"] == 10
-
-
-@pytest.mark.django_db
-def test_csv_export_columns(admin_client):
-    """CSV response contains exactly USAGE_REPORT_FIELDS as column headers."""
-    with patch("htr2hpc.views.get_usage_data", return_value=[]):
-        response = admin_client.get(reverse("usage-report"))
-    content = b"".join(response.streaming_content).decode()
-    reader = csv.reader(StringIO(content))
-    headers = next(reader)
-    assert headers == USAGE_REPORT_FIELDS

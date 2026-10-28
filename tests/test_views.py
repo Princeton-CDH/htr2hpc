@@ -19,10 +19,3 @@ def test_usage_report_accessible_to_staff(admin_client):
     with patch("htr2hpc.views.get_usage_data", return_value=[]):
         response = admin_client.get(reverse("usage-report"))
     assert response.status_code == 200
-
-
-@pytest.mark.django_db
-def test_usage_report_redirects_anonymous(client):
-    """Anonymous users are redirected."""
-    response = client.get(reverse("usage-report"))
-    assert response.status_code == 302

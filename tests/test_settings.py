@@ -42,7 +42,6 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "tests.test_urls"
-LOGIN_URL = "/login/"
 
 TEMPLATES = [
     {

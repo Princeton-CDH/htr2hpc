@@ -35,12 +35,20 @@ INSTALLED_APPS = [
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 SITE_ID = 1
 
-ROOT_URLCONF = "htr2hpc.urls"
+MIDDLEWARE = [
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+]
+
+ROOT_URLCONF = "tests.test_urls"
 
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [
+            str(Path(__file__).parent / "templates"),
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [

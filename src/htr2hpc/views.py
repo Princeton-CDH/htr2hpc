@@ -1,5 +1,4 @@
 import csv
-import io
 from datetime import UTC, datetime
 
 from django.contrib.auth.decorators import login_required
@@ -12,17 +11,23 @@ from htr2hpc.exports import USAGE_REPORT_FIELDS, get_usage_data, user_to_csv_row
 from htr2hpc.tasks import hpc_user_setup
 
 
+class _Echo:
+    """A file-like object that returns whatever is written to it.
+
+    Used with csv.writer to yield individual CSV rows as strings
+    without buffering, per the Django streaming CSV docs.
+    """
+
+    def write(self, value):
+        return value
+
+
 def _csv_rows(queryset):
     """Yield CSV rows as strings, starting with headers."""
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=USAGE_REPORT_FIELDS)
-    writer.writeheader()
-    yield buf.getvalue()
+    writer = csv.writer(_Echo())
+    yield writer.writerow(USAGE_REPORT_FIELDS)
     for user in queryset:
-        buf.seek(0)
-        buf.truncate()
-        writer.writerow(user_to_csv_row(user))
-        yield buf.getvalue()
+        yield writer.writerow(list(user_to_csv_row(user).values()))
 
 
 @login_required

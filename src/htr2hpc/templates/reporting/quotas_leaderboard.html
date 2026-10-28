@@ -2,10 +2,10 @@
 {% load i18n %}
 
 {% block body %}
-{{ block.super }}
-<div class="mt-3">
+<div class="mb-3">
   <a href="{% url 'usage-report' %}" class="btn btn-secondary">
     {% trans "Download usage report (CSV)" %}
   </a>
 </div>
+{{ block.super }}
 {% endblock %}

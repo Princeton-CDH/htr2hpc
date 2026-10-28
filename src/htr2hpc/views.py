@@ -1,9 +1,11 @@
 import csv
 from datetime import UTC, datetime
 
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseRedirect, StreamingHttpResponse
 from django.urls import reverse
+from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.http import require_http_methods
 
@@ -44,10 +46,11 @@ def remote_user_setup(request):  # pragma: no cover
     return redirect
 
 
+@method_decorator(staff_member_required, name="dispatch")
 class UsageReportView(View):
     """Admin-only CSV export of per-user VM and HPC task usage stats.
 
-    Restricted to staff via staff_member_required in urls.py.
+    Restricted to staff via staff_member_required decorator.
     The download link is placed on the existing Leaderboard page
     via a template override in templates/reporting/quotas_leaderboard.html.
     """

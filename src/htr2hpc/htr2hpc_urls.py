@@ -7,16 +7,11 @@ The combined app URL config (urls.py) extends eScriptorium's urlpatterns
 and includes these via include().
 """
 
-from django.contrib.admin.views.decorators import staff_member_required
 from django.urls import path
 
 from htr2hpc.views import UsageReportView, remote_user_setup
 
 urlpatterns = [
     path("profile/hpc-setup/", remote_user_setup, name="hpc-setup"),
-    path(
-        "usage-report/",
-        staff_member_required(UsageReportView.as_view()),
-        name="usage-report",
-    ),
+    path("usage-report/", UsageReportView.as_view(), name="usage-report"),
 ]

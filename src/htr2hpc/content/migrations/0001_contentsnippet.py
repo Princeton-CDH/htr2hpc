@@ -1,4 +1,5 @@
 from django.db import migrations, models
+from wagtail.fields import RichTextField
 
 
 class Migration(migrations.Migration):
@@ -43,7 +44,7 @@ class Migration(migrations.Migration):
                         max_length=100,
                     ),
                 ),
-                ("body", models.TextField()),
+                ("body", RichTextField()),
                 (
                     "is_active",
                     models.BooleanField(

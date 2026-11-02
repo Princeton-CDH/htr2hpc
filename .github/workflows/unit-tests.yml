@@ -29,7 +29,7 @@ jobs:
         run: uv lock --check
 
       - name: Install htr2hpc with dev dependencies
-        run: uv sync --group dev --extra wagtail
+        run: uv sync --group dev
 
       - name: Run tests with coverage
         env:

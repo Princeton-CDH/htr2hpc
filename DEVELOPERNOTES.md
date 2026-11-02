@@ -5,6 +5,7 @@ We use the [git-flow branching pattern](https://www.gitkraken.com/learn/git/git-
 ## Development Setup
 
 ### Check out code
+
 Local development requires a checkout of both htr2hpc and [eScriptorium](https://gitlab.com/scripta/escriptorium). The eScriptorium apps directory must be on your Python path for imports to resolve — it doesn't matter where you clone it, as long as PYTHONPATH points to the right location. For example:
 
 ```sh
@@ -13,6 +14,7 @@ git clone https://github.com/Princeton-CDH/htr2hpc.git
 ```
 
 ### Set PYTHONPATH
+
 We recommend using [direnv](https://direnv.net/) to set PYTHONPATH automatically when you enter the directory. Create a `.envrc` in your htr2hpc checkout:
 
 ```sh
@@ -32,6 +34,7 @@ set -x PYTHONPATH /path/to/escriptorium/app/apps /path/to/escriptorium/app
 ### Install dependencies and setup
 
 #### Method A: Using `devbox` (recommended)
+
 This project uses [devbox](https://www.jetify.com/devbox) to simplify local development setup. Devbox installs the required tools (Python, uv) in an isolated environment without affecting your system, so you can get started with a single command and be confident your setup matches other contributors. If you prefer not to use devbox, you can set up the environment manually — see below.
 
 Install devbox if you don't have it:
@@ -86,7 +89,6 @@ cd sphinx-docs && uv run make html
 
 The built documentation will be in `sphinx-docs/_build/html/`. Documentation is also published automatically to [ReadTheDocs](https://htr2hpc.readthedocs.io/) on every push to `main`.
 
-
 ## Creating a new release
 
 Follow the release checklist in the GitHub issue template for full release prep steps, including acceptance testing and changelog review.
@@ -96,5 +98,17 @@ Follow the release checklist in the GitHub issue template for full release prep 
 Once the new release has been merged to `main` and pushed to GitHub, deployment is handled via cdh-ansible. See the [cdh-ansible eScriptorium/htr2hpc application docs](https://github.com/Princeton-CDH/cdh-ansible/blob/main/docs/applications/escriptorium.md) for full deployment instructions, including how to use the `reinstall-htr2hpc` tag to deploy a new htr2hpc version.
 
 Note: this deployment is specific to CDH's Princeton instance of eScriptorium.
+
+CDH's Princeton instance uses the Wagtail content management features. The Ansible playbook must install htr2hpc with the `wagtail` optional dependency group:
+
+```sh
+pip install htr2hpc[wagtail]
+```
+
+After deploying a new instance for the first time, load the initial content fixture to pre-populate the Wagtail admin with the default page snippets:
+
+```sh
+manage.py loaddata initial_snippets
+```
 
 For initial setup after a new deployment, see [Configure Site domain](README.md#configure-site-domain) in the README.

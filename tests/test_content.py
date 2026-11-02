@@ -153,3 +153,22 @@ def test_page_snippets_returns_list_per_slot(rf):
     request = rf.get("/")
     ctx = page_snippets(request)
     assert isinstance(ctx["page_snippets"]["intro"], list)
+
+
+def test_page_snippets_returns_empty_when_import_fails(rf):
+    """Returns empty dict when ContentSnippet cannot be imported (Wagtail not installed)."""
+    import builtins
+    import unittest.mock
+
+    request = rf.get("/")
+    real_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "htr2hpc.content.models":
+            raise ImportError
+        return real_import(name, *args, **kwargs)
+
+    with unittest.mock.patch("builtins.__import__", side_effect=mock_import):
+        ctx = page_snippets(request)
+
+    assert ctx == {"page_snippets": {}}

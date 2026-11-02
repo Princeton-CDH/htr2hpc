@@ -39,6 +39,9 @@ Documentation = "https://htr2hpc.readthedocs.io/"
 Issues = "https://github.com/Princeton-CDH/htr2hpc/issues"
 Source = "https://github.com/Princeton-CDH/htr2hpc"
 
+[project.optional-dependencies]
+wagtail = ["wagtail>=6.0,<7.0"]
+
 [dependency-groups]
 docs = [
   "sphinx>=7.2",

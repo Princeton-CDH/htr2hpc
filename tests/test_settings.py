@@ -29,7 +29,15 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sessions",
     "django.contrib.sites",
+    "wagtail.snippets",
+    "wagtail.documents",
+    "wagtail.images",
+    "wagtail.admin",
+    "wagtail",
+    "modelcluster",
+    "taggit",
     "htr2hpc",
+    "htr2hpc.content",
 ]
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"

@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.9
+
+- Add Wagtail-based content management: staff can now edit page content (homepage intro, contact info, model list description, HPC setup instructions, announcements) through the Wagtail admin without a code change or deployment
+- Wagtail is an optional dependency (`pip install htr2hpc[wagtail]`); instances that don't need content management are unaffected
+- Track HPC resource usage per training job (memory, elapsed time, GPU utilization, scratch storage) via `sacct`; available as CSV export and management command
+
 ## 0.8
 
 - Update to eScriptorium v1.0.1, with the following changes to match the new version:

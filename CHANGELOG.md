@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.9
+
+- Add per-job HPC resource stats export via `sacct` and Princeton RC's Jobstats: `hpc_job_stats` management command and `/usage/hpc-jobs/` staff CSV endpoint report CPU-hours, GPU-hours, memory usage, CPU efficiency, and GPU utilization per job, with null stats for jobs lacking Jobstats data
+
 ## 0.8
 
 - Update to eScriptorium v1.0.1, with the following changes to match the new version:

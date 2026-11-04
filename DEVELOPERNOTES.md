@@ -101,4 +101,16 @@ Once the new release has been merged to `main` and pushed to GitHub, deployment 
 
 Note: this deployment is specific to CDH's Princeton instance of eScriptorium.
 
+CDH's Princeton instance uses the Wagtail content management features. The Ansible playbook must install htr2hpc with the `wagtail` optional dependency group:
+
+```sh
+pip install htr2hpc[wagtail]
+```
+
+After deploying a new instance for the first time, load the initial content fixture to pre-populate the Wagtail admin with the default page snippets:
+
+```sh
+manage.py loaddata initial_snippets
+```
+
 For initial setup after a new deployment, see [Configure Site domain](README.md#configure-site-domain) in the README.

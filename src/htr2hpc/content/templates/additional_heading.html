@@ -1,0 +1,5 @@
+{# customize heading for homepage — content managed via Wagtail admin #}
+{% load wagtailcore_tags %}
+<h1 class="jumbotron-heading">eScriptorium</h1>
+{% for snippet in page_snippets.intro %}{{ snippet.body|richtext }}{% endfor %}
+{% for snippet in page_snippets.announcement %}{{ snippet.body|richtext }}{% endfor %}

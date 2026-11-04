@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% load wagtailcore_tags %}
+{% block body %}
+{% for snippet in page_snippets.before_body %}{{ snippet.body|richtext }}{% endfor %}
+{{ block.super }}
+{% for snippet in page_snippets.after_body %}{{ snippet.body|richtext }}{% endfor %}
+{% endblock %}

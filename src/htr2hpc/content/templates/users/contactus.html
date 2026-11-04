@@ -1,0 +1,7 @@
+{% extends "users/contactus.html" %}
+{% load wagtailcore_tags %}
+
+{% block body %}
+{% for snippet in page_snippets.intro %}{{ snippet.body|richtext }}{% endfor %}
+{{ block.super }}
+{% endblock %}

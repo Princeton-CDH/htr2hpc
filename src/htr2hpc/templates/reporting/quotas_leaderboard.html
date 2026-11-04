@@ -1,0 +1,11 @@
+{% extends "reporting/quotas_leaderboard.html" %}
+{% load i18n %}
+
+{% block body %}
+<div class="mb-3">
+  <a href="{% url 'usage-report' %}" class="btn btn-secondary">
+    {% trans "Download usage report (CSV)" %}
+  </a>
+</div>
+{{ block.super }}
+{% endblock %}

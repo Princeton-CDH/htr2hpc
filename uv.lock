@@ -1026,6 +1026,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "wagtail" },
+]
 wagtail = [
     { name = "wagtail" },
 ]
@@ -1066,9 +1069,10 @@ requires-dist = [
     { name = "requests" },
     { name = "simple-slurm" },
     { name = "tqdm" },
+    { name = "wagtail", marker = "extra == 'all'", specifier = ">=6.0,<7.0" },
     { name = "wagtail", marker = "extra == 'wagtail'", specifier = ">=6.0,<7.0" },
 ]
-provides-extras = ["wagtail"]
+provides-extras = ["all", "wagtail"]
 
 [package.metadata.requires-dev]
 dev = [

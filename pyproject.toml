@@ -41,6 +41,7 @@ Source = "https://github.com/Princeton-CDH/htr2hpc"
 
 [project.optional-dependencies]
 wagtail = ["wagtail>=6.0,<7.0"]
+all = ["htr2hpc[wagtail]"]
 
 [dependency-groups]
 docs = [

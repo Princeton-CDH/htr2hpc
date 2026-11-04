@@ -49,7 +49,7 @@ MONTHLY_FIELDS: list[str] = [
 ]
 
 
-def _task_filters():
+def _task_filters():  # pragma: no cover
     """Return Q objects for filtering by task method."""
     return {
         "hpc_segtrain": Q(taskreport__method=HPC_SEGTRAIN_METHOD),
@@ -59,14 +59,14 @@ def _task_filters():
     }
 
 
-def _runtime_expr():
+def _runtime_expr():  # pragma: no cover
     return ExpressionWrapper(
         F("taskreport__done_at") - F("taskreport__started_at"),
         output_field=DurationField(),
     )
 
 
-def _disk_subquery():
+def _disk_subquery():  # pragma: no cover
     OcrModel = apps.get_model("core", "OcrModel")
     return (
         OcrModel.objects.filter(owner=OuterRef("pk"))

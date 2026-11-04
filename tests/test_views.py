@@ -13,7 +13,16 @@ sys.modules.setdefault("apps.users.consumers", MagicMock())
 
 from django.test import RequestFactory
 
-from htr2hpc.views import UsageReportView
+from htr2hpc.views import UsageReportView, _write_csv
+
+
+def test_write_csv_with_rows():
+    """_write_csv writes headers and rows correctly."""
+    fields = ["username", "total_tasks"]
+    rows = [{"username": "alice", "total_tasks": 5}]
+    result = _write_csv(fields, rows)
+    assert b"username,total_tasks" in result
+    assert b"alice,5" in result
 
 
 def test_usage_report_view_requires_staff():

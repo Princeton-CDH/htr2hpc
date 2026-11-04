@@ -184,7 +184,14 @@ def test_get_completed_months_excludes_current_month():
 
 def test_get_completed_months_sequential():
     """Months are in chronological order with no gaps."""
-    months = get_completed_months()
+    from unittest.mock import patch
+
+    # Use Feb 2027 so the list includes a Dec→Jan year rollover
+    mock_now = datetime(2027, 2, 15, tzinfo=UTC)
+    with patch("htr2hpc.exports.datetime") as mock_dt:
+        mock_dt.now.return_value = mock_now
+        months = get_completed_months()
+
     for i in range(1, len(months)):
         prev_year, prev_month = months[i - 1]
         curr_year, curr_month = months[i]
@@ -192,6 +199,24 @@ def test_get_completed_months_sequential():
             assert curr_year == prev_year + 1 and curr_month == 1
         else:
             assert curr_year == prev_year and curr_month == prev_month + 1
+
+
+def test_get_completed_months_year_rollover():
+    """Months correctly roll over from December to January of the next year."""
+    from unittest.mock import patch
+
+    # Mock today to be in Feb 2027 so we get Dec 2026 and Jan 2027 in the list
+    mock_now = datetime(2027, 2, 15, tzinfo=UTC)
+    with patch("htr2hpc.exports.datetime") as mock_dt:
+        mock_dt.now.return_value = mock_now
+        months = get_completed_months()
+
+    assert (2026, 12) in months
+    assert (2027, 1) in months
+    # Dec 2026 should come before Jan 2027
+    idx_dec = months.index((2026, 12))
+    idx_jan = months.index((2027, 1))
+    assert idx_dec < idx_jan
 
 
 # ---------------------------------------------------------------------------

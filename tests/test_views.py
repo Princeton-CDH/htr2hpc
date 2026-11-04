@@ -32,12 +32,12 @@ def test_usage_report_view_requires_staff():
 
 
 @pytest.mark.django_db
-def test_usage_report_view_returns_streaming_response(db):
-    """UsageReportView.get returns a StreamingHttpResponse."""
+def test_usage_report_view_returns_zip_response(db):
+    """UsageReportView.get returns a ZIP HttpResponse."""
     from unittest.mock import patch
 
     from django.contrib.auth import get_user_model
-    from django.http import StreamingHttpResponse
+    from django.http import HttpResponse
     from django.test import RequestFactory
 
     User = get_user_model()
@@ -46,8 +46,13 @@ def test_usage_report_view_returns_streaming_response(db):
     request = factory.get("/usage-report/")
     request.user = user
 
-    with patch("htr2hpc.views.get_usage_data", return_value=[]):
+    with (
+        patch("htr2hpc.views.get_totals_data", return_value=[]),
+        patch("htr2hpc.views.get_monthly_data", return_value=[]),
+        patch("htr2hpc.views.get_completed_months", return_value=[(2026, 9)]),
+    ):
         response = UsageReportView.as_view()(request)
 
-    assert isinstance(response, StreamingHttpResponse)
-    assert response["Content-Type"] == "text/csv"
+    assert isinstance(response, HttpResponse)
+    assert response["Content-Type"] == "application/zip"
+    assert ".zip" in response["Content-Disposition"]

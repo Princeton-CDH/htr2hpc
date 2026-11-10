@@ -4,7 +4,7 @@ import csv
 import sys
 from datetime import date, datetime
 from io import StringIO
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
@@ -26,10 +26,10 @@ TODAY = date(2026, 11, 9)
 
 
 @pytest.fixture
-def today(mocker):
-    mocker.patch("htr2hpc.exports.timezone.localdate", return_value=TODAY)
-    mocker.patch("htr2hpc.views.timezone.localdate", return_value=TODAY)
-    return TODAY
+def today():
+    # exports and views share django.utils.timezone, so one patch covers both
+    with patch("django.utils.timezone.localdate", return_value=TODAY):
+        yield TODAY
 
 
 @pytest.fixture
@@ -70,8 +70,8 @@ def test_usage_report_csv(rf, today, staff_user):
 
 
 @pytest.mark.django_db
-def test_usage_report_default_start(rf, today, staff_user):
-    response = get_report(rf, staff_user, report_type="total")
+def test_usage_report_no_data(rf, today, staff_user):
+    response = get_report(rf, staff_user, report_type="total", start="2026-09-01")
     assert response.status_code == 200
     assert (
         "htr-usage-total-2026-09-01-2026-11-09.csv" in response["Content-Disposition"]
@@ -84,7 +84,8 @@ def test_usage_report_default_start(rf, today, staff_user):
     "params",
     [
         {},
-        {"report_type": "year"},
+        {"report_type": "total"},  # start is required
+        {"report_type": "year", "start": "2026-09-01"},
         {"report_type": "month", "start": "not-a-date"},
     ],
 )
@@ -103,20 +104,33 @@ def test_usage_report_requires_staff(rf, django_user_model):
         assert "/admin/login/" in response["Location"]
 
 
+def render_form_tag():
+    return Template("{% load htr2hpc_tags %}{% usage_report_form %}").render(Context())
+
+
 @pytest.mark.django_db
 def test_usage_report_form_tag():
-    html = Template("{% load htr2hpc_tags %}{% usage_report_form %}").render(Context())
+    html = render_form_tag()
     assert 'action="/usage-report/"' in html
     assert 'method="get"' in html
     assert 'name="start"' in html
     assert 'value="2026-09-01"' in html
     assert 'name="report_type"' in html
+    assert "weeks start on Monday" in html
 
 
 @pytest.mark.django_db
-def test_remote_user_setup(rf, mocker, django_user_model):
-    setup_task = mocker.patch("htr2hpc.views.hpc_user_setup")
-    mocker.patch("htr2hpc.views.reverse", return_value="/profile/apikey/")
+def test_usage_report_form_tag_no_default_start(settings):
+    del settings.USAGE_REPORT_DEFAULT_START
+    html = render_form_tag()
+    assert 'name="start"' in html
+    assert "value=" not in html.split('name="start"')[1].split(">")[0]
+
+
+@pytest.mark.django_db
+@patch("htr2hpc.views.reverse", return_value="/profile/apikey/")
+@patch("htr2hpc.views.hpc_user_setup")
+def test_remote_user_setup(setup_task, mock_reverse, rf, django_user_model):
     user = django_user_model.objects.create_user(username="alice")
     request = rf.post("/profile/hpc-setup/")
     request.user = user

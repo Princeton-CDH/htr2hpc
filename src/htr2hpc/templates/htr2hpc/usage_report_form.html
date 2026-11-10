@@ -4,4 +4,5 @@
   <span class="mr-2">{{ form.start }}</span>
   <span class="mr-2">{{ form.report_type }}</span>
   <button type="submit" class="btn btn-sm btn-secondary">{% trans "Download CSV" %}</button>
+  <small class="form-text text-muted w-100">{{ form.report_type.help_text }}</small>
 </form>

@@ -1,6 +1,7 @@
 """Tests for the usage report export functions in exports.py."""
 
 from datetime import date, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -26,7 +27,7 @@ TODAY = date(2026, 11, 9)
 
 
 def at(year, month, day, hour=12):
-    """Timezone-aware datetime in the site's timezone."""
+    """Timezone-aware datetime in the site's configured timezone."""
     return datetime(year, month, day, hour, tzinfo=timezone.get_current_timezone())
 
 
@@ -44,9 +45,9 @@ def add_report(
 
 
 @pytest.fixture
-def today(mocker):
-    mocker.patch("htr2hpc.exports.timezone.localdate", return_value=TODAY)
-    return TODAY
+def today():
+    with patch("htr2hpc.exports.timezone.localdate", return_value=TODAY):
+        yield TODAY
 
 
 @pytest.fixture
@@ -88,11 +89,18 @@ def test_report_date_range(start, report_type, expected):
     assert report_date_range(start, report_type, TODAY) == expected
 
 
-def test_report_date_range_week_mid_week_today():
-    # Wednesday: the current week started on Monday 2026-11-09
-    assert report_date_range(date(2026, 10, 5), REPORT_WEEK, date(2026, 11, 11))[
-        1
-    ] == date(2026, 11, 9)
+@pytest.mark.parametrize(
+    ("today", "expected_end"),
+    [
+        # run on a Monday: the week that just ended is included
+        (date(2026, 11, 9), date(2026, 11, 9)),
+        # run mid-week (Wednesday): the current week is still excluded
+        (date(2026, 11, 11), date(2026, 11, 9)),
+    ],
+)
+def test_report_date_range_week_end(today, expected_end):
+    _, end = report_date_range(date(2026, 10, 5), REPORT_WEEK, today)
+    assert end == expected_end
 
 
 # ---------------------------------------------------------------------------
@@ -160,12 +168,12 @@ def test_monthly_report_completed_months_only(today, alice):
 
 
 @pytest.mark.django_db
-def test_monthly_report_across_year_boundary(mocker, alice):
-    mocker.patch("htr2hpc.exports.timezone.localdate", return_value=date(2027, 2, 10))
+def test_monthly_report_across_year_boundary(alice):
     add_report(alice, at(2026, 12, 31, hour=23))
     add_report(alice, at(2027, 1, 1, hour=0))
 
-    rows = rows_for(date(2026, 12, 1), REPORT_MONTH)
+    with patch("htr2hpc.exports.timezone.localdate", return_value=date(2027, 2, 10)):
+        rows = rows_for(date(2026, 12, 1), REPORT_MONTH)
     assert [(r["report_start"], r["report_end"]) for r in rows] == [
         (date(2026, 12, 1), date(2026, 12, 31)),
         (date(2027, 1, 1), date(2027, 1, 1)),
@@ -204,14 +212,17 @@ def test_hpc_jobs_counted_by_task_id(today, alice):
 
 
 @pytest.mark.django_db
-def test_users_without_activity_have_no_rows(today, alice, bob):
+def test_users_without_activity_have_no_rows(today, alice, bob, django_user_model):
+    # carol has an account but no tasks at all
+    django_user_model.objects.create_user(username="carol")
+    # alice is only active in September, bob only in October
     add_report(alice, at(2026, 9, 3))
     add_report(bob, at(2026, 10, 3))
 
-    assert [r["username"] for r in rows_for(date(2026, 9, 1), REPORT_TOTAL)] == [
-        "alice",
-        "bob",
-    ]
+    totals = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert [r["username"] for r in totals] == ["alice", "bob"]
+
+    # no row for alice in October or bob in September
     monthly = rows_for(date(2026, 9, 1), REPORT_MONTH)
     assert [(r["username"], r["report_start"]) for r in monthly] == [
         ("alice", date(2026, 9, 1)),

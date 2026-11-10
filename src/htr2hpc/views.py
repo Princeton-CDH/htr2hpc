@@ -51,9 +51,8 @@ class UsageReportView(View):
     """Staff-only CSV download of per-user VM and HPC usage stats.
 
     Takes GET parameters from :class:`~htr2hpc.forms.UsageReportForm`:
-    ``report_type`` (required) and ``start`` (optional; defaults to the
-    ``USAGE_REPORT_DEFAULT_START`` setting). Returns a 400 if they are invalid.
-    The download form is shown on the Leaderboard page.
+    ``report_type`` and ``start``, both required. Returns a 400 if they are
+    missing or invalid. The download form is shown on the Leaderboard page.
     """
 
     def get(self, request, *args, **kwargs):

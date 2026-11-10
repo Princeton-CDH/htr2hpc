@@ -3,7 +3,7 @@
 See docs/design-records/216-usage-reporting.md for the design decisions.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, timedelta
 
 from django.apps import apps
 from django.db.models import (
@@ -38,12 +38,8 @@ REPORT_TYPE_CHOICES = [
     (REPORT_WEEK, "Weekly"),
 ]
 
-# report type label used in the download filename
-REPORT_FILENAME_LABELS = {
-    REPORT_TOTAL: "total",
-    REPORT_MONTH: "monthly",
-    REPORT_WEEK: "weekly",
-}
+# report type label used in the download filename, e.g. "monthly"
+REPORT_FILENAME_LABELS = {value: label.lower() for value, label in REPORT_TYPE_CHOICES}
 
 # Same fields for every report type, so exported files can be combined
 USAGE_REPORT_FIELDS: list[str] = [
@@ -67,11 +63,19 @@ def report_date_range(
 ) -> tuple[date, date | None]:
     """Return the first date and the end date (exclusive) of data to include.
 
-    Totals cover everything from the start date on, so there is no end date.
-    Monthly and weekly reports only include *completed* periods: from the
-    first month (or Monday-start week) beginning on or after the start date,
-    up to the start of the current month (or week).
+    Monthly and weekly reports only include *completed* periods, so the
+    requested start date is adjusted:
+
+    - the first period is the first month (or week) that begins on or after
+      the start date, so a partial first period is skipped
+    - the end date is the start of the current month (or week), so the
+      current, incomplete period is excluded
+
+    Weeks start on Monday.
     """
+    # no date adjustments are needed when reporting totals; bail out with requested start and no end date
+    if report_type == REPORT_TOTAL:
+        return start, None
     if report_type == REPORT_MONTH:
         if start.day == 1:
             first = start
@@ -79,16 +83,9 @@ def report_date_range(
             # first day of the following month
             first = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
         return first, today.replace(day=1)
-    if report_type == REPORT_WEEK:
-        # next Monday, unless the start date is already a Monday
-        first = start + timedelta(days=(7 - start.weekday()) % 7)
-        return first, today - timedelta(days=today.weekday())
-    return start, None
-
-
-def _start_of_day(day: date) -> datetime:
-    """Timezone-aware start of the given day, in the site's configured timezone."""
-    return timezone.make_aware(datetime.combine(day, time.min))
+    # weekly: next Monday, unless the start date is already a Monday
+    first = start + timedelta(days=(7 - start.weekday()) % 7)
+    return first, today - timedelta(days=today.weekday())
 
 
 def get_usage_report(start: date, report_type: str):
@@ -102,9 +99,10 @@ def get_usage_report(start: date, report_type: str):
     TaskReport = apps.get_model("reporting", "TaskReport")
     first, end = report_date_range(start, report_type, timezone.localdate())
 
-    reports = TaskReport.objects.filter(started_at__gte=_start_of_day(first))
+    # filter on the date part of started_at, in the site's configured timezone
+    reports = TaskReport.objects.filter(started_at__date__gte=first)
     if end is not None:
-        reports = reports.filter(started_at__lt=_start_of_day(end))
+        reports = reports.filter(started_at__date__lt=end)
 
     if report_type == REPORT_MONTH:
         report_start = TruncMonth("started_at", output_field=DateField())

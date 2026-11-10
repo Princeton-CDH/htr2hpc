@@ -48,13 +48,13 @@ Each download is one CSV for one report type: total, monthly, or weekly.
 - Dates use Django's timezone utilities and follow the site's `TIME_ZONE`.
 - The CSV is streamed with Django's `Echo` + `StreamingHttpResponse` pattern over a GET request.
 - Access is restricted in the view with `staff_member_required`.
-- **View:** a single view at `/usage-report/`, GET only.
+- **View:** a single GET-only view method in `htr2hpc/views` bound to `/usage-report/` url
   - `report_type` is required (`total`, `month` or `week`).
-  - `start` is optional and falls back to the setting below.
+  - `start` is required.
   - Invalid parameters return a 400 with the error message.
 - **Form:** `UsageReportForm` in `htr2hpc/forms.py`, rendered as one inline row at the top of the Leaderboard.
 - **Getting the form into the page:** an inclusion template tag, `{% usage_report_form %}`, called from our Leaderboard template override. eScriptorium's Leaderboard view can't be changed to add the form to its context, so the tag provides it instead.
-- **Default start date:** a Django setting, `USAGE_REPORT_DEFAULT_START = date(2026, 9, 1)`, used as the form's initial value.
+- **Default start date:** a Django setting, `USAGE_REPORT_DEFAULT_START = date(2026, 9, 1)`, used to pre-fill the form. If the setting isn't configured, the form has no default.
 - htr2hpc URLs live in `htr2hpc_urls.py`, separate from the combined eScriptorium URL config, so tests can use them directly.
 
 ## Considered Options
@@ -84,7 +84,7 @@ These changes revise the partial implementation in [#234](https://github.com/Pri
 2. **Setting** (`src/htr2hpc/settings.py`)
    - Add `USAGE_REPORT_DEFAULT_START = date(2026, 9, 1)`.
 3. **Form** (`src/htr2hpc/forms.py`, `templates/htr2hpc/usage_report_form.html`)
-   - Add `UsageReportForm` with a required `report_type` choice and an optional `start` date, initialized from the setting.
+   - Add `UsageReportForm` with a required `report_type` choice and a required `start` date, pre-filled from the setting when it is configured.
    - Add the form template: one inline row with start date, report type and a Download button.
 4. **Template tag** (`src/htr2hpc/templatetags/htr2hpc_tags.py`, `templates/reporting/quotas_leaderboard.html`)
    - Add the `usage_report_form` inclusion tag. Add a code comment explaining that it exists because the form can't be added to eScriptorium's Leaderboard view context.

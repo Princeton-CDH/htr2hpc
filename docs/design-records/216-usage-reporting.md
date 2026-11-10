@@ -1,5 +1,7 @@
 # Usage reporting export for staff
 
+Issue: [#216](https://github.com/Princeton-CDH/htr2hpc/issues/216) · PR: [#234](https://github.com/Princeton-CDH/htr2hpc/pull/234)
+
 ## Context
 
 Staff need per-user usage numbers for the VMs and for HPC training, broken down by time period, to report on how the service is used. The eScriptorium Leaderboard (`/quotas/instance/`) shows all-time totals only. Its query lives inside the view and can't be reused or extended.
@@ -8,7 +10,7 @@ How should htr2hpc give staff a downloadable usage report?
 
 ## Decisions
 
-A staff-only CSV export, downloaded from a form at the top of the Leaderboard page. 
+A staff-only CSV export, downloaded from a form at the top of the Leaderboard page.
 Each download is one CSV for one report type: total, monthly, or weekly.
 
 ### Report contents
@@ -22,9 +24,11 @@ Each download is one CSV for one report type: total, monthly, or weekly.
 
 - **Same fields for every report type**, so files can be easily combined and processed together:
 
-  `username`, `report_type`, `report_start`, `report_end`, `disk_usage_bytes`, `tasks_count`, `runtime_seconds`, `cpu_usage`, `vm_segment_tasks`, `vm_transcribe_tasks`, `hpc_segtrain_tasks`, `hpc_train_tasks`
+  `username`, `report_type`, `report_start`, `report_end`, `disk_usage_bytes`, `task_count`, `runtime_seconds`, `cpu_usage`, `vm_segment_tasks`, `vm_transcribe_tasks`, `hpc_segtrain_tasks`, `hpc_train_tasks`
 
-  - `report_start` and `report_end` make each row's period explicit. Totals end on the export date; months and weeks end on their last day.
+  - `report_start` and `report_end` make each row's period explicit.
+  - For totals, `report_end` is the export date. It is needed because the totals depend on the day the report was downloaded, which can't be inferred from other fields.
+  - For months and weeks, `report_end` is the last date with activity in that period (`Max("started_at")`), so it comes straight from the query. The logical end of the period can be inferred from `report_start` and `report_type`.
   - `disk_usage_bytes` is a current snapshot, so it is filled in for totals only and left blank for months and weeks.
   - A user with no tasks in a period has no row for that period.
 
@@ -48,7 +52,8 @@ Each download is one CSV for one report type: total, monthly, or weekly.
 
 ## Considered Options
 
-### Where the download lives
+### Where the download is accessible to users
+
 - A form on the existing Leaderboard, at the top of the page.
 
 ### Time periods
@@ -61,8 +66,9 @@ Each download is one CSV for one report type: total, monthly, or weekly.
    - It ran one query per month.
 4. **One CSV per report type, with explicit date columns and a user-selected start date (chosen).**
 
+## Planned changes
 
-### Planned changes
+These changes revise the partial implementation in [#234](https://github.com/Princeton-CDH/htr2hpc/pull/234) as of `de45422` (2026-11-04). In that version, the export is a ZIP with a totals CSV and one CSV per completed month, using different fields, a hard-coded start date and hard-coded UTC.
 
 1. **Export logic** (`src/htr2hpc/exports.py`)
    - Merge the totals and monthly field lists, query functions and row functions into one of each.

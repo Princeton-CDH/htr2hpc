@@ -13,33 +13,43 @@ Staff edit content as Wagtail snippets in the Wagtail admin. Each snippet is sho
 ### Content model
 
 - **`ContentSnippet`** has four fields:
+
   - `url_path`: the page to show it on, e.g. `/contact/`. Leave it blank to show it on all pages.
   - `slot`: where on the page it appears.
   - `body`: rich text.
   - `is_active`: unpublish without deleting.
+
 - **Two slots**, chosen from a dropdown, so there are no typos:
-  - `before_main`: "Before main content"
-  - `after_main`: "After main content"
+
+  - `before_main`: "Before main content (any page)"
+  - `after_main`: "After main content (any page)"
 
   Announcements, contact info and model descriptions all use these two slots on the relevant page, or on all pages.
+
 - **Help text** in the admin is written for staff, e.g. "URL for the page where this snippet should be displayed (e.g. /contact/). Leave blank to display on all pages."
+
 - **One snippet per page and slot** (unique `url_path` + `slot`). A site-wide snippet and a page-specific snippet in the same slot both display, site-wide first.
 
 ### Where snippets display
 
 - htr2hpc ships a **copy of eScriptorium's `base.html`** with two new blocks around `{% block body %}`:
+
   - `pre_body` renders `before_main` snippets.
   - `post_body` renders `after_main` snippets.
 
   Every page that extends `base.html` gets the snippets. Individual page templates don't need to be overridden.
+
 - The copy has a comment at the top naming the eScriptorium version it was copied from, and that it **must be updated when eScriptorium is upgraded**. `DEVELOPERNOTES.md` says the same.
+
 - We will propose adding empty `pre_body` / `post_body` blocks upstream, so the copy can later be replaced by a small override.
-- The legacy and new interfaces both render inside the same `base.html` (the `legacy_mode` switch is inside it), so snippets should display in both. This needs to be confirmed on a dev instance.
+
+- **New interface:** no extra work is expected. New-interface pages (e.g. `core/project_list.html`) also extend `base.html` and render inside `{% block body %}`, switching on `legacy_mode` within it. Blocks placed outside `body` therefore appear in both interfaces. Layout and styling in the new interface still need checking on a dev instance.
 
 ### Content that stays in templates
 
 - The homepage jumbotron text (`additional_heading.html`) and the HPC setup instructions on the profile page stay as htr2hpc template text, as they are on `develop`. Both sit in the middle of a page layout that a before/after slot can't reach, and they rarely change.
-- Because of this, no existing content moves into snippets, so the `initial_snippets` fixture is no longer needed.
+- **No initial fixture.** Loading content with `loaddata` would work well, but no existing content moves into snippets, so there is nothing to preload. The `initial_snippets` fixture is removed rather than renamed.
+- **Open question:** should the homepage text be editable too? If so, we would add a third slot, `homepage_heading`, rendered in `additional_heading.html`. eScriptorium already provides that include for this purpose, so it needs no extra template override. The fixture would then come back as `cdh_snippets` with that text preloaded.
 
 ### Optional dependency
 
@@ -69,7 +79,7 @@ Staff edit content as Wagtail snippets in the Wagtail admin. Each snippet is sho
 3. **Context processor** (`src/htr2hpc/content/context_processors.py`)
    - Move the `ContentSnippet` import to the top and remove the `ImportError` fallback.
 4. **Fixture and docs**
-   - Remove `initial_snippets.json`.
+   - Remove `initial_snippets.json`. If the homepage slot is added, replace it with `cdh_snippets.json` instead.
    - In `DEVELOPERNOTES.md`, change the install step to `htr2hpc[all]`, remove the `loaddata` step, and document the base template copy.
 5. **Tests** (`tests/test_content.py`)
    - Use the pytest-django `rf` fixture.
@@ -78,4 +88,4 @@ Staff edit content as Wagtail snippets in the Wagtail admin. Each snippet is sho
 ### Questions for acceptance testing
 
 - Is one snippet per page and slot enough, or do we need several (e.g. drafts) with only one active at a time?
-- Do snippets display correctly in the new interface as well as the legacy one?
+- Do snippets look right in the new interface as well as the legacy one?

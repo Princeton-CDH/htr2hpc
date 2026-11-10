@@ -1,41 +1,32 @@
 import csv
-import io
-import zipfile
-from datetime import UTC, datetime
+from itertools import chain
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import (
+    HttpResponseBadRequest,
+    HttpResponseRedirect,
+    StreamingHttpResponse,
+)
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.http import require_http_methods
 
 from htr2hpc.exports import (
-    MONTHLY_FIELDS,
-    TOTALS_FIELDS,
-    get_completed_months,
-    get_monthly_data,
-    get_totals_data,
-    monthly_row,
-    totals_row,
+    REPORT_FILENAME_LABELS,
+    USAGE_REPORT_FIELDS,
+    get_usage_report,
+    report_row,
 )
+from htr2hpc.forms import UsageReportForm
 from htr2hpc.tasks import hpc_user_setup
-
-
-def _write_csv(fields, rows) -> bytes:
-    """Write a list of row dicts to CSV and return as bytes."""
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=fields)
-    writer.writeheader()
-    for row in rows:
-        writer.writerow(row)
-    return buf.getvalue().encode()
 
 
 @login_required
 @require_http_methods(["POST"])
-def remote_user_setup(request):  # pragma: no cover
+def remote_user_setup(request):
     # it seems that the taskreport must be associated with a document,
     # so skip the task reporting logic here and just use notifications
 
@@ -47,45 +38,46 @@ def remote_user_setup(request):  # pragma: no cover
     return redirect
 
 
+class Echo:
+    """File-like object that returns the written value instead of buffering it,
+    so csv.writer output can be streamed row by row."""
+
+    def write(self, value):
+        return value
+
+
 @method_decorator(staff_member_required, name="dispatch")
 class UsageReportView(View):
-    """Admin-only ZIP export of per-user VM and HPC task usage stats.
+    """Staff-only CSV download of per-user VM and HPC usage stats.
 
-    The ZIP contains:
-    - totals.csv: all-time stats per user (from USAGE_REPORT_START)
-    - YYYY-MM.csv: one file per completed calendar month
-
-    Restricted to staff via staff_member_required decorator.
-    The download link is placed on the existing Leaderboard page
-    via a template override in templates/reporting/quotas_leaderboard.html.
+    Takes GET parameters from :class:`~htr2hpc.forms.UsageReportForm`:
+    ``report_type`` (required) and ``start`` (optional; defaults to the
+    ``USAGE_REPORT_DEFAULT_START`` setting). Returns a 400 if they are invalid.
+    The download form is shown on the Leaderboard page.
     """
 
-    def get(self, request, *args, **kwargs):  # pragma: no cover
-        today = datetime.now(tz=UTC).date()
-        zip_buf = io.BytesIO()
+    def get(self, request, *args, **kwargs):
+        form = UsageReportForm(request.GET)
+        if not form.is_valid():
+            return HttpResponseBadRequest(form.errors.as_text())
 
-        with zipfile.ZipFile(zip_buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-            # totals CSV
-            totals_csv = _write_csv(
-                TOTALS_FIELDS,
-                [totals_row(u) for u in get_totals_data()],
-            )
-            zf.writestr("totals.csv", totals_csv)
+        start = form.cleaned_data["start"]
+        report_type = form.cleaned_data["report_type"]
+        rows = get_usage_report(start, report_type)
 
-            # one CSV per completed calendar month
-            for year, month in get_completed_months():
-                monthly_csv = _write_csv(
-                    MONTHLY_FIELDS,
-                    [monthly_row(u) for u in get_monthly_data(year, month)],
-                )
-                zf.writestr(f"{year:04d}-{month:02d}.csv", monthly_csv)
-
-        zip_buf.seek(0)
-        response = HttpResponse(
-            zip_buf.read(),
-            content_type="application/zip",
+        writer = csv.DictWriter(Echo(), fieldnames=USAGE_REPORT_FIELDS)
+        header = dict(zip(USAGE_REPORT_FIELDS, USAGE_REPORT_FIELDS, strict=True))
+        csv_rows = chain(
+            [header], (report_row(r, report_type) for r in rows.iterator())
         )
-        response["Content-Disposition"] = (
-            f'attachment; filename="htr-usage-{today}.zip"'
+        lines = (writer.writerow(row) for row in csv_rows)
+
+        filename = (
+            f"htr-usage-{REPORT_FILENAME_LABELS[report_type]}"
+            f"-{start.isoformat()}-{timezone.localdate().isoformat()}.csv"
         )
-        return response
+        return StreamingHttpResponse(
+            lines,
+            content_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )

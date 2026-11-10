@@ -1,11 +1,7 @@
 {% extends "reporting/quotas_leaderboard.html" %}
-{% load i18n %}
+{% load htr2hpc_tags %}
 
 {% block body %}
-<div class="mb-3">
-  <a href="{% url 'usage-report' %}" class="btn btn-secondary">
-    {% trans "Download usage report (CSV)" %}
-  </a>
-</div>
+{% usage_report_form %}
 {{ block.super }}
 {% endblock %}

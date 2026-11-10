@@ -8,6 +8,7 @@ run tests against it.
 """
 
 import os
+from datetime import date
 from pathlib import Path
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "test-secret-key-for-testing-only")
@@ -30,10 +31,17 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.sites",
     "htr2hpc",
+    # stand-ins for the eScriptorium models htr2hpc queries
+    "escr_stub.reporting",
+    "escr_stub.core",
 ]
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 SITE_ID = 1
+
+# match eScriptorium's timezone settings
+USE_TZ = True
+TIME_ZONE = "UTC"
 
 MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -46,9 +54,7 @@ ROOT_URLCONF = "tests.test_urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [
-            str(Path(__file__).parent / "templates"),
-        ],
+        "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -79,6 +85,7 @@ HPC_SSH_KEYFILE = "/tmp/test_ssh_key"
 HTR2HPC_INSTALL_DIR = Path(__file__).parent
 HPC_ANACONDA_MODULE = "anaconda3/2025.6"
 EXPORT_FILE_RETENTION = 168
+USAGE_REPORT_DEFAULT_START = date(2026, 9, 1)
 
 # pucas LDAP config — minimal; LDAP calls are mocked in tests
 PUCAS_LDAP = {

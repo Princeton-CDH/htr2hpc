@@ -1,238 +1,237 @@
-"""Tests for the CSV export functions in exports.py."""
+"""Tests for the usage report export functions in exports.py."""
 
-import sys
-from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
+from datetime import date, datetime, timedelta
 
 import pytest
-from django.contrib.auth import get_user_model
-
-# mock escriptorium modules before importing htr2hpc
-sys.modules.setdefault("celery", MagicMock())
-sys.modules.setdefault("apps", MagicMock())
-sys.modules.setdefault("apps.users", MagicMock())
-sys.modules.setdefault("apps.users.consumers", MagicMock())
+from django.utils import timezone
+from escr_stub.core.models import OcrModel
+from escr_stub.reporting.models import TaskReport
 
 from htr2hpc.exports import (
-    MONTHLY_FIELDS,
-    TOTALS_FIELDS,
-    get_completed_months,
-    monthly_row,
-    totals_row,
+    HPC_SEGTRAIN_METHOD,
+    HPC_TRAIN_METHOD,
+    REPORT_MONTH,
+    REPORT_TOTAL,
+    REPORT_WEEK,
+    USAGE_REPORT_FIELDS,
+    VM_SEGMENT_METHOD,
+    VM_TRANSCRIBE_METHOD,
+    get_usage_report,
+    report_date_range,
+    report_row,
 )
 
-User = get_user_model()
+# a fixed "today" for the report: Monday 2026-11-09
+TODAY = date(2026, 11, 9)
+
+
+def at(year, month, day, hour=12):
+    """Timezone-aware datetime in the site's timezone."""
+    return datetime(year, month, day, hour, tzinfo=timezone.get_current_timezone())
+
+
+def add_report(
+    user, started_at, method=VM_SEGMENT_METHOD, task_id=None, minutes=10, cpu=1.0
+):
+    return TaskReport.objects.create(
+        user=user,
+        method=method,
+        task_id=task_id,
+        started_at=started_at,
+        done_at=started_at + timedelta(minutes=minutes),
+        cpu_cost=cpu,
+    )
 
 
 @pytest.fixture
-def totals_user(db):
-    """A real User with annotated attrs that get_totals_data would add."""
-    user = User.objects.create_user(username="alice")
-    user.disk_usage = 2048
-    user.total_runtime = timedelta(hours=2)
-    for field in TOTALS_FIELDS:
-        if field in ("username", "disk_usage_bytes"):
-            continue
-        attr = field.replace("_seconds", "").replace("_bytes", "")
-        if not hasattr(user, attr):
-            setattr(user, attr, 0)
-    user.hpc_segtrain_total = 3
-    user.vm_segment_total = 10
-    user.total_tasks = 15
-    return user
+def today(mocker):
+    mocker.patch("htr2hpc.exports.timezone.localdate", return_value=TODAY)
+    return TODAY
 
 
 @pytest.fixture
-def monthly_user(db):
-    """A real User with annotated attrs that get_monthly_data would add."""
-    user = User.objects.create_user(username="bob")
-    user.runtime = timedelta(minutes=45)
-    for field in MONTHLY_FIELDS:
-        if field == "username":
-            continue
-        attr = field.replace("_seconds", "")
-        if not hasattr(user, attr):
-            setattr(user, attr, 0)
-    user.hpc_train = 2
-    user.vm_transcribe = 5
-    return user
+def alice(django_user_model):
+    return django_user_model.objects.create_user(username="alice")
+
+
+@pytest.fixture
+def bob(django_user_model):
+    return django_user_model.objects.create_user(username="bob")
+
+
+def rows_for(start, report_type):
+    return [
+        report_row(row, report_type) for row in get_usage_report(start, report_type)
+    ]
 
 
 # ---------------------------------------------------------------------------
-# totals_row tests
+# report_date_range
 # ---------------------------------------------------------------------------
 
 
-def test_totals_row_has_all_fields(totals_user):
-    """totals_row returns a dict with all TOTALS_FIELDS keys."""
-    row = totals_row(totals_user)
-    assert set(row.keys()) == set(TOTALS_FIELDS)
+@pytest.mark.parametrize(
+    ("start", "report_type", "expected"),
+    [
+        # totals: everything from the start date, no end
+        (date(2026, 8, 25), REPORT_TOTAL, (date(2026, 8, 25), None)),
+        # month: partial first month skipped; current month excluded
+        (date(2026, 8, 25), REPORT_MONTH, (date(2026, 9, 1), date(2026, 11, 1))),
+        (date(2026, 9, 1), REPORT_MONTH, (date(2026, 9, 1), date(2026, 11, 1))),
+        (date(2026, 12, 15), REPORT_MONTH, (date(2027, 1, 1), date(2026, 11, 1))),
+        # week: starts on the next Monday; current week excluded
+        (date(2026, 10, 1), REPORT_WEEK, (date(2026, 10, 5), date(2026, 11, 9))),
+        (date(2026, 10, 5), REPORT_WEEK, (date(2026, 10, 5), date(2026, 11, 9))),
+    ],
+)
+def test_report_date_range(start, report_type, expected):
+    assert report_date_range(start, report_type, TODAY) == expected
 
 
-def test_totals_row_null_runtime_becomes_zero(db):
-    """None runtime values are converted to 0 seconds."""
-    user = User.objects.create_user(username="zero")
-    user.disk_usage = 0
-    user.total_runtime = None
-    for field in TOTALS_FIELDS:
-        if field not in ("username", "disk_usage_bytes"):
-            attr = field.replace("_seconds", "").replace("_bytes", "")
-            if not hasattr(user, attr):
-                setattr(user, attr, 0)
-    row = totals_row(user)
-    assert row["total_runtime_seconds"] == 0
-
-
-def test_totals_row_runtime_converted(totals_user):
-    """Timedelta runtime is converted to integer seconds."""
-    row = totals_row(totals_user)
-    assert row["total_runtime_seconds"] == 7200  # 2 hours
-
-
-def test_totals_row_username(totals_user):
-    """Username is passed through correctly."""
-    row = totals_row(totals_user)
-    assert row["username"] == "alice"
-
-
-def test_totals_row_hpc_counts(totals_user):
-    """HPC task counts are included in the row."""
-    row = totals_row(totals_user)
-    assert row["hpc_segtrain_total"] == 3
-    assert row["vm_segment_total"] == 10
-
-
-def test_totals_row_no_gpu_fields(totals_user):
-    """GPU usage fields are not present in totals row."""
-    row = totals_row(totals_user)
-    assert "total_gpu_usage" not in row
-    assert "this_week_gpu_usage" not in row
-
-
-def test_totals_row_no_vm_train_fields(totals_user):
-    """vm_train and vm_segtrain are not present in totals row."""
-    row = totals_row(totals_user)
-    assert "vm_train_total" not in row
-    assert "vm_segtrain_total" not in row
+def test_report_date_range_week_mid_week_today():
+    # Wednesday: the current week started on Monday 2026-11-09
+    assert report_date_range(date(2026, 10, 5), REPORT_WEEK, date(2026, 11, 11))[
+        1
+    ] == date(2026, 11, 9)
 
 
 # ---------------------------------------------------------------------------
-# monthly_row tests
+# get_usage_report
 # ---------------------------------------------------------------------------
 
 
-def test_monthly_row_has_all_fields(monthly_user):
-    """monthly_row returns a dict with all MONTHLY_FIELDS keys."""
-    row = monthly_row(monthly_user)
-    assert set(row.keys()) == set(MONTHLY_FIELDS)
+@pytest.mark.django_db
+def test_total_report(today, alice):
+    add_report(alice, at(2026, 9, 3), VM_SEGMENT_METHOD, minutes=10, cpu=2.0)
+    add_report(alice, at(2026, 10, 20), VM_TRANSCRIBE_METHOD, minutes=5, cpu=0.5)
+    # before the start date: excluded
+    add_report(alice, at(2026, 8, 1))
+    OcrModel.objects.create(owner=alice, file_size=1000)
+    OcrModel.objects.create(owner=alice, file_size=24)
+
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert row == {
+        "username": "alice",
+        "report_type": "total",
+        "report_start": date(2026, 9, 1),
+        "report_end": date(2026, 10, 20),
+        "disk_usage_bytes": 1024,
+        "task_count": 2,
+        "runtime_seconds": 15 * 60,
+        "cpu_usage": 2.5,
+        "vm_segment_tasks": 1,
+        "vm_transcribe_tasks": 1,
+        "hpc_segtrain_tasks": 0,
+        "hpc_train_tasks": 0,
+    }
 
 
-def test_monthly_row_null_runtime_becomes_zero(db):
-    """None runtime values are converted to 0 seconds."""
-    user = User.objects.create_user(username="zero2")
-    user.runtime = None
-    for field in MONTHLY_FIELDS:
-        if field not in ("username",):
-            attr = field.replace("_seconds", "")
-            if not hasattr(user, attr):
-                setattr(user, attr, 0)
-    row = monthly_row(user)
+@pytest.mark.django_db
+def test_total_report_includes_current_month(today, alice):
+    add_report(alice, at(2026, 11, 8))
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert row["report_end"] == date(2026, 11, 8)
+
+
+@pytest.mark.django_db
+def test_total_report_no_disk_usage(today, alice):
+    add_report(alice, at(2026, 9, 3))
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert row["disk_usage_bytes"] == 0
+
+
+@pytest.mark.django_db
+def test_monthly_report_completed_months_only(today, alice):
+    # start 2026-08-25: partial August is skipped, November (current) excluded
+    add_report(alice, at(2026, 8, 28))
+    add_report(alice, at(2026, 9, 2))
+    add_report(alice, at(2026, 9, 30, hour=20))
+    add_report(alice, at(2026, 10, 15))
+    add_report(alice, at(2026, 11, 2))
+
+    rows = rows_for(date(2026, 8, 25), REPORT_MONTH)
+    assert [(r["report_start"], r["report_end"], r["task_count"]) for r in rows] == [
+        (date(2026, 9, 1), date(2026, 9, 30), 2),
+        (date(2026, 10, 1), date(2026, 10, 15), 1),
+    ]
+    # disk usage is only reported for totals
+    assert {r["disk_usage_bytes"] for r in rows} == {""}
+    assert {r["report_type"] for r in rows} == {"month"}
+
+
+@pytest.mark.django_db
+def test_monthly_report_across_year_boundary(mocker, alice):
+    mocker.patch("htr2hpc.exports.timezone.localdate", return_value=date(2027, 2, 10))
+    add_report(alice, at(2026, 12, 31, hour=23))
+    add_report(alice, at(2027, 1, 1, hour=0))
+
+    rows = rows_for(date(2026, 12, 1), REPORT_MONTH)
+    assert [(r["report_start"], r["report_end"]) for r in rows] == [
+        (date(2026, 12, 1), date(2026, 12, 31)),
+        (date(2027, 1, 1), date(2027, 1, 1)),
+    ]
+
+
+@pytest.mark.django_db
+def test_weekly_report_completed_weeks_only(today, alice):
+    # Monday-start weeks; current week (from Mon 2026-11-09) is excluded
+    add_report(alice, at(2026, 10, 4))  # Sunday before the first full week
+    add_report(alice, at(2026, 10, 5))  # Monday
+    add_report(alice, at(2026, 10, 7))  # Wednesday, same week
+    add_report(alice, at(2026, 11, 8))  # Sunday, last completed week
+    add_report(alice, at(2026, 11, 9))  # Monday of the current week
+
+    rows = rows_for(date(2026, 10, 1), REPORT_WEEK)
+    assert [(r["report_start"], r["report_end"], r["task_count"]) for r in rows] == [
+        (date(2026, 10, 5), date(2026, 10, 7), 2),
+        (date(2026, 11, 2), date(2026, 11, 8), 1),
+    ]
+    assert {r["report_type"] for r in rows} == {"week"}
+
+
+@pytest.mark.django_db
+def test_hpc_jobs_counted_by_task_id(today, alice):
+    # one training job on 3 pages creates 3 task reports with the same task_id
+    for _ in range(3):
+        add_report(alice, at(2026, 9, 10), HPC_TRAIN_METHOD, task_id="train-1")
+    add_report(alice, at(2026, 9, 11), HPC_TRAIN_METHOD, task_id="train-2")
+    add_report(alice, at(2026, 9, 12), HPC_SEGTRAIN_METHOD, task_id="seg-1")
+    add_report(alice, at(2026, 9, 12), HPC_SEGTRAIN_METHOD, task_id="seg-1")
+
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert row["hpc_train_tasks"] == 2
+    assert row["hpc_segtrain_tasks"] == 1
+
+
+@pytest.mark.django_db
+def test_users_without_activity_have_no_rows(today, alice, bob):
+    add_report(alice, at(2026, 9, 3))
+    add_report(bob, at(2026, 10, 3))
+
+    assert [r["username"] for r in rows_for(date(2026, 9, 1), REPORT_TOTAL)] == [
+        "alice",
+        "bob",
+    ]
+    monthly = rows_for(date(2026, 9, 1), REPORT_MONTH)
+    assert [(r["username"], r["report_start"]) for r in monthly] == [
+        ("alice", date(2026, 9, 1)),
+        ("bob", date(2026, 10, 1)),
+    ]
+
+
+@pytest.mark.django_db
+def test_report_row_null_runtime_and_cpu(today, alice):
+    TaskReport.objects.create(
+        user=alice, method=VM_SEGMENT_METHOD, started_at=at(2026, 9, 3)
+    )
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
     assert row["runtime_seconds"] == 0
+    assert row["cpu_usage"] == 0
 
 
-def test_monthly_row_runtime_converted(monthly_user):
-    """Timedelta runtime is converted to integer seconds."""
-    row = monthly_row(monthly_user)
-    assert row["runtime_seconds"] == 2700  # 45 minutes
-
-
-def test_monthly_row_hpc_counts(monthly_user):
-    """HPC task counts are included in monthly row."""
-    row = monthly_row(monthly_user)
-    assert row["hpc_train"] == 2
-    assert row["vm_transcribe"] == 5
-
-
-# ---------------------------------------------------------------------------
-# get_completed_months tests
-# ---------------------------------------------------------------------------
-
-
-def test_get_completed_months_returns_list():
-    """Returns a list of (year, month) tuples."""
-    months = get_completed_months()
-    assert isinstance(months, list)
-    for item in months:
-        assert len(item) == 2
-        _year, month = item
-        assert 1 <= month <= 12
-
-
-def test_get_completed_months_starts_at_report_start():
-    """First entry is (2026, 9) — the USAGE_REPORT_START month."""
-    months = get_completed_months()
-    assert len(months) > 0
-    assert months[0] == (2026, 9)
-
-
-def test_get_completed_months_excludes_current_month():
-    """Current month is not included (it's not yet complete)."""
-    today = datetime.now(tz=UTC).date()
-    months = get_completed_months()
-    assert (today.year, today.month) not in months
-
-
-def test_get_completed_months_sequential():
-    """Months are in chronological order with no gaps."""
-    from unittest.mock import patch
-
-    # Use Feb 2027 so the list includes a Dec→Jan year rollover
-    mock_now = datetime(2027, 2, 15, tzinfo=UTC)
-    with patch("htr2hpc.exports.datetime") as mock_dt:
-        mock_dt.now.return_value = mock_now
-        months = get_completed_months()
-
-    for i in range(1, len(months)):
-        prev_year, prev_month = months[i - 1]
-        curr_year, curr_month = months[i]
-        if prev_month == 12:
-            assert curr_year == prev_year + 1 and curr_month == 1
-        else:
-            assert curr_year == prev_year and curr_month == prev_month + 1
-
-
-def test_get_completed_months_year_rollover():
-    """Months correctly roll over from December to January of the next year."""
-    from unittest.mock import patch
-
-    # Mock today to be in Feb 2027 so we get Dec 2026 and Jan 2027 in the list
-    mock_now = datetime(2027, 2, 15, tzinfo=UTC)
-    with patch("htr2hpc.exports.datetime") as mock_dt:
-        mock_dt.now.return_value = mock_now
-        months = get_completed_months()
-
-    assert (2026, 12) in months
-    assert (2027, 1) in months
-    # Dec 2026 should come before Jan 2027
-    idx_dec = months.index((2026, 12))
-    idx_jan = months.index((2027, 1))
-    assert idx_dec < idx_jan
-
-
-# ---------------------------------------------------------------------------
-# Backwards compatibility aliases
-# ---------------------------------------------------------------------------
-
-
-def test_usage_report_fields_alias():
-    """USAGE_REPORT_FIELDS is still importable and equals TOTALS_FIELDS."""
-    from htr2hpc.exports import USAGE_REPORT_FIELDS
-
-    assert USAGE_REPORT_FIELDS is TOTALS_FIELDS
-
-
-def test_user_to_csv_row_alias(totals_user):
-    """user_to_csv_row is an alias for totals_row."""
-    from htr2hpc.exports import user_to_csv_row
-
-    assert user_to_csv_row(totals_user) == totals_row(totals_user)
+@pytest.mark.django_db
+@pytest.mark.parametrize("report_type", [REPORT_TOTAL, REPORT_MONTH, REPORT_WEEK])
+def test_report_rows_have_all_fields(today, alice, report_type):
+    add_report(alice, at(2026, 10, 6))
+    [row] = rows_for(date(2026, 9, 1), report_type)
+    assert list(row) == USAGE_REPORT_FIELDS

@@ -1089,6 +1089,7 @@ dev = [
     { name = "django-solo" },
     { name = "djangorestframework" },
     { name = "easy-thumbnails" },
+    { name = "htr2hpc", extra = ["all"] },
     { name = "myst-parser" },
     { name = "pre-commit" },
     { name = "psycopg2-binary" },
@@ -1114,6 +1115,20 @@ escriptorium = [
     { name = "djangorestframework" },
     { name = "easy-thumbnails" },
     { name = "psycopg2-binary" },
+]
+test = [
+    { name = "coverage", extra = ["toml"] },
+    { name = "django-ordered-model" },
+    { name = "django-prometheus" },
+    { name = "django-solo" },
+    { name = "djangorestframework" },
+    { name = "easy-thumbnails" },
+    { name = "psycopg2-binary" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-django" },
+    { name = "pytest-mock" },
+    { name = "responses" },
 ]
 
 [package.metadata]
@@ -1143,6 +1158,7 @@ dev = [
     { name = "django-solo", specifier = ">=1.1,<2.6" },
     { name = "djangorestframework", specifier = "~=3.15.1" },
     { name = "easy-thumbnails", specifier = "~=2.8.1" },
+    { name = "htr2hpc", extras = ["all"] },
     { name = "myst-parser" },
     { name = "pre-commit" },
     { name = "psycopg2-binary" },
@@ -1166,6 +1182,20 @@ escriptorium = [
     { name = "djangorestframework", specifier = "~=3.15.1" },
     { name = "easy-thumbnails", specifier = "~=2.8.1" },
     { name = "psycopg2-binary" },
+]
+test = [
+    { name = "coverage", extras = ["toml"], specifier = ">=7.6" },
+    { name = "django-ordered-model", specifier = "~=3.7" },
+    { name = "django-prometheus", specifier = "~=2.3.1" },
+    { name = "django-solo", specifier = ">=1.1,<2.6" },
+    { name = "djangorestframework", specifier = "~=3.15.1" },
+    { name = "easy-thumbnails", specifier = "~=2.8.1" },
+    { name = "psycopg2-binary" },
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "pytest-cov", specifier = ">=6.1" },
+    { name = "pytest-django", specifier = ">=4.9" },
+    { name = "pytest-mock", specifier = ">=3.14" },
+    { name = "responses", specifier = ">=0.25" },
 ]
 
 [[package]]

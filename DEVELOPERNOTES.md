@@ -43,13 +43,13 @@ Install devbox if you don't have it:
 curl -fsSL https://get.jetify.com/devbox | bash
 ```
 
-Then run `devbox shell` to enter the environment. This installs Python 3.11 and uv via Nix. Run `uv sync --group dev` to install Python dependencies into a local `.venv`. You only need to run `devbox shell` once per terminal session.
+Then run `devbox shell` to enter the environment. This installs Python 3.11 and uv via Nix. Run `uv sync` to install Python dependencies into a local `.venv`; the `dev` group is installed by default and includes everything for development, including the optional Wagtail dependency. You only need to run `devbox shell` once per terminal session.
 
 Use `devbox run test` to run the test suite from your regular terminal without entering the devbox shell. To verify the environment works without any system dependencies, use `devbox shell --pure`. If you run into unexpected errors, `rm -rf .devbox` usually clears them up.
 
 #### Method B: Without `devbox`
 
-If you prefer not to use devbox, you can set up the environment manually with `uv sync --group dev`.
+If you prefer not to use devbox, you can set up the environment manually with `uv sync`.
 
 #### Additional notes
 
@@ -83,11 +83,18 @@ Tests run on PostgreSQL, like eScriptorium. They connect to `localhost:5432` as 
 docker run -d --name htr2hpc-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:15
 ```
 
-Then install htr2hpc with its dependencies (`uv sync` includes the dev dependencies by default) and run the tests:
+Then install htr2hpc with its dependencies (`uv sync` includes the dev dependencies by default, including Wagtail) and run the tests:
 
 ```sh
 uv sync
 uv run pytest
+```
+
+CI runs the tests twice, with and without Wagtail, to make sure it stays optional; the content management tests are skipped when Wagtail isn't installed. To run the tests without Wagtail locally, install only the `test` group:
+
+```sh
+uv sync --no-dev --group test
+uv run --no-sync pytest
 ```
 
 ### Upgrading eScriptorium

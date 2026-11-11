@@ -50,16 +50,22 @@ docs = [
   "django~=4.2",
   "myst-parser",
 ]
-dev = [
-  "pre-commit",
+# what CI installs to run the tests (without optional extras like Wagtail)
+test = [
   "pytest>=8.3",
   "pytest-django>=4.9",
   "pytest-cov>=6.1",
   "pytest-mock>=3.14",
   "coverage[toml]>=7.6",
   "responses>=0.25",
-  {include-group = "docs"},
   {include-group = "escriptorium"},
+]
+# everything for local development, including the optional Wagtail dependency
+dev = [
+  "pre-commit",
+  "htr2hpc[all]",
+  {include-group = "test"},
+  {include-group = "docs"},
 ]
 # Light, pure-Python packages that eScriptorium's models subclass or register,
 # so tests can load the real models from an eScriptorium checkout without its

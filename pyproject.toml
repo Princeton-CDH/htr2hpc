@@ -55,10 +55,28 @@ dev = [
   "coverage[toml]>=7.6",
   "responses>=0.25",
   {include-group = "docs"},
+  {include-group = "escriptorium"},
+]
+# Light, pure-Python packages that eScriptorium's models subclass or register,
+# so tests can load the real models from an eScriptorium checkout without its
+# heavy dependencies. Versions match the requirements.txt of the eScriptorium
+# version in [tool.htr2hpc] below. See tests/test_escriptorium_stubs.py.
+escriptorium = [
+  "djangorestframework~=3.15.1",
+  "django-ordered-model~=3.7",
+  "django-solo>=1.1,<2.6",
+  "easy-thumbnails~=2.8.1",
+  "django-prometheus~=2.3.1",
 ]
 
 [project.scripts]
 htr2hpc-train = "htr2hpc.train.run:main"
+
+[tool.htr2hpc]
+# eScriptorium version (git tag) that htr2hpc is tested against; CI clones this
+# version to load its models in the tests. Keep in sync with the deployed
+# version (`gitref` in cdh-ansible). See DEVELOPERNOTES.md before changing.
+escriptorium-version = "v1.0.1"
 
 [tool.hatch.version]
 path = "src/htr2hpc/__init__.py"
@@ -88,7 +106,7 @@ omit = [
   "*/htr2hpc/tasks.py",       # Celery tasks requiring full HPC+eScriptorium stack
   "*/htr2hpc/urls.py",        # imports from escriptorium.urls, not available in test environment
   "tests/test_settings.py",   # Django test configuration, not test code
-  "tests/escr_stub/*",        # eScriptorium model stand-ins, imported at Django setup before coverage starts
+  "tests/test_escriptorium_stubs.py", # test setup imported by test_settings, before coverage starts
 ]
 
 [tool.coverage.paths]

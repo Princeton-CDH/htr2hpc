@@ -28,12 +28,21 @@ jobs:
       - name: Check uv.lock is up to date
         run: uv lock --check
 
+      # tests load eScriptorium's real models; see tests/test_escriptorium_stubs.py
+      # the version comes from [tool.htr2hpc] escriptorium-version in pyproject.toml
+      - name: Check out eScriptorium
+        run: |
+          ESCRIPTORIUM_VERSION=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["htr2hpc"]["escriptorium-version"])')
+          echo "Cloning eScriptorium $ESCRIPTORIUM_VERSION"
+          git clone --depth 1 --branch "$ESCRIPTORIUM_VERSION" https://gitlab.com/scripta/escriptorium.git escriptorium
+
       - name: Install htr2hpc with dev dependencies
         run: uv sync --group dev
 
       - name: Run tests with coverage
         env:
           DJANGO_SECRET_KEY: ${{ github.run_id }}-${{ github.run_attempt }}-test-secret
+          ESCRIPTORIUM_PATH: ${{ github.workspace }}/escriptorium
         run: uv run pytest --cov --cov-report=xml
 
       - name: Upload coverage to Codecov

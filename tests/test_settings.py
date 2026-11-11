@@ -4,12 +4,15 @@ Minimal Django settings for running htr2hpc tests.
 Does NOT import from htr2hpc.settings or escriptorium.settings —
 those pull in PostgreSQL, Redis, Celery broker, and the full eScriptorium
 stack. This file defines only what is needed to load the htr2hpc app and
-run tests against it.
+the eScriptorium models it queries (see test_escriptorium_stubs.py).
 """
 
 import os
 from datetime import date
 from pathlib import Path
+
+# must run before Django loads the eScriptorium apps listed below
+import test_escriptorium_stubs  # noqa: F401
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "test-secret-key-for-testing-only")
 DEBUG = True
@@ -30,11 +33,18 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sessions",
     "django.contrib.sites",
+    # apps whose models eScriptorium's models depend on
+    "rest_framework.authtoken",
+    "easy_thumbnails",
+    # eScriptorium apps with the models htr2hpc queries (see conftest.py)
+    "users",
+    "versioning",
+    "reporting",
+    "core",
     "htr2hpc",
-    # stand-ins for the eScriptorium models htr2hpc queries
-    "escr_stub.reporting",
-    "escr_stub.core",
 ]
+
+AUTH_USER_MODEL = "users.User"
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 SITE_ID = 1
@@ -78,6 +88,9 @@ class DisableMigrations:
 
 
 MIGRATION_MODULES = DisableMigrations()
+
+# settings eScriptorium's models read when they are loaded
+VERSIONING_DEFAULT_SOURCE = "eScriptorium"
 
 # htr2hpc-specific settings
 HPC_HOSTNAME = "della.princeton.edu"

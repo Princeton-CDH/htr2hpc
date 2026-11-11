@@ -1,23 +1,15 @@
 """Tests for htr2hpc views."""
 
 import csv
-import sys
 from datetime import date, datetime
 from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.template import Context, Template
 from django.utils import timezone
-
-# mock escriptorium modules before importing htr2hpc views
-sys.modules.setdefault("celery", MagicMock())
-sys.modules.setdefault("apps", MagicMock())
-sys.modules.setdefault("apps.users", MagicMock())
-sys.modules.setdefault("apps.users.consumers", MagicMock())
-
-from escr_stub.reporting.models import TaskReport
+from reporting.models import TaskReport
 
 from htr2hpc.exports import USAGE_REPORT_FIELDS, VM_SEGMENT_METHOD
 from htr2hpc.views import UsageReportView, remote_user_setup
@@ -34,7 +26,9 @@ def today():
 
 @pytest.fixture
 def staff_user(django_user_model):
-    return django_user_model.objects.create_user(username="staff", is_staff=True)
+    return django_user_model.objects.create_user(
+        username="staff", email="staff@example.com", is_staff=True
+    )
 
 
 def get_report(rf, user, **params):
@@ -96,7 +90,9 @@ def test_usage_report_invalid_params(rf, staff_user, params):
 
 @pytest.mark.django_db
 def test_usage_report_requires_staff(rf, django_user_model):
-    user = django_user_model.objects.create_user(username="notstaff")
+    user = django_user_model.objects.create_user(
+        username="notstaff", email="notstaff@example.com"
+    )
     for request_user in (user, AnonymousUser()):
         response = get_report(rf, request_user, report_type="total")
         # staff_member_required redirects to the admin login page
@@ -131,7 +127,9 @@ def test_usage_report_form_tag_no_default_start(settings):
 @patch("htr2hpc.views.reverse", return_value="/profile/apikey/")
 @patch("htr2hpc.views.hpc_user_setup")
 def test_remote_user_setup(setup_task, mock_reverse, rf, django_user_model):
-    user = django_user_model.objects.create_user(username="alice")
+    user = django_user_model.objects.create_user(
+        username="alice", email="alice@example.com"
+    )
     request = rf.post("/profile/hpc-setup/")
     request.user = user
 

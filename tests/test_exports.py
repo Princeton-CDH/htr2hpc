@@ -4,9 +4,9 @@ from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
+from core.models import OcrModel
 from django.utils import timezone
-from escr_stub.core.models import OcrModel
-from escr_stub.reporting.models import TaskReport
+from reporting.models import TaskReport
 
 from htr2hpc.exports import (
     HPC_SEGTRAIN_METHOD,
@@ -52,12 +52,16 @@ def today():
 
 @pytest.fixture
 def alice(django_user_model):
-    return django_user_model.objects.create_user(username="alice")
+    return django_user_model.objects.create_user(
+        username="alice", email="alice@example.com"
+    )
 
 
 @pytest.fixture
 def bob(django_user_model):
-    return django_user_model.objects.create_user(username="bob")
+    return django_user_model.objects.create_user(
+        username="bob", email="bob@example.com"
+    )
 
 
 def rows_for(start, report_type):
@@ -114,8 +118,12 @@ def test_total_report(today, alice):
     add_report(alice, at(2026, 10, 20), VM_TRANSCRIBE_METHOD, minutes=5, cpu=0.5)
     # before the start date: excluded
     add_report(alice, at(2026, 8, 1))
-    OcrModel.objects.create(owner=alice, file_size=1000)
-    OcrModel.objects.create(owner=alice, file_size=24)
+    OcrModel.objects.create(
+        name="model 1", owner=alice, file_size=1000, job=OcrModel.MODEL_JOB_RECOGNIZE
+    )
+    OcrModel.objects.create(
+        name="model 2", owner=alice, file_size=24, job=OcrModel.MODEL_JOB_SEGMENT
+    )
 
     [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
     assert row == {
@@ -214,7 +222,7 @@ def test_hpc_jobs_counted_by_task_id(today, alice):
 @pytest.mark.django_db
 def test_users_without_activity_have_no_rows(today, alice, bob, django_user_model):
     # carol has an account but no tasks at all
-    django_user_model.objects.create_user(username="carol")
+    django_user_model.objects.create_user(username="carol", email="carol@example.com")
     # alice is only active in September, bob only in October
     add_report(alice, at(2026, 9, 3))
     add_report(bob, at(2026, 10, 3))

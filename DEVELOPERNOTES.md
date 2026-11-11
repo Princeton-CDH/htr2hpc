@@ -5,6 +5,7 @@ We use the [git-flow branching pattern](https://www.gitkraken.com/learn/git/git-
 ## Development Setup
 
 ### Check out code
+
 Local development requires a checkout of both htr2hpc and [eScriptorium](https://gitlab.com/scripta/escriptorium). The eScriptorium apps directory must be on your Python path for imports to resolve — it doesn't matter where you clone it, as long as PYTHONPATH points to the right location. For example:
 
 ```sh
@@ -13,6 +14,7 @@ git clone https://github.com/Princeton-CDH/htr2hpc.git
 ```
 
 ### Set PYTHONPATH
+
 We recommend using [direnv](https://direnv.net/) to set PYTHONPATH automatically when you enter the directory. Create a `.envrc` in your htr2hpc checkout:
 
 ```sh
@@ -32,6 +34,7 @@ set -x PYTHONPATH /path/to/escriptorium/app/apps /path/to/escriptorium/app
 ### Install dependencies and setup
 
 #### Method A: Using `devbox` (recommended)
+
 This project uses [devbox](https://www.jetify.com/devbox) to simplify local development setup. Devbox installs the required tools (Python, uv) in an isolated environment without affecting your system, so you can get started with a single command and be confident your setup matches other contributors. If you prefer not to use devbox, you can set up the environment manually — see below.
 
 Install devbox if you don't have it:
@@ -64,7 +67,15 @@ In your local checkout of htr2hpc code, run `git flow init` to initialize the re
 
 ## Running Tests
 
-Running unit tests does not require eScriptorium or its dependencies to be installed.
+Unit tests load eScriptorium's real models (for example `TaskReport` and `OcrModel`) from an eScriptorium checkout, but don't need eScriptorium's full dependencies. Heavy packages the models import, like celery and channels, are stubbed in `tests/test_escriptorium_stubs.py`.
+
+Clone eScriptorium into the htr2hpc checkout (it's gitignored), at the version set in `pyproject.toml` (`[tool.htr2hpc] escriptorium-version`), which is the version CI uses:
+
+```sh
+git clone --depth 1 --branch v1.0.1 https://gitlab.com/scripta/escriptorium.git escriptorium
+```
+
+Or point `ESCRIPTORIUM_PATH` at an existing eScriptorium checkout.
 
 Install htr2hpc with dev dependencies (which include test dependencies), then run:
 
@@ -72,6 +83,15 @@ Install htr2hpc with dev dependencies (which include test dependencies), then ru
 uv sync --group dev
 uv run pytest
 ```
+
+### Upgrading eScriptorium
+
+The eScriptorium version htr2hpc is tested against is set in one place, `escriptorium-version` under `[tool.htr2hpc]` in `pyproject.toml`; CI reads it from there. When eScriptorium is upgraded:
+
+1. Update `escriptorium-version` in `pyproject.toml`, and re-clone your local `escriptorium` checkout at the new version.
+2. Compare the `escriptorium` dependency group in `pyproject.toml` with the new eScriptorium `requirements.txt`, update the versions, and run `uv lock`.
+3. Run the tests. If loading eScriptorium's models fails with `ModuleNotFoundError` for a package the models only import, add it to `STUBBED_MODULES` in `tests/test_escriptorium_stubs.py`.
+4. Update the deployed version (`gitref`) in cdh-ansible to match.
 
 ## Building Documentation
 
@@ -85,7 +105,6 @@ cd sphinx-docs && uv run make html
 ```
 
 The built documentation will be in `sphinx-docs/_build/html/`. Documentation is also published automatically to [ReadTheDocs](https://htr2hpc.readthedocs.io/) on every push to `main`.
-
 
 ## Creating a new release
 

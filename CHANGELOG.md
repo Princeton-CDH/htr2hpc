@@ -3,6 +3,8 @@
 ## 0.9
 
 - Staff usage report CSV download from the Leaderboard page, with per-user stats for VM tasks (broken down by type) and HPC training jobs; choose a start date and a total, monthly or weekly report (completed months and weeks only)
+- Support lightweight content management via Wagtail Snippets; staff can edit page content (homepage intro, contact info, model descriptions, HPC setup instructions, announcements) through the Wagtail admin without a code change or deployment
+- Wagtail is an optional dependency (`pip install htr2hpc[all]`); instances that don't need content management are unaffected
 
 ## 0.8
 

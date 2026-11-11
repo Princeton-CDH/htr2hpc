@@ -43,13 +43,13 @@ Install devbox if you don't have it:
 curl -fsSL https://get.jetify.com/devbox | bash
 ```
 
-Then run `devbox shell` to enter the environment. This installs Python 3.11 and uv via Nix. Run `uv sync --group dev` to install Python dependencies into a local `.venv`. You only need to run `devbox shell` once per terminal session.
+Then run `devbox shell` to enter the environment. This installs Python 3.11 and uv via Nix. Run `uv sync` to install Python dependencies into a local `.venv`; the `dev` group is installed by default and includes everything for development, including the optional Wagtail dependency. You only need to run `devbox shell` once per terminal session.
 
 Use `devbox run test` to run the test suite from your regular terminal without entering the devbox shell. To verify the environment works without any system dependencies, use `devbox shell --pure`. If you run into unexpected errors, `rm -rf .devbox` usually clears them up.
 
 #### Method B: Without `devbox`
 
-If you prefer not to use devbox, you can set up the environment manually with `uv sync --group dev`.
+If you prefer not to use devbox, you can set up the environment manually with `uv sync`.
 
 #### Additional notes
 
@@ -83,11 +83,18 @@ Tests run on PostgreSQL, like eScriptorium. They connect to `localhost:5432` as 
 docker run -d --name htr2hpc-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:15
 ```
 
-Then install htr2hpc with its dependencies (`uv sync` includes the dev dependencies by default) and run the tests:
+Then install htr2hpc with its dependencies (`uv sync` includes the dev dependencies by default, including Wagtail) and run the tests:
 
 ```sh
 uv sync
 uv run pytest
+```
+
+CI runs the tests twice, with and without Wagtail, to make sure it stays optional; the content management tests are skipped when Wagtail isn't installed. To run the tests without Wagtail locally, install only the `test` group:
+
+```sh
+uv sync --no-dev --group test
+uv run --no-sync pytest
 ```
 
 ### Upgrading eScriptorium
@@ -123,5 +130,23 @@ Release tags must use the `X.Y.Z` format without a `v` prefix (e.g. `0.9.0`, not
 Once the new release has been merged to `main` and pushed to GitHub, deployment is handled via cdh-ansible. See the [cdh-ansible eScriptorium/htr2hpc application docs](https://github.com/Princeton-CDH/cdh-ansible/blob/main/docs/applications/escriptorium.md) for full deployment instructions, including how to use the `reinstall-htr2hpc` tag to deploy a new htr2hpc version.
 
 Note: this deployment is specific to CDH's Princeton instance of eScriptorium.
+
+CDH's Princeton instance uses the Wagtail content management features. The Ansible playbook must install htr2hpc with the `all` optional dependency group, which includes Wagtail:
+
+```sh
+pip install htr2hpc[all]
+```
+
+After deploying a new instance for the first time, load the content fixture to pre-populate the Wagtail admin with the default page snippets (the homepage heading and the profile page HPC instructions):
+
+```sh
+manage.py loaddata cdh_snippets
+```
+
+### Base template copy
+
+When Wagtail is installed, `src/htr2hpc/content/templates/base.html` overrides eScriptorium's `base.html`. It is a copy of the upstream template (eScriptorium v1.0.1) with two blocks added around the body block, `pre_body` and `post_body`, which display content snippets on every page.
+
+**This file must be updated whenever eScriptorium is upgraded:** copy the new upstream `base.html`, then add the `wagtailcore_tags` load and the `pre_body` / `post_body` blocks again. See [docs/design-records/80-content-management.md](docs/design-records/80-content-management.md).
 
 For initial setup after a new deployment, see [Configure Site domain](README.md#configure-site-domain) in the README.

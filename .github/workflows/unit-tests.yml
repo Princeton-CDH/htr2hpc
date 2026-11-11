@@ -12,9 +12,24 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Don't install the dev group by default: it includes Wagtail, which one of the
+  # matrix jobs must run without. Each job installs the test group explicitly.
+  UV_NO_DEV: 1
+  # Prevent uv run from syncing by default
+  UV_NO_SYNC: 1
+
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # Wagtail is an optional dependency; test with and without it to keep it optional.
+    # Content management tests are skipped when Wagtail isn't installed.
+    strategy:
+      fail-fast: false
+      matrix:
+        wagtail: [false, true]
+    name: test ${{ matrix.wagtail && 'with' || 'without' }} wagtail
 
     # tests run on PostgreSQL, like eScriptorium
     services:
@@ -47,8 +62,8 @@ jobs:
       - name: Check out eScriptorium
         run: git clone --depth 1 --branch "$(cat .escriptorium-version)" https://gitlab.com/scripta/escriptorium.git escriptorium
 
-      - name: Install htr2hpc with dev dependencies
-        run: uv sync --group dev
+      - name: Install htr2hpc with test dependencies
+        run: uv sync --group test ${{ matrix.wagtail && '--extra wagtail' || '' }}
 
       - name: Run tests with coverage
         env:
@@ -56,7 +71,9 @@ jobs:
           ESCRIPTORIUM_PATH: ${{ github.workspace }}/escriptorium
         run: uv run pytest --cov --cov-report=xml
 
+      # the job with Wagtail runs every test, so its coverage report is complete
       - name: Upload coverage to Codecov
+        if: matrix.wagtail
         uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml

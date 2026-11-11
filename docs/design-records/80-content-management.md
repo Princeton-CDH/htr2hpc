@@ -46,7 +46,7 @@ Staff edit content as Wagtail snippets in the Wagtail admin, using Wagtail's ric
 - It queries live snippets whose `url_path` is the request path or blank: `ContentSnippet.objects.filter(live=True).filter(Q(url_path=request.path) | Q(url_path=""))`.
 - It returns `page_snippets`, a dict mapping each slot name to a list of snippets, site-wide first. A slot with no snippets is simply missing from the dict, so templates render nothing.
 - It runs one query per page request.
-- `url_path` is compared with `request.path` exactly. The query string is not part of `request.path`, so `/contact/?x=1` matches `/contact/`, but a missing trailing slash doesn't match.
+- `url_path` is compared with `request.path` exactly. The query string is not part of `request.path`, so `/contact/?x=1` matches `/contact/`. A missing trailing slash isn't a problem in practice: Django's `CommonMiddleware` (enabled in eScriptorium) redirects `/contact` to `/contact/` before the page is rendered.
 
 ### Where snippets display
 
@@ -66,6 +66,8 @@ Staff edit content as Wagtail snippets in the Wagtail admin, using Wagtail's ric
 - **Homepage heading:** `additional_heading.html` is an include eScriptorium provides for customizing the homepage jumbotron. It keeps the "eScriptorium" title and renders the `homepage_heading` snippet below it.
 
 ### New interface
+
+eScriptorium v1.0 has two user interfaces: the legacy interface, and a new Vue-based interface (built with Vue 2). Each user chooses with the "Legacy mode" option on their profile (`User.legacy_mode`); eScriptorium doesn't give the new interface a separate name. Both interfaces render through the same Django `base.html`.
 
 This was checked on a local dev instance (eScriptorium v1.0.1) by rendering pages with `legacy_mode` on and off, using a copy of `base.html` with marker blocks.
 
@@ -104,9 +106,10 @@ After deploying, run `manage.py loaddata cdh_snippets` once.
 
 ### Tests
 
-- Wagtail is in the `dev` dependency group, and `tests/test_settings.py` always includes the Wagtail apps and `htr2hpc.content`. So the content tests always run in CI and locally.
-- Without Wagtail, the content app isn't installed and `page_snippets` isn't registered, so there is nothing to test there. The `ImportError` fallback test is removed along with the fallback.
-- Other htr2hpc tests don't depend on Wagtail.
+- CI runs the tests twice, with a build matrix: once without Wagtail and once with it (the `wagtail` extra). This makes sure Wagtail stays truly optional.
+- Like `htr2hpc.settings`, `tests/test_settings.py` only adds the Wagtail apps and `htr2hpc.content` when Wagtail is installed.
+- `tests/test_content.py` uses `pytest.importorskip("wagtail")`, so the content tests are skipped when Wagtail isn't installed. Coverage from both runs is combined.
+- Without Wagtail, the content app isn't installed and `page_snippets` isn't registered, so there is nothing else to test there. The `ImportError` fallback test is removed along with the fallback.
 
 ## Considered Options
 
@@ -134,7 +137,7 @@ These changes revise the in-progress implementation in [#245](https://github.com
    - Replace the four slots with `before_main`, `after_main` and `homepage_heading`.
    - Rename `is_active` to `live`, defaulting to `True`.
    - Update the help text.
-   - Add a migration for the slot and field changes.
+   - Recreate the content migrations as a single initial migration. The model changes happened during development and were never deployed, so there's no migration history to keep.
 2. **Templates** (`src/htr2hpc/content/templates/`)
    - Replace `base.html` with the full copy plus the `pre_body` / `post_body` blocks, with the upgrade comment at the top.
    - Update `additional_heading.html` to render the `homepage_heading` snippet.

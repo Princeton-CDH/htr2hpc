@@ -4,7 +4,6 @@
 
 - Support lightweight content management via Wagtail Snippets; staff can edit page content (homepage intro, contact info, model descriptions, HPC setup instructions, announcements) through the Wagtail admin without a code change or deployment
 - Wagtail is an optional dependency (`pip install htr2hpc[all]`); instances that don't need content management are unaffected
-- Track HPC resource usage (memory, elapsed time, GPU utilization, scratch storage) per training job via `sacct`; staff can export a summary CSV or run the `hpc_job_stats` management command
 
 ## 0.8
 

@@ -64,7 +64,7 @@ if [ -L "$HOME/.conda" ] && [ $(readlink -f $HOME/.conda) = $CONDA_SYM ]; then
 elif [ -L "$HOME/.conda" ]; then
 	CONDA_SYM=$(readlink -f $HOME/.conda)
 	echo ".conda has existing sym link $CONDA_SYM"
-else 
+else
 	echo "Porting .conda to scratch and creating symlink in home"
 	rsync -avu $HOME/.conda /scratch/network/$USER/
 	rm -Rf $HOME/.conda
@@ -77,7 +77,7 @@ fi
 
 # create conda environment named htr2hpc
 conda_env_name=htr2hpc
-htr2hpc_install="git+https://github.com/Princeton-CDH/htr2hpc.git@v${htr2hpc_version}#egg=htr2hpc"
+htr2hpc_install="git+https://github.com/Princeton-CDH/htr2hpc.git@${htr2hpc_version}#egg=htr2hpc"
 module load anaconda3/2025.6
 if { conda env list | grep $conda_env_name; } >/dev/null 2>&1; then
 	echo "conda env $conda_env_name already exists"

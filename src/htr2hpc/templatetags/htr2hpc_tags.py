@@ -5,6 +5,8 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.timesince import timeuntil
 
+from htr2hpc.forms import UsageReportForm
+
 register = template.Library()
 
 
@@ -35,3 +37,13 @@ def export_retention_display():
     now = timezone.now()
     expiry = now + timedelta(hours=hours)
     return f"{timeuntil(expiry, now)} from now"
+
+
+# The usage report form is shown on eScriptorium's Leaderboard page, but we
+# can't change eScriptorium's Leaderboard view to add the form to its template
+# context. This inclusion tag provides the form instead, and is called from
+# our Leaderboard template override (templates/reporting/quotas_leaderboard.html).
+@register.inclusion_tag("htr2hpc/usage_report_form.html")
+def usage_report_form():
+    """Render the usage report download form."""
+    return {"form": UsageReportForm()}

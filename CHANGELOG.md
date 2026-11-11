@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.9
+
+- Staff usage report CSV download from the Leaderboard page, with per-user stats for VM tasks (broken down by type) and HPC training jobs; choose a start date and a total, monthly or weekly report (completed months and weeks only)
+
 ## 0.8
 
 - Update to eScriptorium v1.0.1, with the following changes to match the new version:

@@ -57,7 +57,7 @@ Staff edit content as Wagtail snippets in the Wagtail admin, using Wagtail's ric
 
   Every page that extends `base.html` gets the snippets. Individual page templates don't need to be overridden.
 
-- htr2hpc's template directory comes first in `TEMPLATES["DIRS"]`, so the copy overrides eScriptorium's `base.html`.
+- When Wagtail is installed, settings put `htr2hpc/content/templates` first in `TEMPLATES["DIRS"]`, ahead of htr2hpc's and eScriptorium's template directories, so the copy overrides eScriptorium's `base.html`. Template `DIRS` are searched before app template folders, so the content app's templates would otherwise never be used.
 
 - The copy has a comment at the top naming the eScriptorium version it was copied from (v1.0.1), and that it **must be updated when eScriptorium is upgraded**. `DEVELOPERNOTES.md` says the same.
 
@@ -81,7 +81,11 @@ The HPC setup instructions become editable, but only partly. They mix static tex
 - the ssh command, which includes `{{ request.user.username }}` and `{{ current_site.domain }}`
 - the two "HPC setup" buttons, which are forms with `{% csrf_token %}`
 
-So the text moves into a `/profile/` `after_main` snippet, and the ssh command and buttons stay in the `users/profile.html` override.
+So the text moves into a `/profile/` `after_main` snippet, and the ssh command and setup button stay in the content app's `users/profile.html` override, rendered after the snippet.
+
+### Without Wagtail
+
+htr2hpc's own templates keep the `develop` versions of `additional_heading.html` and `users/profile.html`, so the homepage text and the HPC setup section still display when Wagtail isn't installed. The fallback profile template wraps the HPC section in an `hpc_setup` block, which the content app's override empties.
 
 ### Initial content
 
@@ -96,6 +100,7 @@ After deploying, run `manage.py loaddata cdh_snippets` once.
 
 - Wagtail is optional. Installing with `htr2hpc[all]` includes it. `all` also leaves room for other optional groups later.
 - All Wagtail code lives in the `htr2hpc.content` app, which settings only add when Wagtail is installed. The context processor is registered only in that case, so it can import `ContentSnippet` at the top of the module.
+- Only the Wagtail apps snippets need are installed: `wagtail.snippets`, `wagtail.admin` and `wagtail`. `wagtail.documents` isn't installed because its `Document` model clashes with eScriptorium's `core.Document` (both add `User.document_set`), which stops Django from starting. `wagtail.images` isn't needed either.
 
 ### Tests
 
@@ -135,6 +140,9 @@ These changes revise the in-progress implementation in [#245](https://github.com
    - Update `additional_heading.html` to render the `homepage_heading` snippet.
    - Update `users/profile.html`: remove the instruction text and keep the ssh command and buttons.
    - Remove the overrides for `users/contactus.html` and `core/models_list/main.html`.
+   - Keep the `develop` versions of `additional_heading.html` and `users/profile.html` in `src/htr2hpc/templates/` as the fallback without Wagtail.
+   - In settings, put the content app's template directory first when Wagtail is installed.
+   - Remove `wagtail.documents` and `wagtail.images` from the installed apps.
 3. **Context processor** (`src/htr2hpc/content/context_processors.py`)
    - Filter on `live` instead of `is_active`.
    - Move the `ContentSnippet` import to the top and remove the `ImportError` fallback.

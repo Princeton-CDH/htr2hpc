@@ -2,26 +2,23 @@ from collections import defaultdict
 
 from django.db.models import Q
 
+from htr2hpc.content.models import ContentSnippet
+
 
 def page_snippets(request):
-    """Inject active ContentSnippets into template context, keyed by slot name.
+    """Add live ContentSnippets for the current page to the template context.
 
-    Returns a dict mapping slot names to lists of snippets. Each list contains
-    site-wide snippets (blank url_path) first, followed by page-specific snippets,
-    so site-wide content always renders before page-specific content.
+    Returns ``page_snippets``, a dict mapping slot names to lists of snippets.
+    Each list has site-wide snippets (blank url_path) first, followed by
+    snippets for this page. ``url_path`` must match ``request.path`` exactly.
 
-    Returns an empty dict if htr2hpc.content is not installed.
+    Only registered in settings when Wagtail (and so this app) is installed.
     """
-    try:
-        from htr2hpc.content.models import ContentSnippet
-    except ImportError:
-        return {"page_snippets": {}}
-
-    snippets = ContentSnippet.objects.filter(is_active=True).filter(
+    snippets = ContentSnippet.objects.filter(live=True).filter(
         Q(url_path=request.path) | Q(url_path="")
     )
 
-    # Group by slot; site-wide (url_path="") sorts before page-specific
+    # site-wide (url_path="") sorts before page-specific
     # because the queryset is ordered by url_path ascending ("" < "/...")
     result = defaultdict(list)
     for snippet in snippets:

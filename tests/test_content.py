@@ -1,17 +1,18 @@
-"""Tests for htr2hpc.content models and context processor."""
+"""Tests for htr2hpc.content models, context processor and templates."""
+
+import re
+from pathlib import Path
 
 import pytest
 from django.db import IntegrityError
-from django.test import RequestFactory
+from django.template import Context, Template
 
 from htr2hpc.content.context_processors import page_snippets
 from htr2hpc.content.models import ContentSnippet
 
-
-@pytest.fixture
-def rf():
-    return RequestFactory()
-
+CONTENT_TEMPLATES = (
+    Path(__file__).parent.parent / "src" / "htr2hpc" / "content" / "templates"
+)
 
 # ---------------------------------------------------------------------------
 # Model tests
@@ -19,45 +20,51 @@ def rf():
 
 
 @pytest.mark.django_db
-def test_snippet_create():
+def test_snippet_defaults_to_live():
     obj = ContentSnippet.objects.create(
-        url_path="/contact/",
-        slot="intro",
-        body="<p>Hello</p>",
-        is_active=True,
+        url_path="/contact/", slot="before_main", body="<p>Hello</p>"
     )
-    assert obj.pk is not None
-    assert str(obj) == "Page intro — /contact/"
+    assert obj.live is True
 
 
 @pytest.mark.django_db
-def test_snippet_str_global():
-    obj = ContentSnippet.objects.create(
-        url_path="", slot="before_body", body="<p>Hi</p>"
+def test_snippet_str():
+    page = ContentSnippet.objects.create(
+        url_path="/contact/", slot="before_main", body="<p>Hello</p>"
     )
-    assert str(obj) == "Before body (site-wide) — site-wide"
+    site_wide = ContentSnippet.objects.create(
+        url_path="", slot="after_main", body="<p>Hi</p>"
+    )
+    assert str(page) == "Before main content (any page) — /contact/"
+    assert str(site_wide) == "After main content (any page) — all pages"
 
 
 @pytest.mark.django_db
-def test_snippet_unique_together():
-    ContentSnippet.objects.create(url_path="/contact/", slot="intro", body="first")
+def test_snippet_unique_page_and_slot():
+    ContentSnippet.objects.create(url_path="/contact/", slot="before_main", body="1")
     with pytest.raises(IntegrityError):
-        ContentSnippet.objects.create(url_path="/contact/", slot="intro", body="second")
+        ContentSnippet.objects.create(
+            url_path="/contact/", slot="before_main", body="2"
+        )
 
 
 @pytest.mark.django_db
-def test_snippet_global_blank_url():
-    obj = ContentSnippet.objects.create(url_path="", slot="before_body", body="")
-    assert obj.pk is not None
-    assert obj.url_path == ""
+def test_snippet_unique_applies_to_non_live():
+    """The constraint holds whether or not the snippet is live, so no drafts."""
+    ContentSnippet.objects.create(
+        url_path="/contact/", slot="before_main", body="1", live=False
+    )
+    with pytest.raises(IntegrityError):
+        ContentSnippet.objects.create(
+            url_path="/contact/", slot="before_main", body="2"
+        )
 
 
 @pytest.mark.django_db
-def test_snippet_global_and_page_specific_coexist():
-    """A site-wide and page-specific snippet for the same slot are both valid."""
-    ContentSnippet.objects.create(url_path="", slot="intro", body="global")
-    ContentSnippet.objects.create(url_path="/contact/", slot="intro", body="page")
-    assert ContentSnippet.objects.filter(slot="intro").count() == 2
+def test_snippet_site_wide_and_page_specific_coexist():
+    ContentSnippet.objects.create(url_path="", slot="before_main", body="site-wide")
+    ContentSnippet.objects.create(url_path="/contact/", slot="before_main", body="page")
+    assert ContentSnippet.objects.filter(slot="before_main").count() == 2
 
 
 # ---------------------------------------------------------------------------
@@ -66,103 +73,94 @@ def test_snippet_global_and_page_specific_coexist():
 
 
 @pytest.mark.django_db
-def test_page_snippets_returns_active_snippet(rf):
-    ContentSnippet.objects.create(
-        url_path="/contact/", slot="intro", body="<p>Hi</p>", is_active=True
+def test_page_snippets_for_page(rf):
+    snippet = ContentSnippet.objects.create(
+        url_path="/contact/", slot="before_main", body="<p>Hi</p>"
     )
-    request = rf.get("/contact/")
-    ctx = page_snippets(request)
-    assert "intro" in ctx["page_snippets"]
-    assert len(ctx["page_snippets"]["intro"]) == 1
+    ctx = page_snippets(rf.get("/contact/"))
+    assert ctx["page_snippets"] == {"before_main": [snippet]}
 
 
 @pytest.mark.django_db
-def test_page_snippets_inactive_excluded(rf):
+def test_page_snippets_non_live_excluded(rf):
     ContentSnippet.objects.create(
-        url_path="/contact/", slot="intro", body="<p>Hi</p>", is_active=False
+        url_path="/contact/", slot="before_main", body="<p>Hi</p>", live=False
     )
-    request = rf.get("/contact/")
-    ctx = page_snippets(request)
-    assert "intro" not in ctx["page_snippets"]
+    assert page_snippets(rf.get("/contact/"))["page_snippets"] == {}
 
 
 @pytest.mark.django_db
-def test_page_snippets_other_url_excluded(rf):
+def test_page_snippets_other_page_excluded(rf):
     ContentSnippet.objects.create(
-        url_path="/models/", slot="intro", body="<p>Hi</p>", is_active=True
+        url_path="/models/", slot="before_main", body="<p>Hi</p>"
     )
-    request = rf.get("/contact/")
-    ctx = page_snippets(request)
-    assert "intro" not in ctx["page_snippets"]
+    assert page_snippets(rf.get("/contact/"))["page_snippets"] == {}
 
 
 @pytest.mark.django_db
-def test_page_snippets_global_appears_on_all_pages(rf):
+def test_page_snippets_exact_path_match(rf):
     ContentSnippet.objects.create(
-        url_path="", slot="before_body", body="<p>Banner</p>", is_active=True
+        url_path="/contact/", slot="before_main", body="<p>Hi</p>"
     )
+    # the query string isn't part of request.path
+    assert "before_main" in page_snippets(rf.get("/contact/?x=1"))["page_snippets"]
+    # a missing trailing slash doesn't match
+    assert page_snippets(rf.get("/contact"))["page_snippets"] == {}
+
+
+@pytest.mark.django_db
+def test_page_snippets_site_wide_on_all_pages(rf):
+    ContentSnippet.objects.create(url_path="", slot="before_main", body="<p>Banner</p>")
     for path in ["/", "/contact/", "/models/", "/profile/"]:
-        request = rf.get(path)
-        ctx = page_snippets(request)
-        assert "before_body" in ctx["page_snippets"]
+        assert "before_main" in page_snippets(rf.get(path))["page_snippets"]
 
 
 @pytest.mark.django_db
-def test_page_snippets_keyed_by_slot(rf):
-    ContentSnippet.objects.create(
-        url_path="/", slot="intro", body="intro", is_active=True
+def test_page_snippets_keyed_by_slot_site_wide_first(rf):
+    site_wide = ContentSnippet.objects.create(
+        url_path="", slot="before_main", body="site-wide"
     )
-    ContentSnippet.objects.create(
-        url_path="", slot="before_body", body="before", is_active=True
+    page = ContentSnippet.objects.create(url_path="/", slot="before_main", body="page")
+    heading = ContentSnippet.objects.create(
+        url_path="/", slot="homepage_heading", body="heading"
     )
-    request = rf.get("/")
-    ctx = page_snippets(request)
-    assert set(ctx["page_snippets"].keys()) == {"intro", "before_body"}
+    ctx = page_snippets(rf.get("/"))
+    assert ctx["page_snippets"] == {
+        "before_main": [site_wide, page],
+        "homepage_heading": [heading],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Template tests
+# ---------------------------------------------------------------------------
+
+
+def test_base_template_has_snippet_blocks_around_body():
+    """The base.html copy adds pre_body / post_body blocks around the body block,
+    inside <div id="main">. (The full template needs eScriptorium to render.)"""
+    source = (CONTENT_TEMPLATES / "base.html").read_text()
+    positions = [
+        source.index('<div id="main"'),
+        source.index("{% block pre_body %}"),
+        source.index("{% block body %}"),
+        source.index("{% block post_body %}"),
+        source.index("</section></main>"),
+    ]
+    assert positions == sorted(positions)
+    assert re.search(r"pre_body %}.*page_snippets\.before_main", source)
+    assert re.search(r"post_body %}.*page_snippets\.after_main", source)
+    assert "MUST be updated whenever eScriptorium is upgraded" in source
 
 
 @pytest.mark.django_db
-def test_page_snippets_empty_when_none_active(rf):
-    request = rf.get("/contact/")
-    ctx = page_snippets(request)
-    assert ctx["page_snippets"] == {}
-
-
-@pytest.mark.django_db
-def test_page_snippets_site_wide_first(rf):
-    """Site-wide snippets (blank url_path) should appear before page-specific ones."""
+def test_homepage_heading(rf):
     ContentSnippet.objects.create(
-        url_path="", slot="intro", body="global", is_active=True
+        url_path="/", slot="homepage_heading", body="<p>Welcome text</p>"
     )
-    ContentSnippet.objects.create(
-        url_path="/", slot="intro", body="page", is_active=True
+    snippets = page_snippets(rf.get("/"))["page_snippets"]
+    html = Template((CONTENT_TEMPLATES / "additional_heading.html").read_text()).render(
+        Context({"page_snippets": snippets})
     )
-    request = rf.get("/")
-    ctx = page_snippets(request)
-    snippets = ctx["page_snippets"]["intro"]
-    assert len(snippets) == 2
-    assert snippets[0].url_path == ""
-    assert snippets[1].url_path == "/"
-
-
-@pytest.mark.django_db
-def test_page_snippets_returns_list_per_slot(rf):
-    """Context processor returns lists, not single objects."""
-    ContentSnippet.objects.create(
-        url_path="/", slot="intro", body="page", is_active=True
-    )
-    request = rf.get("/")
-    ctx = page_snippets(request)
-    assert isinstance(ctx["page_snippets"]["intro"], list)
-
-
-def test_page_snippets_returns_empty_when_import_fails(rf):
-    """Returns empty dict when ContentSnippet cannot be imported (Wagtail not installed)."""
-    import sys
-    import unittest.mock
-
-    request = rf.get("/")
-    # Simulate Wagtail not being installed by making the models module unimportable
-    with unittest.mock.patch.dict(sys.modules, {"htr2hpc.content.models": None}):
-        ctx = page_snippets(request)
-
-    assert ctx == {"page_snippets": {}}
+    assert "eScriptorium</h1>" in html
+    assert "Welcome text" in html

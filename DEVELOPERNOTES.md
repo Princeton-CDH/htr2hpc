@@ -99,16 +99,22 @@ Once the new release has been merged to `main` and pushed to GitHub, deployment 
 
 Note: this deployment is specific to CDH's Princeton instance of eScriptorium.
 
-CDH's Princeton instance uses the Wagtail content management features. The Ansible playbook must install htr2hpc with the `wagtail` optional dependency group:
+CDH's Princeton instance uses the Wagtail content management features. The Ansible playbook must install htr2hpc with the `all` optional dependency group, which includes Wagtail:
 
 ```sh
-pip install htr2hpc[wagtail]
+pip install htr2hpc[all]
 ```
 
-After deploying a new instance for the first time, load the initial content fixture to pre-populate the Wagtail admin with the default page snippets:
+After deploying a new instance for the first time, load the content fixture to pre-populate the Wagtail admin with the default page snippets (the homepage heading and the profile page HPC instructions):
 
 ```sh
-manage.py loaddata initial_snippets
+manage.py loaddata cdh_snippets
 ```
+
+### Base template copy
+
+When Wagtail is installed, `src/htr2hpc/content/templates/base.html` overrides eScriptorium's `base.html`. It is a copy of the upstream template (eScriptorium v1.0.1) with two blocks added around the body block, `pre_body` and `post_body`, which display content snippets on every page.
+
+**This file must be updated whenever eScriptorium is upgraded:** copy the new upstream `base.html`, then add the `wagtailcore_tags` load and the `pre_body` / `post_body` blocks again. See [docs/design-records/80-content-management.md](docs/design-records/80-content-management.md).
 
 For initial setup after a new deployment, see [Configure Site domain](README.md#configure-site-domain) in the README.

@@ -4,40 +4,40 @@ from django.db import models
 from wagtail.fields import RichTextField
 
 SLOT_CHOICES = [
-    ("intro", "Page intro"),
-    ("announcement", "Announcement banner"),
-    ("before_body", "Before body (site-wide)"),
-    ("after_body", "After body (site-wide)"),
+    ("before_main", "Before main content (any page)"),
+    ("after_main", "After main content (any page)"),
+    ("homepage_heading", "Homepage heading text"),
 ]
 
 
 class ContentSnippet(models.Model):
-    """Admin-editable rich text content injected into eScriptorium pages.
+    """Admin-editable rich text content shown on eScriptorium pages.
 
     Each snippet is identified by a URL path and a slot name. A site-wide
     snippet (blank url_path) and a page-specific snippet can coexist for the
-    same slot — the context processor returns both, site-wide first.
+    same slot; the context processor returns both, site-wide first.
 
-    Only one snippet per (url_path, slot) combination is allowed.
+    Only one snippet per (url_path, slot) combination is allowed, whether or
+    not it is live, so there are no drafts.
     """
 
     url_path = models.CharField(
         max_length=200,
         blank=True,
         help_text=(
-            "URL path this snippet applies to (e.g. /contact/). "
-            "Leave blank for site-wide snippets (before_body, after_body)."
+            "URL for the page where this snippet should be displayed (e.g. /contact/). "
+            "Leave blank to display on all pages."
         ),
     )
     slot = models.CharField(
         max_length=100,
         choices=SLOT_CHOICES,
-        help_text="Where this snippet is injected on the page.",
+        help_text="Where on the page this snippet is displayed.",
     )
     body = RichTextField()
-    is_active = models.BooleanField(
-        default=False,
-        help_text="Only active snippets are displayed. Toggle to publish or unpublish.",
+    live = models.BooleanField(
+        default=True,
+        help_text="Only live snippets are displayed. Uncheck to hide without deleting.",
     )
 
     class Meta:
@@ -52,5 +52,5 @@ class ContentSnippet(models.Model):
         ]
 
     def __str__(self):
-        scope = self.url_path if self.url_path else "site-wide"
+        scope = self.url_path if self.url_path else "all pages"
         return f"{self.get_slot_display()} — {scope}"

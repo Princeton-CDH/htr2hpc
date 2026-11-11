@@ -30,8 +30,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.sites",
     "wagtail.snippets",
-    "wagtail.documents",
-    "wagtail.images",
     "wagtail.admin",
     "wagtail",
     "modelcluster",

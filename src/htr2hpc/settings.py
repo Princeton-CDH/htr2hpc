@@ -64,8 +64,6 @@ try:
 
     INSTALLED_APPS += [
         "wagtail.snippets",
-        "wagtail.documents",
-        "wagtail.images",
         "wagtail.admin",
         "wagtail",
         "modelcluster",
@@ -75,6 +73,10 @@ try:
     TEMPLATES[0]["OPTIONS"]["context_processors"].append(
         "htr2hpc.content.context_processors.page_snippets"
     )
+    # Put the content app's templates ahead of htr2hpc's and eScriptorium's,
+    # so its base.html copy and page overrides take precedence. Template DIRS
+    # are searched before app template folders, so APP_DIRS alone isn't enough.
+    TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "content" / "templates")
     WAGTAIL_SITE_NAME = "htr2hpc"
 except ImportError:
     pass

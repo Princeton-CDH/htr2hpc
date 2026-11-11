@@ -10,8 +10,8 @@ class ContentSnippetViewSet(SnippetViewSet):
     """Wagtail admin configuration for ContentSnippet."""
 
     model = ContentSnippet
-    list_display: ClassVar[list] = ["__str__", "slot", "url_path", "is_active"]
-    list_filter: ClassVar[list] = ["slot", "is_active"]
+    list_display: ClassVar[list] = ["__str__", "slot", "url_path", "live"]
+    list_filter: ClassVar[list] = ["slot", "live"]
     search_fields: ClassVar[list] = ["url_path", "body"]
     ordering: ClassVar[list] = ["url_path", "slot"]
 

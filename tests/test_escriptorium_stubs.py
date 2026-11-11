@@ -1,7 +1,7 @@
 """Test setup for loading eScriptorium's real models.
 
 eScriptorium isn't a pip-installable package and its full dependencies (celery,
-channels, PostgreSQL drivers, Elasticsearch...) are too heavy for CI. Instead:
+channels, Elasticsearch...) are too heavy for CI. Instead:
 
 - CI clones eScriptorium (see .github/workflows/unit-tests.yml) and
   ``ESCRIPTORIUM_PATH`` points at that checkout; ``app/`` and ``app/apps/`` are
@@ -47,8 +47,6 @@ STUBBED_MODULES = [
     "channels.generic.websocket",
     "channels.layers",
     "elasticsearch",
-    "psycopg2",
-    "psycopg2.extras",
     # escriptorium/__init__.py imports its celery app
     "escriptorium.celery",
     "escriptorium.utils",
@@ -59,22 +57,3 @@ STUBBED_MODULES = [
 ]
 for name in STUBBED_MODULES:
     sys.modules.setdefault(name, MagicMock(name=name))
-
-
-def _use_text_for_array_fields_on_sqlite():
-    """A few eScriptorium core models (annotations) use Postgres-only
-    ArrayFields, which SQLite can't create. Store them as text on SQLite so the
-    test database can be built; htr2hpc doesn't query those models."""
-    from django.contrib.postgres.fields import ArrayField
-
-    postgres_db_type = ArrayField.db_type
-
-    def db_type(self, connection):
-        if connection.vendor == "sqlite":
-            return "text"
-        return postgres_db_type(self, connection)
-
-    ArrayField.db_type = db_type
-
-
-_use_text_for_array_fields_on_sqlite()

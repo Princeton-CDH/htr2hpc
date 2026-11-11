@@ -2,8 +2,7 @@
 Minimal Django settings for running htr2hpc tests.
 
 Does NOT import from htr2hpc.settings or escriptorium.settings —
-those pull in PostgreSQL, Redis, Celery broker, and the full eScriptorium
-stack. This file defines only what is needed to load the htr2hpc app and
+those pull in Redis, the Celery broker, and the full eScriptorium stack. This file defines only what is needed to load the htr2hpc app and
 the eScriptorium models it queries (see test_escriptorium_stubs.py).
 """
 
@@ -18,11 +17,17 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "test-secret-key-for-testing-on
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
-# SQLite in-memory: no PostgreSQL required
+# PostgreSQL, like eScriptorium (some eScriptorium models use Postgres-only
+# fields). Connection settings can be overridden with environment variables;
+# pytest-django creates and drops a separate test database.
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get("POSTGRES_DB", "htr2hpc"),
+        "USER": os.environ.get("POSTGRES_USER", "postgres"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "postgres"),
+        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }
 }
 
@@ -89,7 +94,7 @@ class DisableMigrations:
 
 MIGRATION_MODULES = DisableMigrations()
 
-# settings eScriptorium's models read when they are loaded
+# required to load eScriptorium's models: versioning.Versioned uses it as a field default
 VERSIONING_DEFAULT_SOURCE = "eScriptorium"
 
 # htr2hpc-specific settings

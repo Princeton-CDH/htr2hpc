@@ -60,23 +60,19 @@ dev = [
 # Light, pure-Python packages that eScriptorium's models subclass or register,
 # so tests can load the real models from an eScriptorium checkout without its
 # heavy dependencies. Versions match the requirements.txt of the eScriptorium
-# version in [tool.htr2hpc] below. See tests/test_escriptorium_stubs.py.
+# version in .escriptorium-version. See tests/test_escriptorium_stubs.py.
 escriptorium = [
   "djangorestframework~=3.15.1",
   "django-ordered-model~=3.7",
   "django-solo>=1.1,<2.6",
   "easy-thumbnails~=2.8.1",
   "django-prometheus~=2.3.1",
+  # tests run on PostgreSQL, like eScriptorium
+  "psycopg2-binary",
 ]
 
 [project.scripts]
 htr2hpc-train = "htr2hpc.train.run:main"
-
-[tool.htr2hpc]
-# eScriptorium version (git tag) that htr2hpc is tested against; CI clones this
-# version to load its models in the tests. Keep in sync with the deployed
-# version (`gitref` in cdh-ansible). See DEVELOPERNOTES.md before changing.
-escriptorium-version = "v1.0.1"
 
 [tool.hatch.version]
 path = "src/htr2hpc/__init__.py"

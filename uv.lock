@@ -1047,7 +1047,6 @@ dev = [
     { name = "responses" },
     { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "wagtail" },
 ]
 docs = [
     { name = "alabaster" },
@@ -1087,7 +1086,6 @@ dev = [
     { name = "pytest-mock", specifier = ">=3.14" },
     { name = "responses", specifier = ">=0.25" },
     { name = "sphinx", specifier = ">=7.2" },
-    { name = "wagtail", specifier = ">=6.0,<7.0" },
 ]
 docs = [
     { name = "alabaster" },

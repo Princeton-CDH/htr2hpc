@@ -4,6 +4,11 @@ import re
 from pathlib import Path
 
 import pytest
+
+# content management needs the optional Wagtail dependency; skip these tests
+# when it isn't installed (CI runs the tests both with and without Wagtail)
+pytest.importorskip("wagtail")
+
 from django.db import IntegrityError
 from django.template import Context, Template
 

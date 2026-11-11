@@ -29,14 +29,24 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sessions",
     "django.contrib.sites",
-    "wagtail.snippets",
-    "wagtail.admin",
-    "wagtail",
-    "modelcluster",
-    "taggit",
     "htr2hpc",
-    "htr2hpc.content",
 ]
+
+# Wagtail is an optional dependency; CI runs the tests with and without it.
+# Match htr2hpc.settings: only enable the content app when Wagtail is installed.
+try:
+    import wagtail  # noqa: F401
+
+    INSTALLED_APPS += [
+        "wagtail.snippets",
+        "wagtail.admin",
+        "wagtail",
+        "modelcluster",
+        "taggit",
+        "htr2hpc.content",
+    ]
+except ImportError:
+    pass
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 SITE_ID = 1

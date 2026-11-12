@@ -6,14 +6,9 @@ Issue: [#242](https://github.com/Princeton-CDH/htr2hpc/issues/242) · PR: [#244]
 
 Staff need to report how much HPC capacity htr2hpc training uses. The usage report from [#216](216-usage-reporting.md) counts training tasks per user, but it doesn't have real resource numbers. Those only exist in Slurm on Adroit.
 
-We asked Princeton Research Computing whether they have existing tools for collecting job stats across multiple Slurm jobs and users (CSES ticket #68146, October 2026). We said that for each job we want:
+We asked Princeton Research Computing whether they have existing tools for collecting job stats across multiple Slurm jobs and users, and RC pointed us to the Jupyter notebook in [`job_defense_shield/scripts`](https://github.com/PrincetonUniversity/job_defense_shield/tree/main/scripts) (`mig_calculator_for_jobstats.ipynb`). 
 
-- CPU-hours and GPU-hours
-- node count
-- CPU and GPU memory used
-- CPU and GPU memory allocated
-
-RC pointed us to the Jupyter notebook in [`job_defense_shield/scripts`](https://github.com/PrincetonUniversity/job_defense_shield/tree/main/scripts) (`mig_calculator_for_jobstats.ipynb`). The notebook:
+The notebook:
 
 - runs `sacct` with one row per job (`-X`, `-P`)
 - counts GPUs from `alloctres` and computes GPU-hours as `elapsedraw` × GPUs
@@ -33,14 +28,14 @@ How should htr2hpc turn this into a per-job report that staff can use?
 
 A per-job CSV of HPC resource stats, built from `sacct` and Jobstats as in RC's notebook.
 
-> **Open question for review: how do staff get the report?**
+> **Open questionhow do staff get the report?**
 >
 > 1. A **download button on the Leaderboard**, like the usage report. The VM runs `sacct` on Adroit over SSH. Then either:
 >    - a. **merge** the HPC numbers into the existing usage report CSV, or
 >    - b. offer a **separate** HPC jobs CSV.
 > 2. A **script staff run on Adroit** themselves, which writes the CSV there.
 >
-> See [Considered Options](#how-staff-get-the-report) for the trade-offs. The sections below apply to every option unless marked.
+> See [Considered Options](#how-staff-get-the-report) for the trade-offs.
 
 ### Report contents
 
@@ -91,9 +86,7 @@ A per-job CSV of HPC resource stats, built from `sacct` and Jobstats as in RC's 
 2. Staff run RC's notebook as is. Rejected: it needs pandas and Jupyter, drops jobs without Jobstats data, and doesn't produce the per-job fields we asked RC about.
 3. **On Adroit, either over SSH from the VM or by staff directly (chosen).** Which one depends on the open question below.
 
-### How staff get the report
-
-*Open: to be decided in review.*
+### How staff get the report?
 
 1. **Leaderboard button, merged into the usage report.**
    - One file for staff.
@@ -107,27 +100,3 @@ A per-job CSV of HPC resource stats, built from `sacct` and Jobstats as in RC's 
    - Simplest: no SSH from the VM and no web code.
    - But staff must log in to Adroit and copy the file off.
    - Staff can only see what their own Adroit account is allowed to see.
-
-For both button options: the staff member must have completed HPC setup. We also need to check whether one person's account can see other users' jobs with `-A` (Slurm `PrivateData`), or whether a service account is needed.
-
-## Planned changes
-
-These changes revise the draft implementation in [#244](https://github.com/Princeton-CDH/htr2hpc/pull/244) as of `220c71b` (2026-11-12, after merging current `develop`). In that version, `sacct` runs locally on the VM through a Django management command. The staff URL and view from the first draft were dropped in the merge in favour of `develop`'s versions.
-
-1. **Shared module** (`src/htr2hpc/train/jobstats.py`, all options)
-   - Fix the `get_sacct_output` docstring: at least one of `usernames` or `account`, not exactly one.
-   - Replace the repeated `round(...) if ... is not None else None` with a small helper.
-   - Point the module docstring to this design record and to RC's notebook.
-2. **Remove what doesn't work** (`src/htr2hpc/management/commands/hpc_job_stats.py`)
-   - Delete the management command and its tests.
-3. **Delivery: depends on the open question**
-   - Option 1a: add `hpc_cpu_hours` and `hpc_gpu_hours` to `USAGE_REPORT_FIELDS` in `exports.py`, filled from `sacct` over SSH in `UsageReportView`.
-   - Option 1b:
-     - Run `sacct` through a `fabric` connection in `get_sacct_output`.
-     - Add `HPC_SLURM_ACCOUNT`.
-     - Add a view at `/usage-report/hpc-jobs/` and a second download row in `usage_report_form.html`.
-   - Option 2: add `main()` with `argparse`, register `htr2hpc-jobstats` in `pyproject.toml`, and document it in `train/README.md`.
-4. **Docs and tests** (`CHANGELOG.md`, `tests/test_jobstats.py`, `tests/test_views.py`)
-   - Add a changelog entry under `0.9` for the chosen option.
-   - Keep the decoding tests on Jobstats-format input. Add one row of real `sacct -P` output from Adroit as a fixture.
-   - Test the chosen delivery option, with `sacct` or the connection mocked. The CSV header should match `JOB_STATS_FIELDS`.

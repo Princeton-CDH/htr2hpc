@@ -6,6 +6,8 @@
 - Support lightweight content management via Wagtail Snippets; staff can edit page content (homepage intro, contact info, model descriptions, HPC setup instructions, announcements) through the Wagtail admin without a code change or deployment
 - Wagtail is an optional dependency (`pip install htr2hpc[all]`); instances that don't need content management are unaffected
 - Staff edit content snippets in the Wagtail admin at `/cms/`
+- Update Wagtail to 7.3.4 (pinned to the newest release that supports Django 4.2)
+- Use Python 3.12 for development, CI, and documentation builds, to match the deployed environment
 
 ## 0.8
 

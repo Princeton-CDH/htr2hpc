@@ -11,6 +11,7 @@ pytest.importorskip("wagtail")
 
 from django.db import IntegrityError
 from django.template import Context, Template
+from django.urls import reverse
 
 from htr2hpc.content.context_processors import page_snippets
 from htr2hpc.content.models import ContentSnippet
@@ -169,3 +170,21 @@ def test_homepage_heading(rf):
     )
     assert "eScriptorium</h1>" in html
     assert "Welcome text" in html
+
+
+# ---------------------------------------------------------------------------
+# Wagtail admin URL
+# ---------------------------------------------------------------------------
+
+
+def test_wagtail_admin_url():
+    """Staff edit snippets in the Wagtail admin, at /cms/."""
+    assert reverse("wagtailadmin_home") == "/cms/"
+    assert reverse("wagtailsnippets:index") == "/cms/snippets/"
+
+
+@pytest.mark.django_db
+def test_wagtail_admin_requires_login(client):
+    response = client.get("/cms/")
+    assert response.status_code == 302
+    assert "/cms/login/" in response["Location"]

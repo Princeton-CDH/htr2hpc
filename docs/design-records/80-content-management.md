@@ -12,7 +12,7 @@ How can htr2hpc let staff manage page content without template overrides for eac
 
 ## Decisions
 
-Staff edit content as Wagtail snippets in the Wagtail admin, using Wagtail's rich text editor. Each snippet is shown in a fixed slot on one page, or on every page.
+Staff edit content as Wagtail snippets in the Wagtail admin at `/cms/`, using Wagtail's rich text editor. Each snippet is shown in a fixed slot on one page, or on every page.
 
 ### Content model
 

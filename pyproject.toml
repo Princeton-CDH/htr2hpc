@@ -39,6 +39,10 @@ Documentation = "https://htr2hpc.readthedocs.io/"
 Issues = "https://github.com/Princeton-CDH/htr2hpc/issues"
 Source = "https://github.com/Princeton-CDH/htr2hpc"
 
+[project.optional-dependencies]
+wagtail = ["wagtail>=6.0,<7.0"]
+all = ["htr2hpc[wagtail]"]
+
 [dependency-groups]
 docs = [
   "sphinx>=7.2",
@@ -46,15 +50,35 @@ docs = [
   "django~=4.2",
   "myst-parser",
 ]
-dev = [
-  "pre-commit",
+# what CI installs to run the tests (without optional extras like Wagtail)
+test = [
   "pytest>=8.3",
   "pytest-django>=4.9",
   "pytest-cov>=6.1",
   "pytest-mock>=3.14",
   "coverage[toml]>=7.6",
   "responses>=0.25",
+  {include-group = "escriptorium"},
+]
+# everything for local development, including the optional Wagtail dependency
+dev = [
+  "pre-commit",
+  "htr2hpc[all]",
+  {include-group = "test"},
   {include-group = "docs"},
+]
+# Light, pure-Python packages that eScriptorium's models subclass or register,
+# so tests can load the real models from an eScriptorium checkout without its
+# heavy dependencies. Versions match the requirements.txt of the eScriptorium
+# version in .escriptorium-version. See tests/test_escriptorium_stubs.py.
+escriptorium = [
+  "djangorestframework~=3.15.1",
+  "django-ordered-model~=3.7",
+  "django-solo>=1.1,<2.6",
+  "easy-thumbnails~=2.8.1",
+  "django-prometheus~=2.3.1",
+  # tests run on PostgreSQL, like eScriptorium
+  "psycopg2-binary",
 ]
 
 [project.scripts]
@@ -85,9 +109,11 @@ parallel = true
 omit = [
   "*/htr2hpc/settings.py",    # not executed in test environment by design
   "*/htr2hpc/migrations/*",   # standard Django migrations
+  "*/htr2hpc/content/migrations/*",   # standard Django migrations
   "*/htr2hpc/tasks.py",       # Celery tasks requiring full HPC+eScriptorium stack
   "*/htr2hpc/urls.py",        # imports from escriptorium.urls, not available in test environment
   "tests/test_settings.py",   # Django test configuration, not test code
+  "tests/test_escriptorium_stubs.py", # test setup imported by test_settings, before coverage starts
 ]
 
 [tool.coverage.paths]

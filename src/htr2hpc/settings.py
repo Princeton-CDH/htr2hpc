@@ -1,6 +1,12 @@
+from datetime import date
 from pathlib import Path
 
-from escriptorium.settings import INSTALLED_APPS, LOGIN_REDIRECT_URL, MIDDLEWARE, TEMPLATES
+from escriptorium.settings import (
+    INSTALLED_APPS,
+    LOGIN_REDIRECT_URL,
+    MIDDLEWARE,
+    TEMPLATES,
+)
 
 # base directory for this package where it is installed
 HTR2HPC_INSTALL_DIR = Path(__file__).parent
@@ -44,22 +50,53 @@ TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "templates")
 # template directory and put it first in the list.
 
 # add custom context processors to display VM status and htr2hpc version
-TEMPLATES[0]["OPTIONS"]["context_processors"].extend([
-    "htr2hpc.context_processors.vm_status",
-    "htr2hpc.context_processors.htr2hpc_version",
-    "htr2hpc.context_processors.site_domain",
-])
+TEMPLATES[0]["OPTIONS"]["context_processors"].extend(
+    [
+        "htr2hpc.context_processors.vm_status",
+        "htr2hpc.context_processors.htr2hpc_version",
+        "htr2hpc.context_processors.site_domain",
+    ]
+)
+
+# Wagtail content management is an optional dependency.
+# When installed, enable the htr2hpc.content app and its context processor.
+try:
+    import wagtail  # noqa: F401
+
+    INSTALLED_APPS += [
+        "wagtail.snippets",
+        "wagtail.admin",
+        "wagtail",
+        "modelcluster",
+        "taggit",
+        "htr2hpc.content",
+    ]
+    TEMPLATES[0]["OPTIONS"]["context_processors"].append(
+        "htr2hpc.content.context_processors.page_snippets"
+    )
+    # Put the content app's templates ahead of htr2hpc's and eScriptorium's,
+    # so its base.html copy and page overrides take precedence. Template DIRS
+    # are searched before app template folders, so APP_DIRS alone isn't enough.
+    TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "content" / "templates")
+    WAGTAIL_SITE_NAME = "htr2hpc"
+except ImportError:
+    pass
 
 
 CUSTOM_HOME = True
 
 # Remove AccountExpiryMiddleware from eScriptorium's default middleware list.
 # We use CAS-managed accounts; expiry is handled via pucas + cron, not middleware.
-MIDDLEWARE = [m for m in MIDDLEWARE if m != 'escriptorium.middleware.AccountExpiryMiddleware']
+MIDDLEWARE = [
+    m for m in MIDDLEWARE if m != "escriptorium.middleware.AccountExpiryMiddleware"
+]
 
 # Number of hours to retain user export files before cleanup.
 # Set to 0 to disable automatic cleanup entirely.
 EXPORT_FILE_RETENTION = 168  # 1 week
+
+# Default start date for the staff usage report; excludes beta and summer test data.
+USAGE_REPORT_DEFAULT_START = date(2026, 9, 1)
 
 # Anaconda module to load on HPC for conda environment management
 HPC_ANACONDA_MODULE = "anaconda3/2025.6"

@@ -12,9 +12,38 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Don't install the dev group by default: it includes Wagtail, which one of the
+  # matrix jobs must run without. Each job installs the test group explicitly.
+  UV_NO_DEV: 1
+  # Prevent uv run from syncing by default
+  UV_NO_SYNC: 1
+
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # Wagtail is an optional dependency; test with and without it to keep it optional.
+    # Content management tests are skipped when Wagtail isn't installed.
+    strategy:
+      fail-fast: false
+      matrix:
+        wagtail: [false, true]
+    name: test ${{ matrix.wagtail && 'with' || 'without' }} wagtail
+
+    # tests run on PostgreSQL, like eScriptorium
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Check out htr2hpc
@@ -28,15 +57,23 @@ jobs:
       - name: Check uv.lock is up to date
         run: uv lock --check
 
-      - name: Install htr2hpc with dev dependencies
-        run: uv sync --group dev
+      # tests load eScriptorium's real models; see tests/test_escriptorium_stubs.py
+      # the version is set in .escriptorium-version
+      - name: Check out eScriptorium
+        run: git clone --depth 1 --branch "$(cat .escriptorium-version)" https://gitlab.com/scripta/escriptorium.git escriptorium
+
+      - name: Install htr2hpc with test dependencies
+        run: uv sync --group test ${{ matrix.wagtail && '--extra wagtail' || '' }}
 
       - name: Run tests with coverage
         env:
           DJANGO_SECRET_KEY: ${{ github.run_id }}-${{ github.run_attempt }}-test-secret
+          ESCRIPTORIUM_PATH: ${{ github.workspace }}/escriptorium
         run: uv run pytest --cov --cov-report=xml
 
+      # the job with Wagtail runs every test, so its coverage report is complete
       - name: Upload coverage to Codecov
+        if: matrix.wagtail
         uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml

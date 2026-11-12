@@ -1,4 +1,5 @@
-from datetime import UTC, datetime
+import csv
+from itertools import chain
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
@@ -8,28 +9,24 @@ from django.http import (
     StreamingHttpResponse,
 )
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.http import require_http_methods
 
+from htr2hpc.exports import (
+    REPORT_FILENAME_LABELS,
+    USAGE_REPORT_FIELDS,
+    get_usage_report,
+    report_row,
+)
+from htr2hpc.forms import UsageReportForm
 from htr2hpc.tasks import hpc_user_setup
-from htr2hpc.train.jobstats import job_stats_to_csv_string, sacct_to_job_stats
-
-
-class _Echo:
-    """A file-like object that returns whatever is written to it.
-
-    Used with csv.writer to yield individual CSV rows as strings
-    without buffering, per the Django streaming CSV docs.
-    """
-
-    def write(self, value):
-        return value
 
 
 @login_required
 @require_http_methods(["POST"])
-def remote_user_setup(request):  # pragma: no cover
+def remote_user_setup(request):
     # it seems that the taskreport must be associated with a document,
     # so skip the task reporting logic here and just use notifications
 
@@ -41,42 +38,45 @@ def remote_user_setup(request):  # pragma: no cover
     return redirect
 
 
+class Echo:
+    """File-like object that returns the written value instead of buffering it,
+    so csv.writer output can be streamed row by row."""
+
+    def write(self, value):
+        return value
+
+
 @method_decorator(staff_member_required, name="dispatch")
-class HpcJobStatsView(View):
-    """Admin-only CSV export of per-job HPC resource stats from sacct.
+class UsageReportView(View):
+    """Staff-only CSV download of per-user VM and HPC usage stats.
 
-    Query parameters:
-      - start:   YYYY-MM-DD start date (required)
-      - end:     YYYY-MM-DD end date   (required)
-      - account: Slurm account (e.g. pustaff)
-      - users:   comma-separated NetIDs
-
-    At least one of ``account`` or ``users`` is required.
+    Takes GET parameters from :class:`~htr2hpc.forms.UsageReportForm`:
+    ``report_type`` and ``start``, both required. Returns a 400 if they are
+    missing or invalid. The download form is shown on the Leaderboard page.
     """
 
-    def get(self, request, *args, **kwargs):  # pragma: no cover
-        start = request.GET.get("start", "")
-        end = request.GET.get("end", "")
-        account = request.GET.get("account", "") or None
-        users_param = request.GET.get("users", "")
-        usernames = [u.strip() for u in users_param.split(",") if u.strip()] or None
+    def get(self, request, *args, **kwargs):
+        form = UsageReportForm(request.GET)
+        if not form.is_valid():
+            return HttpResponseBadRequest(form.errors.as_text())
 
-        if not start or not end:
-            return HttpResponseBadRequest("start and end query parameters are required")
-        if not account and not usernames:
-            return HttpResponseBadRequest(
-                "account or users query parameter is required"
-            )
+        start = form.cleaned_data["start"]
+        report_type = form.cleaned_data["report_type"]
+        rows = get_usage_report(start, report_type)
 
-        rows = sacct_to_job_stats(start, end, usernames=usernames, account=account)
-        csv_content = job_stats_to_csv_string(rows)
+        writer = csv.DictWriter(Echo(), fieldnames=USAGE_REPORT_FIELDS)
+        header = dict(zip(USAGE_REPORT_FIELDS, USAGE_REPORT_FIELDS, strict=True))
+        csv_rows = chain(
+            [header], (report_row(r, report_type) for r in rows.iterator())
+        )
+        lines = (writer.writerow(row) for row in csv_rows)
 
-        today = datetime.now(tz=UTC).date()
-        response = StreamingHttpResponse(
-            (csv_content,),
+        filename = (
+            f"htr-usage-{REPORT_FILENAME_LABELS[report_type]}"
+            f"-{start.isoformat()}-{timezone.localdate().isoformat()}.csv"
+        )
+        return StreamingHttpResponse(
+            lines,
             content_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
-        response["Content-Disposition"] = (
-            f'attachment; filename="hpc-job-stats-{today}.csv"'
-        )
-        return response

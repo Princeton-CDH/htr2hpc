@@ -5,6 +5,9 @@ version: 2
 
 build:
   os: ubuntu-24.04
+  tools:
+    # Read the Docs doesn't read .python-version; keep in sync with it
+    python: "3.12"
   commands:
     - pip install uv
     - uv sync --group docs

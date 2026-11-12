@@ -106,6 +106,12 @@ The eScriptorium version htr2hpc is tested against is set in one place, `.escrip
 3. Run the tests. If loading eScriptorium's models fails with `ModuleNotFoundError` for a package the models only import, add it to `STUBBED_MODULES` in `tests/test_escriptorium_stubs.py`.
 4. Update the deployed version (`gitref`) in cdh-ansible to match.
 
+### Changing the Python version
+
+The Python version used for development and CI is set in `.python-version`; `uv` (including in devbox and CI) reads it from there. It should match the version eScriptorium runs on the servers. Read the Docs doesn't read `.python-version`, so when you change it, also update `build.tools.python` in `.readthedocs.yaml`.
+
+`requires-python` in `pyproject.toml` is the minimum supported version, not the version we test on, so it only changes when we drop support for an older version. The HPC environment (`src/htr2hpc/train/user_setup.sh`) uses its own Python version, set by kraken's requirements.
+
 ## Building Documentation
 
 Building documentation alone doesn't require eScriptorium or its dependencies to be installed.

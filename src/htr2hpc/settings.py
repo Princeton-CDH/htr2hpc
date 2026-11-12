@@ -66,6 +66,7 @@ try:
     INSTALLED_APPS += [
         "wagtail.snippets",
         "wagtail.admin",
+        "wagtail.users",
         "wagtail",
         "modelcluster",
         "taggit",
@@ -79,6 +80,8 @@ try:
     # are searched before app template folders, so APP_DIRS alone isn't enough.
     TEMPLATES[0]["DIRS"].insert(0, HTR2HPC_INSTALL_DIR / "content" / "templates")
     WAGTAIL_SITE_NAME = "htr2hpc"
+
+    WAGTAILADMIN_BASE_URL = "/cms/"
 except ImportError:
     pass
 

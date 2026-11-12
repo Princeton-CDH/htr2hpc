@@ -33,6 +33,7 @@ def custom_wagtail_config(context):
     ):
         config = original_tags.wagtail_config(context)
     # delete the API entries for apps we're not using
-    config["ADMIN_API"].pop("DOCUMENTS", None)
-    config["ADMIN_API"].pop("IMAGES", None)
+    admin_api = config.get("ADMIN_API", {})
+    admin_api.pop("DOCUMENTS", None)
+    admin_api.pop("IMAGES", None)
     return config

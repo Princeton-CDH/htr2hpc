@@ -103,6 +103,7 @@ After deploying, run `manage.py loaddata cdh_snippets` once.
 - Wagtail is optional. Installing with `htr2hpc[all]` includes it. `all` also leaves room for other optional groups later.
 - All Wagtail code lives in the `htr2hpc.content` app, which settings only add when Wagtail is installed. The context processor is registered only in that case, so it can import `ContentSnippet` at the top of the module.
 - Only the Wagtail apps snippets need are installed: `wagtail.snippets`, `wagtail.admin` and `wagtail`. `wagtail.documents` isn't installed because its `Document` model clashes with eScriptorium's `core.Document` (both add `User.document_set`), which stops Django from starting. `wagtail.images` isn't needed either.
+  - **Proposed revision:** this turned out to be wrong; the Wagtail admin doesn't work without `wagtail.users`, `wagtail.documents` and `wagtail.images`. See [Revision: Wagtail admin apps](#revision-wagtail-admin-apps) below.
 
 ### Tests
 
@@ -158,3 +159,92 @@ These changes revise the in-progress implementation in [#245](https://github.com
    - Test that non-live snippets aren't returned.
    - Test that `pre_body` / `post_body` snippets render on a page that has no template override.
    - Remove the `ImportError` fallback test.
+
+## Revision: Wagtail admin apps
+
+Status: **proposed**, for review.
+
+This revises the implementation merged in [#245](https://github.com/Princeton-CDH/htr2hpc/pull/245) and [#246](https://github.com/Princeton-CDH/htr2hpc/pull/246), as deployed to staging on 2026-11-12.
+
+### Problem
+
+After deploying to staging, the Wagtail admin errors as soon as a staff user logs in. It never worked: #245 didn't route the admin, so it was never opened, and the tests created snippets in code instead of through the admin.
+
+Wagtail's admin can't run on the three apps we install (`wagtail.snippets`, `wagtail.admin`, `wagtail`). It also needs:
+
+- `wagtail.users`: every admin page reads the logged-in user's Wagtail profile.
+- `wagtail.documents` and `wagtail.images`: every admin page template looks up the documents and images API URLs (`wagtail_config` in `wagtailadmin_tags.py`, unchanged through Wagtail 7.2).
+
+`wagtail.users` and `wagtail.images` can be installed as they are. `wagtail.documents` can't: its `Document` model clashes with eScriptorium's `core.Document`, which stops Django from starting.
+
+### Why `wagtail.documents` clashes
+
+Both models have a foreign key to the user model with no `related_name`, so Django gives both the same reverse names on `User`:
+
+| Model | Field | Reverse accessor | Reverse query name |
+|---|---|---|---|
+| eScriptorium `core.Document` | `owner` | `document_set` | `document` |
+| Wagtail `wagtaildocs.Document` | `uploaded_by_user` | `document_set` | `document` |
+
+A custom Wagtail document model (`WAGTAILDOCS_DOCUMENT_MODEL`) doesn't avoid this: Wagtail still registers its built-in `Document` model whenever `wagtail.documents` is installed.
+
+### Proposed fix: patch eScriptorium's `core.Document.owner`
+
+Give `core.Document.owner` its own reverse names, so Wagtail's `Document` keeps the default ones. This follows the existing cdh-ansible patch that makes `User.email` nullable.
+
+eScriptorium uses both reverse names itself, so three lines need patching, all in cdh-ansible's `escriptorium_setup` role:
+
+| File | Line (v1.0.1) | Change |
+|---|---|---|
+| `apps/core/models.py` | `Document.owner` | add `related_name="escr_documents", related_query_name="escr_document"` |
+| `apps/users/models.py` | `User.calc_disk_usage()` | `self.document_set` → `self.escr_documents` |
+| `apps/reporting/views.py` | Leaderboard disk usage | `Sum('document__parts__...')` → `Sum('escr_document__parts__...')` |
+
+These are the only uses in eScriptorium v1.0.1, outside migrations and tests.
+
+- `core/models.py` has four identical `owner = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)` lines (on `Project`, `Document` and two others), so the patch has to match only the `Document` one: the `owner` line followed by `workflow_state`.
+- Changing `related_name` doesn't change the database, but Django records it in model state, so htr2hpc needs a migration for it, like `0001_user_email_allow_null`.
+- The names use an `escr_` prefix to make it clear they come from the patch, and to avoid eScriptorium's existing `shared_documents` reverse name on `Document`.
+
+Then add `wagtail.users`, `wagtail.documents` and `wagtail.images` to the installed apps, in `htr2hpc.settings` and `tests/test_settings.py`.
+
+### Prototype
+
+I tested this on a local copy of eScriptorium v1.0.1 with the three lines patched and the three Wagtail apps added. All six checks passed:
+
+- Django's system checks: no reverse accessor clash.
+- `user.escr_documents` and the Leaderboard's `escr_document__parts__...` query return eScriptorium documents.
+- `user.calc_disk_usage()` still works.
+- Wagtail's own `user.document_set` still exists.
+- As a logged-in staff user, `/cms/`, `/cms/snippets/`, the content snippet list and the "add snippet" page all return 200.
+
+The prototype doesn't yet cover: the cdh-ansible patch itself, the htr2hpc migration, a real deploy, or editing and saving a snippet through the admin.
+
+### Planned changes
+
+1. **cdh-ansible** (`roles/escriptorium_setup/tasks/main.yml`)
+   - Add three `ansible.builtin.replace` tasks for the three lines above, next to the email patch.
+   - Test each regex against eScriptorium v1.0.1 and check it matches exactly once.
+2. **htr2hpc migration** (`src/htr2hpc/migrations/`)
+   - Add a migration recording the new `related_name` on `core.Document.owner`, following `0001_user_email_allow_null`.
+3. **htr2hpc settings** (`src/htr2hpc/settings.py`, `tests/test_settings.py`)
+   - Add `wagtail.users`, `wagtail.documents` and `wagtail.images`.
+4. **Tests** (`tests/test_content.py`)
+   - Add tests that log in as a staff user and open the admin pages, and that add and edit a snippet through the admin.
+   - Test patches: in CI, apply the same three edits to the eScriptorium checkout before running the tests, so the tests run against patched eScriptorium like staging.
+5. **Docs**
+   - Update this record's "Optional dependency" section.
+   - In `DEVELOPERNOTES.md`, add the new patches to the list of things to check when upgrading eScriptorium.
+6. **Upstream**
+   - Propose adding `related_name` to `core.Document.owner` in eScriptorium, so the patch can be removed after an upgrade.
+
+### Open questions
+
+- Is patching eScriptorium's `core.Document` model acceptable, given it adds three patches to check on every eScriptorium upgrade?
+- How should CI apply the patches: reuse the regexes from cdh-ansible, or keep a separate patch file in htr2hpc?
+
+### Alternatives considered
+
+1. **Custom Wagtail document model.** Rejected: Wagtail still registers its built-in `Document` model, so the clash stays.
+2. **Placeholder documents API URL.** Leave `wagtail.documents` out and add an empty URL with the name the admin template looks up. Smaller, but relies on Wagtail internals and could break on a Wagtail upgrade.
+3. **Django admin with a rich text editor instead of Wagtail.** No clash, but it reverses a reviewed decision and redoes part of #80.

@@ -210,15 +210,21 @@ Then add `wagtail.users`, `wagtail.documents` and `wagtail.images` to the instal
 
 ### Prototype
 
-I tested this on a local copy of eScriptorium v1.0.1 with the three lines patched and the three Wagtail apps added. All six checks passed:
+I tested this locally against eScriptorium v1.0.1 and PostgreSQL 15, with the three Wagtail apps added:
 
-- Django's system checks: no reverse accessor clash.
-- `user.escr_documents` and the Leaderboard's `escr_document__parts__...` query return eScriptorium documents.
-- `user.calc_disk_usage()` still works.
-- Wagtail's own `user.document_set` still exists.
-- As a logged-in staff user, `/cms/`, `/cms/snippets/`, the content snippet list and the "add snippet" page all return 200.
+- **Ansible patches:** ran the three `ansible.builtin.replace` tasks with Ansible on a clean eScriptorium checkout. Each matched once (only `Document.owner`, not the three other identical `owner` lines), and a second run changed nothing.
+- **Migrations:** built the test database by running every migration from scratch, including a new htr2hpc migration recording the `related_name` (following `0001_user_email_allow_null`). Afterwards, `makemigrations --check` reports no pending changes for `core` or `content`.
+- **Django checks:** no reverse accessor clash with the patch. Without it, the checks report the `fields.E304` clash, so a test catches it.
+- **eScriptorium code using the old names:** `user.calc_disk_usage()` and the Leaderboard's disk usage query both work with the patched names. Wagtail's own `user.document_set` still exists.
+- **Editing through the admin, as a logged-in staff user:**
+  - `/cms/`, the snippets index, the content snippet list and the "add" page all return 200.
+  - Creating a snippet through the admin form saves it, and it appears in the list.
+  - Editing it changes the text, and unchecking "Live" hides it.
+  - A snippet saved through the admin renders on its page.
+  - Adding a second snippet for the same page and slot shows the form again with an error, not a server error.
+- **Full test suite:** 197 passed, on a test database built from real migrations.
 
-The prototype doesn't yet cover: the cdh-ansible patch itself, the htr2hpc migration, a real deploy, or editing and saving a snippet through the admin.
+Not tested yet: a real deploy to staging with the patches.
 
 ### Planned changes
 
@@ -230,7 +236,9 @@ The prototype doesn't yet cover: the cdh-ansible patch itself, the htr2hpc migra
 3. **htr2hpc settings** (`src/htr2hpc/settings.py`, `tests/test_settings.py`)
    - Add `wagtail.users`, `wagtail.documents` and `wagtail.images`.
 4. **Tests** (`tests/test_content.py`)
-   - Add tests that log in as a staff user and open the admin pages, and that add and edit a snippet through the admin.
+   - Add tests that log in as a staff user and open the admin pages, and that add, edit and hide a snippet through the admin.
+   - Add a test that runs Django's system checks, so a model clash fails the tests (pytest doesn't run the checks on its own).
+   - Build the test database by running migrations instead of skipping them, so migrations are tested too. eScriptorium's `users.0015` migration needs `sites` migrated first.
    - Test patches: in CI, apply the same three edits to the eScriptorium checkout before running the tests, so the tests run against patched eScriptorium like staging.
 5. **Docs**
    - Update this record's "Optional dependency" section.

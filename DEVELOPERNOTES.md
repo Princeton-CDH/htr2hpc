@@ -43,7 +43,7 @@ Install devbox if you don't have it:
 curl -fsSL https://get.jetify.com/devbox | bash
 ```
 
-Then run `devbox shell` to enter the environment. This installs Python 3.11 and uv via Nix. Run `uv sync` to install Python dependencies into a local `.venv`; the `dev` group is installed by default and includes everything for development, including the optional Wagtail dependency. You only need to run `devbox shell` once per terminal session.
+Then run `devbox shell` to enter the environment. This installs uv via Nix; uv then installs the Python version listed in `.python-version`. Run `uv sync` to install Python dependencies into a local `.venv`; the `dev` group is installed by default and includes everything for development, including the optional Wagtail dependency. You only need to run `devbox shell` once per terminal session.
 
 Use `devbox run test` to run the test suite from your regular terminal without entering the devbox shell. To verify the environment works without any system dependencies, use `devbox shell --pure`. If you run into unexpected errors, `rm -rf .devbox` usually clears them up.
 
@@ -105,6 +105,12 @@ The eScriptorium version htr2hpc is tested against is set in one place, `.escrip
 2. Compare the `escriptorium` dependency group in `pyproject.toml` with the new eScriptorium `requirements.txt`, update the versions, and run `uv lock`.
 3. Run the tests. If loading eScriptorium's models fails with `ModuleNotFoundError` for a package the models only import, add it to `STUBBED_MODULES` in `tests/test_escriptorium_stubs.py`.
 4. Update the deployed version (`gitref`) in cdh-ansible to match.
+
+### Changing the Python version
+
+The Python version used for development and CI is set in `.python-version`; `uv` (including in devbox and CI) reads it from there. It should match the version eScriptorium runs on the servers. Read the Docs doesn't read `.python-version`, so when you change it, also update `build.tools.python` in `.readthedocs.yaml`.
+
+`requires-python` in `pyproject.toml` is the minimum supported version, not the version we test on, so it only changes when we drop support for an older version. The HPC environment (`src/htr2hpc/train/user_setup.sh`) uses its own Python version, set by kraken's requirements.
 
 ## Building Documentation
 

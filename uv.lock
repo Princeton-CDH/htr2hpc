@@ -1143,8 +1143,8 @@ requires-dist = [
     { name = "requests" },
     { name = "simple-slurm" },
     { name = "tqdm" },
-    { name = "wagtail", marker = "extra == 'all'", specifier = ">=7.3,<7.4" },
-    { name = "wagtail", marker = "extra == 'wagtail'", specifier = ">=7.3,<7.4" },
+    { name = "wagtail", marker = "extra == 'all'", specifier = "==7.3.4" },
+    { name = "wagtail", marker = "extra == 'wagtail'", specifier = "==7.3.4" },
 ]
 provides-extras = ["all", "wagtail"]
 

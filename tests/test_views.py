@@ -1,6 +1,7 @@
 """Tests for htr2hpc views."""
 
 import csv
+import importlib
 from datetime import date, datetime
 from io import StringIO
 from unittest.mock import patch
@@ -11,6 +12,7 @@ from django.template import Context, Template
 from django.utils import timezone
 from reporting.models import TaskReport
 
+from htr2hpc import htr2hpc_urls
 from htr2hpc.exports import USAGE_REPORT_FIELDS, VM_SEGMENT_METHOD
 from htr2hpc.views import UsageReportView, remote_user_setup
 
@@ -138,3 +140,19 @@ def test_remote_user_setup(setup_task, mock_reverse, rf, django_user_model):
     setup_task.delay.assert_called_once_with(user_pk=user.pk)
     assert response.status_code == 303
     assert response["Location"] == "/profile/apikey/"
+
+
+def test_cms_url_only_added_with_content_app():
+    """The Wagtail admin URL is only added when the content app is installed,
+    so Wagtail stays an optional dependency."""
+
+    def route_paths():
+        return [str(pattern.pattern) for pattern in htr2hpc_urls.urlpatterns]
+
+    try:
+        with patch("django.apps.apps.is_installed", return_value=False):
+            importlib.reload(htr2hpc_urls)
+        assert "cms/" not in route_paths()
+    finally:
+        # restore the URL patterns for the real installed apps
+        importlib.reload(htr2hpc_urls)

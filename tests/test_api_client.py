@@ -1,9 +1,13 @@
 """Tests for htr2hpc.api_client — API client utilities and data structures."""
 
 import datetime
+import logging
 from unittest.mock import MagicMock, patch
+from urllib.parse import parse_qs, urlparse
 
 import pytest
+import requests
+import responses
 
 from htr2hpc.api_client import (
     RESULTCLASS_REGISTRY,
@@ -653,3 +657,329 @@ def test_document_parts_list_returns_results_list(api_client_instance):
     with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
         result = api_client_instance.document_parts_list(42)
     assert isinstance(result, ResultsList)
+
+
+# ---------------------------------------------------------------------------
+# HTTP-level tests
+#
+# The tests above stub out `_make_request` to check what each method asks for.
+# The tests below use `responses` to fake the eScriptorium server instead, so
+# request building, response handling and file downloads run for real, and we
+# assert on the actual HTTP traffic.
+# ---------------------------------------------------------------------------
+
+API_ROOT = "https://escriptorium.example.com/api"
+EMPTY_PAGE = {"count": 0, "next": None, "previous": None, "results": []}
+
+
+@pytest.fixture
+def rsps():
+    """Fake eScriptorium server. Fails the test if a registered response is
+    never requested, so a stale or misspelled url can't go unnoticed."""
+    with responses.RequestsMock() as mock:
+        yield mock
+
+
+def sent_query(call):
+    """Query string parameters of a request recorded by `responses`."""
+    return parse_qs(urlparse(call.request.url).query)
+
+
+def sent_form(call):
+    """Form-encoded body of a request recorded by `responses`."""
+    return parse_qs(call.request.body)
+
+
+def test_make_request_sends_params_data_and_files(rsps, api_client_instance):
+    rsps.post(f"{API_ROOT}/models/", status=200)
+
+    api_client_instance._make_request(
+        "models/",
+        method="POST",
+        params={"page": 2},
+        data={"name": "my model"},
+        files={"file": ("m.mlmodel", b"model bytes")},
+    )
+
+    call = rsps.calls[0]
+    assert sent_query(call) == {"page": ["2"]}
+    # data and file are sent together as a multipart form
+    assert call.request.headers["Content-Type"].startswith("multipart/form-data")
+    assert b'name="name"' in call.request.body
+    assert b"model bytes" in call.request.body
+
+
+def test_make_request_raises_on_unexpected_server_error(rsps, api_client_instance):
+    rsps.get(f"{API_ROOT}/documents/", status=500)
+
+    # anything other than the explicitly handled statuses
+    # should surface as a requests HTTPError rather than be swallowed
+    with pytest.raises(requests.HTTPError):
+        api_client_instance._make_request("documents/")
+
+
+# document_part_details
+
+
+def part_json(lines):
+    return {"pk": 5, "regions": [], "lines": lines}
+
+
+@pytest.mark.xfail(
+    raises=TypeError,
+    strict=True,
+    reason="bug: line pk (int) is joined as str in the warning message; see PR notes",
+)
+def test_document_part_details_skips_lines_without_geometry(
+    rsps, api_client_instance, caplog
+):
+    # eScriptorium can return lines with no baseline or mask;
+    # kraken can't use these, so they must be dropped before training.
+    # Line pks are integers in the real API.
+    good = {"pk": 1, "mask": [[0, 0], [9, 9]], "baseline": [[0, 5], [9, 5]]}
+    no_mask = {"pk": 2, "mask": None, "baseline": [[0, 5], [9, 5]]}
+    no_baseline = {"pk": 3, "mask": [[0, 0], [9, 9]], "baseline": None}
+    rsps.get(
+        f"{API_ROOT}/documents/42/parts/5/",
+        json=part_json([good, no_mask, no_baseline]),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="htr2hpc.api_client"):
+        part = api_client_instance.document_part_details(42, 5)
+
+    assert [line.pk for line in part.lines] == [1]
+    # the warning identifies which lines were skipped, and where they are
+    assert "Skipping 2 lines" in caplog.text
+    assert "2,3" in caplog.text
+    assert "document 42, part 5" in caplog.text
+
+
+def test_document_part_details_keeps_all_valid_lines(rsps, api_client_instance, caplog):
+    good = {"pk": 1, "mask": [[0, 0], [9, 9]], "baseline": [[0, 5], [9, 5]]}
+    rsps.get(f"{API_ROOT}/documents/42/parts/5/", json=part_json([good, good]))
+
+    with caplog.at_level(logging.WARNING, logger="htr2hpc.api_client"):
+        part = api_client_instance.document_part_details(42, 5)
+
+    assert len(part.lines) == 2
+    assert "Skipping" not in caplog.text
+
+
+def test_document_part_details_returns_none_for_unparsable_part(
+    rsps, api_client_instance
+):
+    # a field name that can't become a namedtuple attribute; the part is
+    # skipped (None) so that one bad part doesn't abort a whole training run
+    rsps.get(
+        f"{API_ROOT}/documents/42/parts/5/",
+        json={"pk": 5, "lines": [], "not a valid name": 1},
+    )
+
+    assert api_client_instance.document_part_details(42, 5) is None
+
+
+# document_part_transcription_list
+
+
+def test_document_part_transcription_list_filters_by_transcription(
+    rsps,
+    api_client_instance,
+):
+    rsps.get(f"{API_ROOT}/documents/42/parts/5/transcriptions/", json=EMPTY_PAGE)
+
+    api_client_instance.document_part_transcription_list(42, 5, transcription_id=7)
+
+    # without the filter we would train on lines from every transcription
+    assert sent_query(rsps.calls[0]) == {"transcription": ["7"]}
+
+
+def test_document_part_transcription_list_unfiltered_by_default(
+    rsps, api_client_instance
+):
+    rsps.get(f"{API_ROOT}/documents/42/parts/5/transcriptions/", json=EMPTY_PAGE)
+
+    api_client_instance.document_part_transcription_list(42, 5)
+
+    assert sent_query(rsps.calls[0]) == {}
+
+
+# document_export
+
+
+@pytest.mark.xfail(
+    raises=AttributeError,
+    strict=True,
+    reason="bug: document_export calls nonexistent self.document(); see PR notes",
+)
+def test_document_export_requests_alto_with_all_region_types(rsps, api_client_instance):
+    # remove with the xfail marker: the bug stops the test before the
+    # registered responses are requested
+    rsps.assert_all_requests_are_fired = False
+    # region types come from the document's own block types, plus the two
+    # pseudo-types eScriptorium uses for untyped and unattached regions
+    rsps.get(
+        f"{API_ROOT}/documents/42/",
+        json={"pk": 42, "valid_block_types": [{"pk": 1}, {"pk": 2}]},
+    )
+    rsps.post(f"{API_ROOT}/documents/42/export/", json={"status": "ok"})
+
+    result = api_client_instance.document_export(42, transcription_id=7)
+
+    assert result.status == "ok"
+    form = sent_form(rsps.calls[1])
+    assert form["file_format"] == ["alto"]
+    assert form["transcription"] == ["7"]
+    assert form["include_images"] == ["False"]
+    assert form["region_types"] == ["1", "2", "Undefined", "Orphan"]
+
+
+# list_types
+
+
+def test_list_types_rejects_unsupported_type(api_client_instance):
+    with pytest.raises(ValueError, match="not a supported type"):
+        api_client_instance.list_types("document")
+
+
+def test_list_types_requests_type_endpoint(rsps, api_client_instance):
+    rsps.get(f"{API_ROOT}/types/block/", json=EMPTY_PAGE)
+
+    result = api_client_instance.list_types("block")
+
+    assert isinstance(result, ResultsList)
+    assert result.result_type == "type"
+
+
+# download_file
+
+
+@pytest.mark.parametrize(
+    ("explicit_name", "disposition", "expected_name"),
+    [
+        # a caller-supplied name always wins
+        ("chosen.zip", 'attachment; filename="srv.zip"', "chosen.zip"),
+        # otherwise use the server's suggested name
+        (None, 'attachment; filename="srv.zip"', "srv.zip"),
+        # with no hint at all, fall back to the end of the url
+        (None, None, "file.zip"),
+    ],
+    ids=["explicit-name", "content-disposition", "url-fallback"],
+)
+def test_download_file_chooses_filename(
+    rsps, api_client_instance, tmp_path, explicit_name, disposition, expected_name
+):
+    url = "https://escriptorium.example.com/media/file.zip"
+    body = b"zip content"
+    headers = {"content-length": str(len(body))}
+    if disposition:
+        headers["content-disposition"] = disposition
+    rsps.get(url, body=body, headers=headers)
+
+    saved = api_client_instance.download_file(url, tmp_path, filename=explicit_name)
+
+    assert saved == tmp_path / expected_name
+    assert saved.read_bytes() == body
+
+
+def test_download_file_returns_none_on_error_status(
+    rsps, api_client_instance, tmp_path
+):
+    url = "https://escriptorium.example.com/media/missing.zip"
+    rsps.get(url, status=404)
+
+    assert api_client_instance.download_file(url, tmp_path) is None
+    # nothing should be left behind for later steps to trip over
+    assert list(tmp_path.iterdir()) == []
+
+
+# download_document_export
+
+
+def task_json(**overrides):
+    """A task API response, based on the TASK_DATA fixture above."""
+    return dict(TASK_DATA, **overrides)
+
+
+@pytest.mark.xfail(
+    raises=AttributeError,
+    strict=True,
+    reason="bug: document_export calls nonexistent self.document(); see PR notes",
+)
+def test_download_document_export_waits_for_task_then_downloads(
+    rsps, mocker, api_client_instance, tmp_path, monkeypatch
+):
+    # remove with the xfail marker: the bug stops the test before the
+    # registered responses are requested
+    rsps.assert_all_requests_are_fired = False
+    monkeypatch.chdir(tmp_path)  # the export is saved in the working directory
+    rsps.get(
+        f"{API_ROOT}/documents/42/",
+        json={"pk": 42, "valid_block_types": []},
+    )
+    rsps.post(f"{API_ROOT}/documents/42/export/", json={"status": "ok"})
+    # the newest task is listed first, and is not finished yet
+    queued = task_json(pk=99, done_at=None)
+    rsps.get(
+        f"{API_ROOT}/tasks/",
+        json=dict(EMPTY_PAGE, count=1, results=[queued]),
+    )
+    # the first status check is still running; the second is done
+    rsps.get(f"{API_ROOT}/tasks/99/", json=queued)
+    rsps.get(f"{API_ROOT}/tasks/99/", json=task_json(pk=99))
+    # file name is based on the time the task finished (see TASK_DATA)
+    export_url = (
+        "https://escriptorium.example.com/media/users/3/"
+        "export_doc42_my_doc_alto_202401151001.zip"
+    )
+    rsps.get(
+        export_url,
+        body=b"zipped alto",
+        headers={
+            "content-disposition": 'attachment; filename="export.zip"',
+            "content-length": "11",
+        },
+    )
+
+    mock_sleep = mocker.patch("htr2hpc.api_client.sleep")
+    saved = api_client_instance.download_document_export(
+        user_id=3, document_id=42, document_name="My Doc", transcription_ids=7
+    )
+
+    # waits one second each time it finds the task still unfinished:
+    # once for the task from the list, once for the first status check
+    assert mock_sleep.call_count == 2
+    # returned path is relative to the working directory (set to tmp_path above)
+    assert saved.name == "export.zip"
+    assert (tmp_path / saved).read_bytes() == b"zipped alto"
+
+
+# task_list / task_update
+
+
+def test_task_list_passes_page_param(rsps, api_client_instance):
+    rsps.get(f"{API_ROOT}/tasks/", json=EMPTY_PAGE)
+
+    api_client_instance.task_list(page=3)
+
+    assert sent_query(rsps.calls[0]) == {"page": ["3"]}
+
+
+def test_task_update_sends_label_user_and_messages(rsps, api_client_instance):
+    rsps.put(f"{API_ROOT}/tasks/9/", json=task_json(pk=9))
+
+    api_client_instance.task_update(9, label="Train", user_id=3, messages="step 2")
+
+    assert sent_form(rsps.calls[0]) == {
+        "label": ["Train"],
+        "user": ["3"],
+        "messages": ["step 2"],
+    }
+
+
+def test_task_update_omits_messages_when_not_given(rsps, api_client_instance):
+    rsps.put(f"{API_ROOT}/tasks/9/", json=task_json(pk=9))
+
+    api_client_instance.task_update(9, label="Train", user_id=3)
+
+    # leaving messages out keeps any existing messages on the task
+    assert "messages" not in sent_form(rsps.calls[0])

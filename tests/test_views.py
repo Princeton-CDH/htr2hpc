@@ -142,6 +142,33 @@ def test_remote_user_setup(setup_task, mock_reverse, rf, django_user_model):
     assert response["Location"] == "/profile/apikey/"
 
 
+def test_remote_user_setup_requires_login(rf, mocker):
+    setup_task = mocker.patch("htr2hpc.views.hpc_user_setup")
+    request = rf.post("/profile/hpc-setup/")
+    request.user = AnonymousUser()
+
+    response = remote_user_setup(request)
+
+    # anonymous users are sent to log in, and no setup task is queued
+    assert response.status_code == 302
+    setup_task.delay.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_remote_user_setup_requires_post(rf, mocker, django_user_model):
+    setup_task = mocker.patch("htr2hpc.views.hpc_user_setup")
+    request = rf.get("/profile/hpc-setup/")
+    request.user = django_user_model.objects.create_user(
+        username="alice", email="alice@example.com"
+    )
+
+    response = remote_user_setup(request)
+
+    # a GET (e.g. a link or prefetch) must not queue a setup task
+    assert response.status_code == 405
+    setup_task.delay.assert_not_called()
+
+
 def test_cms_url_only_added_with_content_app():
     """The Wagtail admin URL is only added when the content app is installed,
     so Wagtail stays an optional dependency."""

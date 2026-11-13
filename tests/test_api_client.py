@@ -1,9 +1,13 @@
 """Tests for htr2hpc.api_client — API client utilities and data structures."""
+
 import datetime
-from collections import namedtuple
+import logging
 from unittest.mock import MagicMock, patch
+from urllib.parse import parse_qs, urlparse
 
 import pytest
+import requests
+import responses
 
 from htr2hpc.api_client import (
     RESULTCLASS_REGISTRY,
@@ -193,7 +197,7 @@ def test_client_sets_user_agent(api_client_instance):
 
 
 def test_export_file_url_basic(api_client_instance):
-    dt = datetime.datetime(2024, 3, 15, 9, 30)
+    dt = datetime.datetime(2024, 3, 15, 9, 30, tzinfo=datetime.UTC)
     url = api_client_instance.export_file_url(
         user_id=5,
         document_id=42,
@@ -208,7 +212,7 @@ def test_export_file_url_basic(api_client_instance):
 
 
 def test_export_file_url_slugifies_document_name(api_client_instance):
-    dt = datetime.datetime(2024, 1, 1, 0, 0)
+    dt = datetime.datetime(2024, 1, 1, 0, 0, tzinfo=datetime.UTC)
     url = api_client_instance.export_file_url(
         user_id=1,
         document_id=1,
@@ -224,7 +228,7 @@ def test_export_file_url_slugifies_document_name(api_client_instance):
 
 
 def test_export_file_url_truncates_long_name(api_client_instance):
-    dt = datetime.datetime(2024, 1, 1, 0, 0)
+    dt = datetime.datetime(2024, 1, 1, 0, 0, tzinfo=datetime.UTC)
     long_name = "A" * 100
     url = api_client_instance.export_file_url(
         user_id=1,
@@ -239,7 +243,7 @@ def test_export_file_url_truncates_long_name(api_client_instance):
 
 
 def test_export_file_url_ends_with_zip(api_client_instance):
-    dt = datetime.datetime(2024, 6, 1, 12, 0)
+    dt = datetime.datetime(2024, 6, 1, 12, 0, tzinfo=datetime.UTC)
     url = api_client_instance.export_file_url(
         user_id=2,
         document_id=10,
@@ -258,37 +262,43 @@ def test_export_file_url_ends_with_zip(api_client_instance):
 def test_make_request_raises_not_found(api_client_instance):
     from htr2hpc.api_client import NotFound
 
-    with patch.object(
-        api_client_instance.session,
-        "get",
-        return_value=MagicMock(status_code=404),
+    with (
+        patch.object(
+            api_client_instance.session,
+            "get",
+            return_value=MagicMock(status_code=404),
+        ),
+        pytest.raises(NotFound),
     ):
-        with pytest.raises(NotFound):
-            api_client_instance._make_request("documents/999/")
+        api_client_instance._make_request("documents/999/")
 
 
 def test_make_request_raises_not_allowed_on_401(api_client_instance):
     from htr2hpc.api_client import NotAllowed
 
-    with patch.object(
-        api_client_instance.session,
-        "get",
-        return_value=MagicMock(status_code=401),
+    with (
+        patch.object(
+            api_client_instance.session,
+            "get",
+            return_value=MagicMock(status_code=401),
+        ),
+        pytest.raises(NotAllowed),
     ):
-        with pytest.raises(NotAllowed):
-            api_client_instance._make_request("documents/1/")
+        api_client_instance._make_request("documents/1/")
 
 
 def test_make_request_raises_not_allowed_on_403(api_client_instance):
     from htr2hpc.api_client import NotAllowed
 
-    with patch.object(
-        api_client_instance.session,
-        "get",
-        return_value=MagicMock(status_code=403),
+    with (
+        patch.object(
+            api_client_instance.session,
+            "get",
+            return_value=MagicMock(status_code=403),
+        ),
+        pytest.raises(NotAllowed),
     ):
-        with pytest.raises(NotAllowed):
-            api_client_instance._make_request("documents/1/")
+        api_client_instance._make_request("documents/1/")
 
 
 def test_make_request_raises_on_unsupported_method(api_client_instance):
@@ -328,3 +338,656 @@ def test_model_create_raises_on_invalid_job(api_client_instance, tmp_path):
     fake_model.write_bytes(b"fake")
     with pytest.raises(ValueError, match="not a valid model job name"):
         api_client_instance.model_create(fake_model, job="Train")
+
+
+# ---------------------------------------------------------------------------
+# eScriptoriumAPIClient._make_request — success + method routing
+# ---------------------------------------------------------------------------
+
+
+def test_make_request_returns_response_on_200(api_client_instance):
+    mock_resp = MagicMock(status_code=200)
+    with patch.object(api_client_instance.session, "get", return_value=mock_resp):
+        result = api_client_instance._make_request("documents/1/")
+    assert result is mock_resp
+
+
+def test_make_request_post_routes_to_session_post(api_client_instance):
+    mock_resp = MagicMock(status_code=200)
+    with patch.object(
+        api_client_instance.session, "post", return_value=mock_resp
+    ) as mock_post:
+        api_client_instance._make_request("documents/", method="POST", data={"k": "v"})
+    mock_post.assert_called_once()
+
+
+def test_make_request_put_routes_to_session_put(api_client_instance):
+    mock_resp = MagicMock(status_code=200)
+    with patch.object(
+        api_client_instance.session, "put", return_value=mock_resp
+    ) as mock_put:
+        api_client_instance._make_request("documents/1/", method="PUT", data={"k": "v"})
+    mock_put.assert_called_once()
+
+
+def test_make_request_delete_routes_to_session_delete(api_client_instance):
+    mock_resp = MagicMock(status_code=204)
+    with patch.object(
+        api_client_instance.session, "delete", return_value=mock_resp
+    ) as mock_del:
+        api_client_instance._make_request(
+            "documents/1/", method="DELETE", expected_status=204
+        )
+    mock_del.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# get_model_accuracy
+# ---------------------------------------------------------------------------
+
+
+def test_get_model_accuracy_extracts_last_value(tmp_path):
+    import json
+
+    from htr2hpc.api_client import get_model_accuracy
+
+    fake_model = tmp_path / "model.mlmodel"
+    fake_model.write_bytes(b"fake")
+
+    mock_spec = MagicMock()
+    mock_spec.description.metadata.userDefined = {
+        "kraken_meta": json.dumps({"accuracy": [[0, 0.80], [1, 0.90], [2, 0.95]]})
+    }
+    mock_ml_model = MagicMock()
+    mock_ml_model.get_spec.return_value = mock_spec
+
+    with patch(
+        "htr2hpc.api_client.coremltools.models.MLModel", return_value=mock_ml_model
+    ):
+        result = get_model_accuracy(fake_model)
+    assert result == 0.95
+
+
+# ---------------------------------------------------------------------------
+# ResultsList.next_page
+# ---------------------------------------------------------------------------
+
+
+def test_results_list_next_page_returns_new_results_list(api_client_instance):
+
+    next_url = "https://escriptorium.example.com/api/models/?page=2"
+    page1 = ResultsList(
+        api=api_client_instance,
+        result_type="model",
+        count=2,
+        next=next_url,
+        previous=None,
+        results=[],
+    )
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 2,
+        "next": None,
+        "previous": next_url,
+        "results": [],
+    }
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        page2 = page1.next_page()
+    assert isinstance(page2, ResultsList)
+    assert page2.next is None
+
+
+# ---------------------------------------------------------------------------
+# get_current_user
+# ---------------------------------------------------------------------------
+
+
+def test_get_current_user_returns_namedtuple(api_client_instance):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"pk": 1, "username": "alice"}
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        user = api_client_instance.get_current_user()
+    assert user.pk == 1
+    assert user.username == "alice"
+
+
+# ---------------------------------------------------------------------------
+# model_list / model_details / model_delete
+# ---------------------------------------------------------------------------
+
+
+def test_model_list_no_page_returns_results_list(api_client_instance):
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
+    with patch.object(
+        api_client_instance, "_make_request", return_value=mock_resp
+    ) as mock_req:
+        result = api_client_instance.model_list()
+    assert isinstance(result, ResultsList)
+    # no page param passed
+    mock_req.assert_called_once_with("models/", params=None)
+
+
+def test_model_list_with_page_passes_param(api_client_instance):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
+    with patch.object(
+        api_client_instance, "_make_request", return_value=mock_resp
+    ) as mock_req:
+        api_client_instance.model_list(page=2)
+    mock_req.assert_called_once_with("models/", params={"page": 2})
+
+
+def test_model_details_returns_namedtuple(api_client_instance):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "pk": 7,
+        "name": "latin",
+        "file": "/models/latin.mlmodel",
+        "file_size": 500,
+        "job": "Recognize",
+        "owner": "alice",
+        "training": False,
+        "versions": [],
+        "documents": [],
+        "accuracy_percent": 0.92,
+        "training_accuracy": 0.92,
+        "rights": "private",
+        "can_share": False,
+    }
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        model = api_client_instance.model_details(7)
+    assert model.pk == 7
+    assert model.name == "latin"
+
+
+def test_model_delete_uses_delete_method(api_client_instance):
+    with patch.object(api_client_instance, "_make_request") as mock_req:
+        api_client_instance.model_delete(7)
+    mock_req.assert_called_once_with("models/7/", method="DELETE", expected_status=204)
+
+
+# ---------------------------------------------------------------------------
+# model_update / model_create
+# ---------------------------------------------------------------------------
+
+
+def test_model_update_uses_existing_job_and_name_when_not_provided(
+    api_client_instance, tmp_path
+):
+    fake_file = tmp_path / "updated.mlmodel"
+    fake_file.write_bytes(b"fake model data")
+
+    mock_details = MagicMock()
+    mock_details.job = "Recognize"
+    mock_details.name = "existing-name"
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "pk": 5,
+        "name": "existing-name",
+        "file": "/models/updated.mlmodel",
+        "file_size": 15,
+        "job": "Recognize",
+        "owner": "alice",
+        "training": False,
+        "versions": [],
+        "documents": [],
+        "accuracy_percent": None,
+        "training_accuracy": None,
+        "rights": "private",
+        "can_share": False,
+    }
+    with (
+        patch.object(api_client_instance, "model_details", return_value=mock_details),
+        patch.object(
+            api_client_instance, "_make_request", return_value=mock_resp
+        ) as mock_req,
+        patch("htr2hpc.api_client.get_model_accuracy", return_value=0.91) as mock_acc,
+    ):
+        result = api_client_instance.model_update(5, fake_file)
+    assert result.name == "existing-name"
+    _, kwargs = mock_req.call_args
+    assert kwargs["method"] == "PUT"
+    assert kwargs["data"]["name"] == "existing-name"
+    assert kwargs["data"]["job"] == "Recognize"
+    assert kwargs["data"]["training_accuracy"] == 0.91
+    mock_acc.assert_called_once_with(fake_file)
+
+
+def test_model_create_uses_filename_stem_as_default_name(api_client_instance, tmp_path):
+    fake_file = tmp_path / "foo.mlmodel"
+    fake_file.write_bytes(b"fake model data")
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "pk": 9,
+        "name": "foo",
+        "file": "/models/foo.mlmodel",
+        "file_size": 15,
+        "job": "Recognize",
+        "owner": "alice",
+        "training": False,
+        "versions": [],
+        "documents": [],
+        "accuracy_percent": None,
+        "training_accuracy": None,
+        "rights": "private",
+        "can_share": False,
+    }
+    with (
+        patch.object(
+            api_client_instance, "_make_request", return_value=mock_resp
+        ) as mock_req,
+        patch("htr2hpc.api_client.get_model_accuracy", return_value=0.88) as mock_acc,
+    ):
+        result = api_client_instance.model_create(fake_file, job="Recognize")
+    assert result.name == "foo"
+    _, kwargs = mock_req.call_args
+    assert kwargs["method"] == "POST"
+    assert kwargs["expected_status"] == 201
+    assert kwargs["data"]["name"] == "foo"
+    assert kwargs["data"]["training_accuracy"] == 0.88
+    mock_acc.assert_called_once_with(fake_file)
+
+
+# ---------------------------------------------------------------------------
+# document_list / document_details / document_parts_list
+# ---------------------------------------------------------------------------
+
+
+def test_document_list_returns_results_list(api_client_instance):
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        result = api_client_instance.document_list()
+    assert isinstance(result, ResultsList)
+
+
+def test_document_list_passes_page_param(api_client_instance):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
+    with patch.object(
+        api_client_instance, "_make_request", return_value=mock_resp
+    ) as mock_req:
+        api_client_instance.document_list(page=3)
+    mock_req.assert_called_once_with("documents/", params={"page": 3})
+
+
+def test_document_details_returns_namedtuple(api_client_instance):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"pk": 42, "name": "My Doc", "parts_count": 5}
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        doc = api_client_instance.document_details(42)
+    assert doc.pk == 42
+    assert doc.name == "My Doc"
+
+
+def test_document_parts_list_returns_results_list(api_client_instance):
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
+    with patch.object(api_client_instance, "_make_request", return_value=mock_resp):
+        result = api_client_instance.document_parts_list(42)
+    assert isinstance(result, ResultsList)
+
+
+# ---------------------------------------------------------------------------
+# HTTP-level tests
+#
+# The tests above stub out `_make_request` to check what each method asks for.
+# The tests below use `responses` to fake the eScriptorium server instead, so
+# request building, response handling and file downloads run for real, and we
+# assert on the actual HTTP traffic.
+# ---------------------------------------------------------------------------
+
+API_ROOT = "https://escriptorium.example.com/api"
+EMPTY_PAGE = {"count": 0, "next": None, "previous": None, "results": []}
+
+
+@pytest.fixture
+def rsps():
+    """Fake eScriptorium server. Fails the test if a registered response is
+    never requested, so a stale or misspelled url can't go unnoticed."""
+    with responses.RequestsMock() as mock:
+        yield mock
+
+
+def sent_query(call):
+    """Query string parameters of a request recorded by `responses`."""
+    # keep blank values, so a stray empty parameter is not hidden from assertions
+    return parse_qs(urlparse(call.request.url).query, keep_blank_values=True)
+
+
+def sent_form(call):
+    """Form-encoded body of a request recorded by `responses`."""
+    # keep blank values, so a stray empty field is not hidden from assertions
+    return parse_qs(call.request.body, keep_blank_values=True)
+
+
+def test_make_request_sends_params_data_and_files(rsps, api_client_instance):
+    rsps.post(f"{API_ROOT}/models/", status=200)
+
+    api_client_instance._make_request(
+        "models/",
+        method="POST",
+        params={"page": 2},
+        data={"name": "my model"},
+        files={"file": ("m.mlmodel", b"model bytes")},
+    )
+
+    call = rsps.calls[0]
+    assert sent_query(call) == {"page": ["2"]}
+    # data and file are sent together as a multipart form
+    assert call.request.headers["Content-Type"].startswith("multipart/form-data")
+    assert b'name="name"' in call.request.body
+    assert b"model bytes" in call.request.body
+
+
+def test_make_request_raises_on_unexpected_server_error(rsps, api_client_instance):
+    rsps.get(f"{API_ROOT}/documents/", status=500)
+
+    # anything other than the explicitly handled statuses
+    # should surface as a requests HTTPError rather than be swallowed
+    with pytest.raises(requests.HTTPError):
+        api_client_instance._make_request("documents/")
+
+
+# document_part_details
+
+
+def part_json(lines):
+    return {"pk": 5, "regions": [], "lines": lines}
+
+
+# NOTE on the xfail tests below: they document source bugs and stop at the bug,
+# so the rest of each test body can't run yet. Those lines are excluded from the
+# tests' own coverage (codecov requires 100%). When a bug is fixed, remove the
+# xfail marker and the `pragma: no cover` together.
+@pytest.mark.xfail(
+    raises=TypeError,
+    strict=True,
+    reason="bug: line pk (int) is joined as str in the warning message; see PR notes",
+)
+def test_document_part_details_skips_lines_without_geometry(
+    rsps, api_client_instance, caplog
+):  # pragma: no cover
+    # eScriptorium can return lines with no baseline or mask;
+    # kraken can't use these, so they must be dropped before training.
+    # Line pks are integers in the real API.
+    good = {"pk": 1, "mask": [[0, 0], [9, 9]], "baseline": [[0, 5], [9, 5]]}
+    no_mask = {"pk": 2, "mask": None, "baseline": [[0, 5], [9, 5]]}
+    no_baseline = {"pk": 3, "mask": [[0, 0], [9, 9]], "baseline": None}
+    rsps.get(
+        f"{API_ROOT}/documents/42/parts/5/",
+        json=part_json([good, no_mask, no_baseline]),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="htr2hpc.api_client"):
+        part = api_client_instance.document_part_details(42, 5)
+
+    assert [line.pk for line in part.lines] == [1]
+    # the warning identifies which lines were skipped, and where they are
+    assert "Skipping 2 lines" in caplog.text
+    assert "2,3" in caplog.text
+    assert "document 42, part 5" in caplog.text
+
+
+def test_document_part_details_keeps_all_valid_lines(rsps, api_client_instance, caplog):
+    good = {"pk": 1, "mask": [[0, 0], [9, 9]], "baseline": [[0, 5], [9, 5]]}
+    rsps.get(f"{API_ROOT}/documents/42/parts/5/", json=part_json([good, good]))
+
+    with caplog.at_level(logging.WARNING, logger="htr2hpc.api_client"):
+        part = api_client_instance.document_part_details(42, 5)
+
+    assert len(part.lines) == 2
+    assert "Skipping" not in caplog.text
+
+
+def test_document_part_details_returns_none_for_unparsable_part(
+    rsps, api_client_instance
+):
+    # a field name that can't become a namedtuple attribute; the part is
+    # skipped (None) so that one bad part doesn't abort a whole training run
+    rsps.get(
+        f"{API_ROOT}/documents/42/parts/5/",
+        json={"pk": 5, "lines": [], "not a valid name": 1},
+    )
+
+    assert api_client_instance.document_part_details(42, 5) is None
+
+
+# document_part_transcription_list
+
+
+def test_document_part_transcription_list_filters_by_transcription(
+    rsps,
+    api_client_instance,
+):
+    rsps.get(f"{API_ROOT}/documents/42/parts/5/transcriptions/", json=EMPTY_PAGE)
+
+    api_client_instance.document_part_transcription_list(42, 5, transcription_id=7)
+
+    # without the filter we would train on lines from every transcription
+    assert sent_query(rsps.calls[0]) == {"transcription": ["7"]}
+
+
+def test_document_part_transcription_list_unfiltered_by_default(
+    rsps, api_client_instance
+):
+    rsps.get(f"{API_ROOT}/documents/42/parts/5/transcriptions/", json=EMPTY_PAGE)
+
+    api_client_instance.document_part_transcription_list(42, 5)
+
+    assert sent_query(rsps.calls[0]) == {}
+
+
+# document_export
+
+
+@pytest.mark.xfail(
+    raises=AttributeError,
+    strict=True,
+    reason="bug: document_export calls nonexistent self.document(); see PR notes",
+)
+def test_document_export_requests_alto_with_all_region_types(
+    rsps, api_client_instance
+):  # pragma: no cover
+    # remove with the xfail marker: the bug stops the test before the
+    # registered responses are requested
+    rsps.assert_all_requests_are_fired = False
+    # region types come from the document's own block types, plus the two
+    # pseudo-types eScriptorium uses for untyped and unattached regions
+    rsps.get(
+        f"{API_ROOT}/documents/42/",
+        json={"pk": 42, "valid_block_types": [{"pk": 1}, {"pk": 2}]},
+    )
+    rsps.post(f"{API_ROOT}/documents/42/export/", json={"status": "ok"})
+
+    result = api_client_instance.document_export(42, transcription_id=7)
+
+    assert result.status == "ok"
+    form = sent_form(rsps.calls[1])
+    assert form["file_format"] == ["alto"]
+    assert form["transcription"] == ["7"]
+    assert form["include_images"] == ["False"]
+    assert form["region_types"] == ["1", "2", "Undefined", "Orphan"]
+
+
+# list_types
+
+
+def test_list_types_rejects_unsupported_type(api_client_instance):
+    with pytest.raises(ValueError, match="not a supported type"):
+        api_client_instance.list_types("document")
+
+
+def test_list_types_requests_type_endpoint(rsps, api_client_instance):
+    rsps.get(f"{API_ROOT}/types/block/", json=EMPTY_PAGE)
+
+    result = api_client_instance.list_types("block")
+
+    assert isinstance(result, ResultsList)
+    assert result.result_type == "type"
+
+
+# download_file
+
+
+@pytest.mark.parametrize(
+    ("explicit_name", "disposition", "expected_name"),
+    [
+        # a caller-supplied name always wins
+        ("chosen.zip", 'attachment; filename="srv.zip"', "chosen.zip"),
+        # otherwise use the server's suggested name
+        (None, 'attachment; filename="srv.zip"', "srv.zip"),
+        # with no hint at all, fall back to the end of the url
+        (None, None, "file.zip"),
+    ],
+    ids=["explicit-name", "content-disposition", "url-fallback"],
+)
+def test_download_file_chooses_filename(
+    rsps, api_client_instance, tmp_path, explicit_name, disposition, expected_name
+):
+    url = "https://escriptorium.example.com/media/file.zip"
+    body = b"zip content"
+    headers = {"content-length": str(len(body))}
+    if disposition:
+        headers["content-disposition"] = disposition
+    rsps.get(url, body=body, headers=headers)
+
+    saved = api_client_instance.download_file(url, tmp_path, filename=explicit_name)
+
+    assert saved == tmp_path / expected_name
+    assert saved.read_bytes() == body
+
+
+def test_download_file_returns_none_on_error_status(
+    rsps, api_client_instance, tmp_path
+):
+    url = "https://escriptorium.example.com/media/missing.zip"
+    rsps.get(url, status=404)
+
+    assert api_client_instance.download_file(url, tmp_path) is None
+    # nothing should be left behind for later steps to trip over
+    assert list(tmp_path.iterdir()) == []
+
+
+# download_document_export
+
+
+def task_json(**overrides):
+    """A task API response, based on the TASK_DATA fixture above."""
+    return dict(TASK_DATA, **overrides)
+
+
+@pytest.mark.xfail(
+    raises=AttributeError,
+    strict=True,
+    reason="bug: document_export calls nonexistent self.document(); see PR notes",
+)
+def test_download_document_export_waits_for_task_then_downloads(
+    rsps, mocker, api_client_instance, tmp_path, monkeypatch
+):  # pragma: no cover
+    # remove with the xfail marker: the bug stops the test before the
+    # registered responses are requested
+    rsps.assert_all_requests_are_fired = False
+    monkeypatch.chdir(tmp_path)  # the export is saved in the working directory
+    rsps.get(
+        f"{API_ROOT}/documents/42/",
+        json={"pk": 42, "valid_block_types": []},
+    )
+    rsps.post(f"{API_ROOT}/documents/42/export/", json={"status": "ok"})
+    # the newest task is listed first, and is not finished yet
+    queued = task_json(pk=99, done_at=None)
+    rsps.get(
+        f"{API_ROOT}/tasks/",
+        json=dict(EMPTY_PAGE, count=1, results=[queued]),
+    )
+    # the first status check is still running; the second is done
+    rsps.get(f"{API_ROOT}/tasks/99/", json=queued)
+    rsps.get(f"{API_ROOT}/tasks/99/", json=task_json(pk=99))
+    # file name is based on the time the task finished (see TASK_DATA)
+    export_url = (
+        "https://escriptorium.example.com/media/users/3/"
+        "export_doc42_my_doc_alto_202401151001.zip"
+    )
+    rsps.get(
+        export_url,
+        body=b"zipped alto",
+        headers={
+            "content-disposition": 'attachment; filename="export.zip"',
+            "content-length": "11",
+        },
+    )
+
+    mock_sleep = mocker.patch("htr2hpc.api_client.sleep")
+    saved = api_client_instance.download_document_export(
+        user_id=3, document_id=42, document_name="My Doc", transcription_ids=7
+    )
+
+    # waits one second each time it finds the task still unfinished:
+    # once for the task from the list, once for the first status check
+    assert mock_sleep.call_count == 2
+    # returned path is relative to the working directory (set to tmp_path above)
+    assert saved.name == "export.zip"
+    assert (tmp_path / saved).read_bytes() == b"zipped alto"
+
+
+# task_list / task_update
+
+
+def test_task_list_passes_page_param(rsps, api_client_instance):
+    rsps.get(f"{API_ROOT}/tasks/", json=EMPTY_PAGE)
+
+    api_client_instance.task_list(page=3)
+
+    assert sent_query(rsps.calls[0]) == {"page": ["3"]}
+
+
+def test_task_update_sends_label_user_and_messages(rsps, api_client_instance):
+    rsps.put(f"{API_ROOT}/tasks/9/", json=task_json(pk=9))
+
+    api_client_instance.task_update(9, label="Train", user_id=3, messages="step 2")
+
+    assert sent_form(rsps.calls[0]) == {
+        "label": ["Train"],
+        "user": ["3"],
+        "messages": ["step 2"],
+    }
+
+
+def test_task_update_omits_messages_when_not_given(rsps, api_client_instance):
+    rsps.put(f"{API_ROOT}/tasks/9/", json=task_json(pk=9))
+
+    api_client_instance.task_update(9, label="Train", user_id=3)
+
+    # leaving messages out keeps any existing messages on the task
+    assert "messages" not in sent_form(rsps.calls[0])

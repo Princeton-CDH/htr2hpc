@@ -6,6 +6,7 @@
 - Support lightweight content management via Wagtail Snippets; staff can edit page content (homepage intro, contact info, model descriptions, HPC setup instructions, announcements) through the Wagtail admin without a code change or deployment
 - Wagtail is an optional dependency (`pip install htr2hpc[all]`); instances that don't need content management are unaffected
 - Staff edit content snippets in the Wagtail admin at `/cms/`
+- Fix the Wagtail admin so it loads without the Wagtail documents and images apps, which conflict with eScriptorium (can be removed once Wagtail 8.1 is supported)
 
 ## 0.8
 

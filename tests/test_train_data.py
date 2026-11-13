@@ -2,7 +2,7 @@
 
 import pathlib
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, create_autospec, patch
+from unittest.mock import MagicMock, call, create_autospec
 
 import pytest
 from kraken.containers import BaselineLine, Region, Segmentation
@@ -13,14 +13,28 @@ from htr2hpc.train.data import (
     TrainingDataCounts,
     compile_data,
     get_best_model,
+    get_document_parts,
+    get_model_file,
     get_prelim_model,
     get_segmentation_data,
     get_training_data,
+    get_transcription_lines,
     serialize_segmentation,
     split_segmentation,
     upload_best_model,
     upload_models,
 )
+
+
+def make_api(**attrs):
+    """Fake eScriptorium API client. Built from the real class, so calling a
+    method that doesn't exist (or with the wrong arguments) fails the test.
+    Instance attributes set in __init__ aren't part of the spec; pass them in."""
+    api = create_autospec(eScriptoriumAPIClient, instance=True)
+    for name, value in attrs.items():
+        setattr(api, name, value)
+    return api
+
 
 # ---------------------------------------------------------------------------
 # serialize_segmentation — kraken 6.x tags generate TAGREFS in ALTO output
@@ -157,91 +171,76 @@ def test_get_prelim_model_name_strips_last_segment(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _make_mlmodel(directory: pathlib.Path, name: str, accuracy: float):
-    """Create a dummy .mlmodel file and patch get_model_accuracy for it."""
+def _make_mlmodel(directory: pathlib.Path, name: str):
+    """Create a dummy .mlmodel file; fake its accuracy with `patch_accuracy`."""
     f = directory / name
     f.write_bytes(b"fake model")
     return f
 
 
+@pytest.fixture
+def patch_accuracy(mocker):
+    """Fake the accuracy kraken stores in a model file.
+    Call with a dict of model path -> accuracy."""
+
+    def patch_accuracy(accuracies):
+        return mocker.patch(
+            "htr2hpc.train.data.get_model_accuracy",
+            side_effect=lambda path: accuracies[path],
+        )
+
+    return patch_accuracy
+
+
 class TestGetBestModel:
-    """Tests for get_best_model using mocked get_model_accuracy."""
+    """Tests for get_best_model with faked model accuracy."""
 
-    def test_returns_best_mlmodel_file_when_present(self, tmp_path):
-        best = _make_mlmodel(tmp_path, "model_best.mlmodel", 0.95)
-        _make_mlmodel(tmp_path, "model_0.mlmodel", 0.80)
+    def test_returns_best_mlmodel_file_when_present(self, tmp_path, patch_accuracy):
+        best = _make_mlmodel(tmp_path, "model_best.mlmodel")
+        _make_mlmodel(tmp_path, "model_0.mlmodel")
+        patch_accuracy({best: 0.95})
 
-        with patch("htr2hpc.train.data.get_model_accuracy", return_value=0.95):
-            result = get_best_model(tmp_path)
-
-        assert result == best
+        assert get_best_model(tmp_path) == best
 
     def test_returns_none_when_no_models(self, tmp_path):
-        result = get_best_model(tmp_path)
-        assert result is None
+        assert get_best_model(tmp_path) is None
 
-    def test_best_file_not_returned_if_below_original_accuracy(self, tmp_path):
-        _make_mlmodel(tmp_path, "model_best.mlmodel", 0.70)
-        original = _make_mlmodel(tmp_path, "original.mlmodel", 0.90)
+    def test_best_file_not_returned_if_below_original_accuracy(
+        self, tmp_path, patch_accuracy
+    ):
+        best = _make_mlmodel(tmp_path, "model_best.mlmodel")
+        original = _make_mlmodel(tmp_path, "original.mlmodel")
+        patch_accuracy({best: 0.70, original: 0.90})
 
-        def fake_accuracy(path):
-            return 0.70 if "best" in path.name else 0.90
+        assert get_best_model(tmp_path, original_model=original) is None
 
-        with patch("htr2hpc.train.data.get_model_accuracy", side_effect=fake_accuracy):
-            result = get_best_model(tmp_path, original_model=original)
+    def test_fallback_to_accuracy_scan_when_no_best_file(
+        self, tmp_path, patch_accuracy
+    ):
+        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel")
+        m2 = _make_mlmodel(tmp_path, "model_1.mlmodel")
+        m3 = _make_mlmodel(tmp_path, "model_2.mlmodel")
+        patch_accuracy({m1: 0.70, m2: 0.85, m3: 0.80})
 
-        assert result is None
+        assert get_best_model(tmp_path) == m2
 
-    def test_fallback_to_accuracy_scan_when_no_best_file(self, tmp_path):
-        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel", 0.70)
-        m2 = _make_mlmodel(tmp_path, "model_1.mlmodel", 0.85)
-        m3 = _make_mlmodel(tmp_path, "model_2.mlmodel", 0.80)
+    def test_fallback_scan_respects_original_model_threshold(
+        self, tmp_path, patch_accuracy
+    ):
+        original = _make_mlmodel(tmp_path, "original.mlmodel")
+        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel")
+        patch_accuracy({original: 0.90, m1: 0.85})
 
-        accuracies = {m1: 0.70, m2: 0.85, m3: 0.80}
+        assert get_best_model(tmp_path, original_model=original) is None
 
-        with patch(
-            "htr2hpc.train.data.get_model_accuracy",
-            side_effect=lambda p: accuracies[p],
-        ):
-            result = get_best_model(tmp_path)
+    def test_fallback_scan_returns_model_beating_original(
+        self, tmp_path, patch_accuracy
+    ):
+        original = _make_mlmodel(tmp_path, "original.mlmodel")
+        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel")
+        patch_accuracy({original: 0.80, m1: 0.92})
 
-        assert result == m2
-
-    def test_fallback_scan_respects_original_model_threshold(self, tmp_path):
-        original = _make_mlmodel(tmp_path, "original.mlmodel", 0.90)
-        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel", 0.85)
-
-        accuracies = {original: 0.90, m1: 0.85}
-
-        with patch(
-            "htr2hpc.train.data.get_model_accuracy",
-            side_effect=lambda p: accuracies[p],
-        ):
-            result = get_best_model(tmp_path, original_model=original)
-
-        assert result is None
-
-    def test_fallback_scan_returns_model_beating_original(self, tmp_path):
-        original = _make_mlmodel(tmp_path, "original.mlmodel", 0.80)
-        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel", 0.92)
-
-        accuracies = {original: 0.80, m1: 0.92}
-
-        with patch(
-            "htr2hpc.train.data.get_model_accuracy",
-            side_effect=lambda p: accuracies[p],
-        ):
-            result = get_best_model(tmp_path, original_model=original)
-
-        assert result == m1
-
-    def test_best_file_returned_even_without_original(self, tmp_path):
-        best = _make_mlmodel(tmp_path, "run_best.mlmodel", 0.88)
-
-        with patch("htr2hpc.train.data.get_model_accuracy", return_value=0.88):
-            result = get_best_model(tmp_path)
-
-        assert result == best
+        assert get_best_model(tmp_path, original_model=original) == m1
 
 
 # ---------------------------------------------------------------------------
@@ -263,22 +262,8 @@ def _make_transcription_page(lines, next_url=None):
     return page
 
 
-def test_get_transcription_lines_single_page():
-    from htr2hpc.train.data import get_transcription_lines
-
-    api = MagicMock()
-    lines = [_make_text_line(1, "hello"), _make_text_line(2, "world")]
-    api.document_part_transcription_list.return_value = _make_transcription_page(lines)
-
-    result = get_transcription_lines(api, document_id=10, part_id=5, transcription_id=3)
-
-    assert result == {1: "hello", 2: "world"}
-
-
-def test_get_transcription_lines_multiple_pages():
-    from htr2hpc.train.data import get_transcription_lines
-
-    api = MagicMock()
+def test_get_transcription_lines_follows_pages():
+    api = make_api()
     page2 = _make_transcription_page([_make_text_line(3, "page2line")])
     page1 = _make_transcription_page(
         [_make_text_line(1, "a"), _make_text_line(2, "b")],
@@ -289,6 +274,7 @@ def test_get_transcription_lines_multiple_pages():
 
     result = get_transcription_lines(api, document_id=10, part_id=5, transcription_id=3)
 
+    # text of every page, looked up by line id
     assert result == {1: "a", 2: "b", 3: "page2line"}
 
 
@@ -304,21 +290,8 @@ def _make_parts_page(pks, next_url=None):
     return page
 
 
-def test_get_document_parts_single_page():
-    from htr2hpc.train.data import get_document_parts
-
-    api = MagicMock()
-    api.document_parts_list.return_value = _make_parts_page([101, 102, 103])
-
-    result = get_document_parts(api, document_id=42)
-
-    assert result == [101, 102, 103]
-
-
-def test_get_document_parts_multiple_pages():
-    from htr2hpc.train.data import get_document_parts
-
-    api = MagicMock()
+def test_get_document_parts_follows_pages():
+    api = make_api()
     page2 = _make_parts_page([104, 105])
     page1 = _make_parts_page(
         [101, 102, 103], next_url="http://example.com/api/parts/?page=2"
@@ -336,66 +309,43 @@ def test_get_document_parts_multiple_pages():
 # ---------------------------------------------------------------------------
 
 
-def test_get_model_file_recognize_downloads_file(tmp_path):
-    from htr2hpc.train.data import get_model_file
-
-    api = MagicMock()
-    api.model_details.return_value = MagicMock(
-        job="Recognize", file="/models/foo.mlmodel"
-    )
-    expected_path = tmp_path / "foo.mlmodel"
-    api.download_file.return_value = expected_path
-
-    result = get_model_file(
-        api, model_id=7, training_type="Recognize", output_dir=tmp_path
+@pytest.mark.parametrize("job", ["Recognize", "Segment"])
+def test_get_model_file_downloads_model_of_requested_type(job, tmp_path):
+    api = make_api()
+    api.model_details.return_value = SimpleNamespace(
+        job=job, file="/models/foo.mlmodel"
     )
 
-    assert result == expected_path
+    result = get_model_file(api, model_id=7, training_type=job, output_dir=tmp_path)
+
     api.download_file.assert_called_once_with("/models/foo.mlmodel", tmp_path)
+    assert result == api.download_file.return_value
 
 
-def test_get_model_file_segment_downloads_file(tmp_path):
-    from htr2hpc.train.data import get_model_file
-
-    api = MagicMock()
-    api.model_details.return_value = MagicMock(
-        job="Segment", file="/models/seg.mlmodel"
-    )
-    expected_path = tmp_path / "seg.mlmodel"
-    api.download_file.return_value = expected_path
-
-    result = get_model_file(
-        api, model_id=8, training_type="Segment", output_dir=tmp_path
-    )
-
-    assert result == expected_path
-
-
-def test_get_model_file_raises_on_job_mismatch():
-    from htr2hpc.train.data import get_model_file
-
-    api = MagicMock()
-    api.model_details.return_value = MagicMock(
+def test_get_model_file_raises_on_job_mismatch(tmp_path):
+    api = make_api()
+    api.model_details.return_value = SimpleNamespace(
         job="Segment", file="/models/seg.mlmodel"
     )
 
     with pytest.raises(ValueError, match="Recognize requested"):
-        get_model_file(
-            api, model_id=8, training_type="Recognize", output_dir=MagicMock()
-        )
+        get_model_file(api, model_id=8, training_type="Recognize", output_dir=tmp_path)
+
+    # a model of the wrong type is not downloaded
+    api.download_file.assert_not_called()
 
 
-def test_get_model_file_returns_none_when_no_file():
-    from htr2hpc.train.data import get_model_file
-
-    api = MagicMock()
-    api.model_details.return_value = MagicMock(job="Recognize", file=None)
+def test_get_model_file_returns_none_when_no_file(tmp_path):
+    # a newly created model record in eScriptorium has no file yet
+    api = make_api()
+    api.model_details.return_value = SimpleNamespace(job="Recognize", file=None)
 
     result = get_model_file(
-        api, model_id=5, training_type="Recognize", output_dir=MagicMock()
+        api, model_id=5, training_type="Recognize", output_dir=tmp_path
     )
 
     assert result is None
+    api.download_file.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -407,16 +357,6 @@ def test_get_model_file_returns_none_when_no_file():
 # ---------------------------------------------------------------------------
 
 IMAGE_URI = "/media/documents/42/page1.jpg"
-
-
-def make_api(**attrs):
-    """Fake eScriptorium API client. Built from the real class, so calling a
-    method that doesn't exist (or with the wrong arguments) fails the test.
-    Instance attributes set in __init__ aren't part of the spec; pass them in."""
-    api = create_autospec(eScriptoriumAPIClient, instance=True)
-    for name, value in attrs.items():
-        setattr(api, name, value)
-    return api
 
 
 def make_document_details():
@@ -497,8 +437,11 @@ def test_get_segmentation_data_links_lines_to_typed_regions(api, tmp_path):
         {"type": [{"type": "Default"}]},
         {"type": [{"type": "default"}]},
     ]
-    assert seg.type == "baselines"
-    assert seg.text_direction == "horizontal-lr"
+    # geometry is taken over unchanged: the region box is the region boundary,
+    # the line mask is the line boundary
+    assert seg.regions["Main"][0].boundary == make_region(100).box
+    assert seg.lines[0].baseline == make_line(1).baseline
+    assert seg.lines[0].boundary == make_line(1).mask
     # part details are passed back too, for the image size needed to serialize
     assert part.image.size == (100, 100)
 
@@ -759,7 +702,7 @@ def test_upload_models_uploads_in_epoch_order(tmp_path):
         (tmp_path / f"model_{epoch}.mlmodel").write_bytes(b"x")
     api = make_api()
 
-    count = upload_models(api, tmp_path, "Recognize", show_progress=False)
+    count = upload_models(api, tmp_path, "Segment", show_progress=False)
 
     assert count == 3
     assert [c.args[0].name for c in api.model_create.call_args_list] == [
@@ -767,9 +710,20 @@ def test_upload_models_uploads_in_epoch_order(tmp_path):
         "model_2.mlmodel",
         "model_10.mlmodel",
     ]
-    assert all(
-        c.kwargs == {"job": "Recognize"} for c in api.model_create.call_args_list
-    )
+    assert all(c.kwargs == {"job": "Segment"} for c in api.model_create.call_args_list)
+
+
+@pytest.mark.xfail(
+    raises=ValueError,
+    strict=True,
+    reason="known limitation (see NOTE in upload_models): files are sorted by "
+    "epoch number, which a *_best.mlmodel file does not have",
+)
+def test_upload_models_with_best_model_file(tmp_path):
+    (tmp_path / "model_0.mlmodel").write_bytes(b"x")
+    (tmp_path / "model_best.mlmodel").write_bytes(b"x")
+
+    upload_models(make_api(), tmp_path, "Recognize", show_progress=False)
 
 
 def test_upload_models_counts_only_successful_uploads(tmp_path):
@@ -825,14 +779,24 @@ def test_upload_best_model_updates_existing_model_when_id_given(mocker, tmp_path
     api.model_create.assert_not_called()
 
 
-def test_upload_best_model_passes_original_model_to_comparison(mocker, tmp_path):
-    mock_best = mocker.patch("htr2hpc.train.data.get_best_model")
+def test_upload_best_model_skips_model_worse_than_original(mocker, tmp_path):
     original = tmp_path / "original.mlmodel"
-    mock_best.return_value = None
+    original.write_bytes(b"x")
+    best = tmp_path / "run_best.mlmodel"
+    best.write_bytes(b"x")
+    accuracies = {original: 0.90, best: 0.80}
+    mocker.patch(
+        "htr2hpc.train.data.get_model_accuracy",
+        side_effect=lambda path: accuracies[path],
+    )
+    api = make_api()
 
-    upload_best_model(make_api(), tmp_path, "Segment", original_model=original)
+    result = upload_best_model(api, tmp_path, "Segment", original_model=original)
 
-    mock_best.assert_called_once_with(tmp_path, original_model=original)
+    # training did not improve on the original, so nothing is uploaded
+    assert result is None
+    api.model_create.assert_not_called()
+    api.model_update.assert_not_called()
 
 
 def test_upload_best_model_returns_none_when_upload_fails(mocker, tmp_path):

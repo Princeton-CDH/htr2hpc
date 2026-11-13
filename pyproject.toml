@@ -40,7 +40,7 @@ Issues = "https://github.com/Princeton-CDH/htr2hpc/issues"
 Source = "https://github.com/Princeton-CDH/htr2hpc"
 
 [project.optional-dependencies]
-wagtail = ["wagtail>=6.0,<7.0"]
+wagtail = ["wagtail==7.3.4"]
 all = ["htr2hpc[wagtail]"]
 
 [dependency-groups]

@@ -7,6 +7,8 @@
 - Wagtail is an optional dependency (`pip install htr2hpc[all]`); instances that don't need content management are unaffected
 - Staff edit content snippets in the Wagtail admin at `/cms/`
 - Override `wagtail_config` Wagtail template tag to allow loading without the Wagtail documents and images apps installed; can be removed after upgrade to Wagtail 8.1.
+- Use Python 3.12 for development, CI, and documentation builds, to match the deployed environment
+
 
 ## 0.8
 

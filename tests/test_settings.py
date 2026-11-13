@@ -59,6 +59,7 @@ try:
     INSTALLED_APPS += [
         "wagtail.snippets",
         "wagtail.admin",
+        "wagtail.users",
         "wagtail",
         "modelcluster",
         "taggit",

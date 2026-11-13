@@ -682,12 +682,14 @@ def rsps():
 
 def sent_query(call):
     """Query string parameters of a request recorded by `responses`."""
-    return parse_qs(urlparse(call.request.url).query)
+    # keep blank values, so a stray empty parameter is not hidden from assertions
+    return parse_qs(urlparse(call.request.url).query, keep_blank_values=True)
 
 
 def sent_form(call):
     """Form-encoded body of a request recorded by `responses`."""
-    return parse_qs(call.request.body)
+    # keep blank values, so a stray empty field is not hidden from assertions
+    return parse_qs(call.request.body, keep_blank_values=True)
 
 
 def test_make_request_sends_params_data_and_files(rsps, api_client_instance):

@@ -1,3 +1,4 @@
+import threading
 from unittest.mock import patch
 
 from django.urls import reverse
@@ -11,6 +12,13 @@ UNSUPPORTED_URLS = [
     "wagtailadmin_api:images:listing",
     "wagtailadmin_api:documents:listing",
 ]
+
+# `patch` temporarily replaces a module-level attribute that every thread in
+# the process shares. The lock makes sure only one request does this at a time;
+# otherwise one request could restore the original `reverse` while another
+# still needs the patched one. (Under Passenger, as deployed, each process
+# handles one request at a time, so this is a safeguard for threaded servers.)
+_patch_lock = threading.Lock()
 
 
 def patched_reverse(url, *args, **kwargs):
@@ -28,8 +36,12 @@ def patched_reverse(url, *args, **kwargs):
 @register.simple_tag(name="wagtail_config", takes_context=True)
 def custom_wagtail_config(context):
     # patch reverse where wagtail looks it up, not in django.urls
-    with patch(
-        "wagtail.admin.templatetags.wagtailadmin_tags.reverse", new=patched_reverse
+    with (
+        _patch_lock,
+        patch(
+            "wagtail.admin.templatetags.wagtailadmin_tags.reverse",
+            new=patched_reverse,
+        ),
     ):
         config = original_tags.wagtail_config(context)
     # delete the API entries for apps we're not using

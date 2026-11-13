@@ -1,5 +1,8 @@
 """Tests for the wagtail_config template tag override in htr2hpc.content."""
 
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 # the override only exists when the optional Wagtail dependency is installed
@@ -73,3 +76,24 @@ def test_wagtail_admin_loads_for_staff(client):
     client.force_login(user)
     response = client.get("/cms/snippets/")
     assert response.status_code == 200
+
+
+def test_wagtail_config_patch_is_thread_safe(context, monkeypatch):
+    # every concurrent call should see the patched reverse while it runs,
+    # and the original should be restored once all of them are done
+    reverse_before = original_tags.reverse
+    seen = []
+
+    def slow_config(context):
+        seen.append(original_tags.reverse is custom_tags.patched_reverse)
+        time.sleep(0.02)
+        seen.append(original_tags.reverse is custom_tags.patched_reverse)
+        return {"ADMIN_API": {}}
+
+    monkeypatch.setattr(original_tags, "wagtail_config", slow_config)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda _: custom_tags.custom_wagtail_config(context), range(16)))
+
+    assert all(seen)
+    assert original_tags.reverse is reverse_before

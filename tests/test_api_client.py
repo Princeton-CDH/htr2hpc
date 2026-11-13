@@ -197,7 +197,7 @@ def test_client_sets_user_agent(api_client_instance):
 
 
 def test_export_file_url_basic(api_client_instance):
-    dt = datetime.datetime(2024, 3, 15, 9, 30)
+    dt = datetime.datetime(2024, 3, 15, 9, 30, tzinfo=datetime.UTC)
     url = api_client_instance.export_file_url(
         user_id=5,
         document_id=42,
@@ -212,7 +212,7 @@ def test_export_file_url_basic(api_client_instance):
 
 
 def test_export_file_url_slugifies_document_name(api_client_instance):
-    dt = datetime.datetime(2024, 1, 1, 0, 0)
+    dt = datetime.datetime(2024, 1, 1, 0, 0, tzinfo=datetime.UTC)
     url = api_client_instance.export_file_url(
         user_id=1,
         document_id=1,
@@ -228,7 +228,7 @@ def test_export_file_url_slugifies_document_name(api_client_instance):
 
 
 def test_export_file_url_truncates_long_name(api_client_instance):
-    dt = datetime.datetime(2024, 1, 1, 0, 0)
+    dt = datetime.datetime(2024, 1, 1, 0, 0, tzinfo=datetime.UTC)
     long_name = "A" * 100
     url = api_client_instance.export_file_url(
         user_id=1,
@@ -243,7 +243,7 @@ def test_export_file_url_truncates_long_name(api_client_instance):
 
 
 def test_export_file_url_ends_with_zip(api_client_instance):
-    dt = datetime.datetime(2024, 6, 1, 12, 0)
+    dt = datetime.datetime(2024, 6, 1, 12, 0, tzinfo=datetime.UTC)
     url = api_client_instance.export_file_url(
         user_id=2,
         document_id=10,
@@ -725,6 +725,10 @@ def part_json(lines):
     return {"pk": 5, "regions": [], "lines": lines}
 
 
+# NOTE on the xfail tests below: they document source bugs and stop at the bug,
+# so the rest of each test body can't run yet. Those lines are excluded from the
+# tests' own coverage (codecov requires 100%). When a bug is fixed, remove the
+# xfail marker and the `pragma: no cover` together.
 @pytest.mark.xfail(
     raises=TypeError,
     strict=True,
@@ -732,7 +736,7 @@ def part_json(lines):
 )
 def test_document_part_details_skips_lines_without_geometry(
     rsps, api_client_instance, caplog
-):
+):  # pragma: no cover
     # eScriptorium can return lines with no baseline or mask;
     # kraken can't use these, so they must be dropped before training.
     # Line pks are integers in the real API.
@@ -811,7 +815,9 @@ def test_document_part_transcription_list_unfiltered_by_default(
     strict=True,
     reason="bug: document_export calls nonexistent self.document(); see PR notes",
 )
-def test_document_export_requests_alto_with_all_region_types(rsps, api_client_instance):
+def test_document_export_requests_alto_with_all_region_types(
+    rsps, api_client_instance
+):  # pragma: no cover
     # remove with the xfail marker: the bug stops the test before the
     # registered responses are requested
     rsps.assert_all_requests_are_fired = False
@@ -907,7 +913,7 @@ def task_json(**overrides):
 )
 def test_download_document_export_waits_for_task_then_downloads(
     rsps, mocker, api_client_instance, tmp_path, monkeypatch
-):
+):  # pragma: no cover
     # remove with the xfail marker: the bug stops the test before the
     # registered responses are requested
     rsps.assert_all_requests_are_fired = False

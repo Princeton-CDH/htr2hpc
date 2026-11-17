@@ -1,5 +1,6 @@
 """Tests for the usage report export functions in exports.py."""
 
+import itertools
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
@@ -31,9 +32,15 @@ def at(year, month, day, hour=12):
     return datetime(year, month, day, hour, tzinfo=timezone.get_current_timezone())
 
 
+_task_ids = itertools.count(1)
+
+
 def add_report(
     user, started_at, method=VM_SEGMENT_METHOD, task_id=None, minutes=10, cpu=1.0
 ):
+    # default to a unique task_id, i.e. a job with a single report
+    if task_id is None:
+        task_id = f"task-{next(_task_ids)}"
     return TaskReport.objects.create(
         user=user,
         method=method,
@@ -220,6 +227,64 @@ def test_hpc_jobs_counted_by_task_id(today, alice):
 
 
 @pytest.mark.django_db
+def test_multi_page_job_counted_once(today, alice):
+    # one training job on 10 pages: 10 task reports sharing a task_id,
+    # each with the same runtime and cpu cost
+    for _ in range(10):
+        add_report(
+            alice, at(2026, 9, 10), HPC_TRAIN_METHOD, task_id="t1", minutes=30, cpu=4.0
+        )
+    # a separate job
+    add_report(alice, at(2026, 9, 11), VM_SEGMENT_METHOD, task_id="s1", minutes=10)
+
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert row["task_count"] == 2
+    assert row["runtime_seconds"] == 40 * 60
+    assert row["cpu_usage"] == 5.0
+    assert row["hpc_train_tasks"] == 1
+
+
+@pytest.mark.django_db
+def test_reports_without_task_id_not_counted(today, alice):
+    # e.g. ontology import: a report created outside of celery
+    for task_id in [None, ""]:
+        TaskReport.objects.create(
+            user=alice, task_id=task_id, started_at=at(2026, 9, 10)
+        )
+    add_report(alice, at(2026, 9, 11))
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert row["task_count"] == 1
+
+
+@pytest.mark.django_db
+def test_job_assigned_to_period_of_first_report(today, alice):
+    # job starts just before midnight at the end of September; one page report
+    # is started after midnight, in October
+    add_report(alice, at(2026, 9, 30, 23), HPC_TRAIN_METHOD, task_id="t1")
+    add_report(alice, at(2026, 10, 1, 0), HPC_TRAIN_METHOD, task_id="t1")
+    rows = rows_for(date(2026, 9, 1), REPORT_MONTH)
+    assert [(r["report_start"], r["task_count"]) for r in rows] == [
+        (date(2026, 9, 1), 1)
+    ]
+
+
+@pytest.mark.django_db
+def test_job_started_before_start_date_excluded(today, alice):
+    add_report(alice, at(2026, 8, 31, 23), HPC_TRAIN_METHOD, task_id="t1")
+    add_report(alice, at(2026, 9, 1, 0), HPC_TRAIN_METHOD, task_id="t1")
+    assert rows_for(date(2026, 9, 1), REPORT_TOTAL) == []
+
+
+@pytest.mark.django_db
+def test_monthly_multi_page_job_counted_once(today, alice):
+    for _ in range(3):
+        add_report(alice, at(2026, 9, 10), HPC_TRAIN_METHOD, task_id="t1", minutes=5)
+    [row] = rows_for(date(2026, 9, 1), REPORT_MONTH)
+    assert row["task_count"] == 1
+    assert row["runtime_seconds"] == 5 * 60
+
+
+@pytest.mark.django_db
 def test_users_without_activity_have_no_rows(today, alice, bob, django_user_model):
     # carol has an account but no tasks at all
     django_user_model.objects.create_user(username="carol", email="carol@example.com")
@@ -241,7 +306,7 @@ def test_users_without_activity_have_no_rows(today, alice, bob, django_user_mode
 @pytest.mark.django_db
 def test_report_row_null_runtime_and_cpu(today, alice):
     TaskReport.objects.create(
-        user=alice, method=VM_SEGMENT_METHOD, started_at=at(2026, 9, 3)
+        user=alice, method=VM_SEGMENT_METHOD, task_id="t1", started_at=at(2026, 9, 3)
     )
     [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
     assert row["runtime_seconds"] == 0

@@ -49,6 +49,7 @@ def test_usage_report_csv(rf, today, staff_user):
     TaskReport.objects.create(
         user=staff_user,
         method=VM_SEGMENT_METHOD,
+        task_id="task-1",
         started_at=datetime(2026, 10, 6, 12, tzinfo=timezone.get_current_timezone()),
     )
     response = get_report(rf, staff_user, report_type="month", start="2026-09-01")

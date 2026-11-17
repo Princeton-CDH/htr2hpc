@@ -94,13 +94,34 @@ def get_usage_report(start: date, report_type: str):
     Grouping by month or week is done in the database. Only users with
     activity in a period get a row for that period. ``report_end`` is the
     last date with activity in the period, for every report type.
-    HPC task counts use distinct task_id to count jobs, not per-page TaskReports.
+    Counts, runtime and cpu usage are per job. eScriptorium creates one
+    TaskReport per page for a single job, all with the same task_id and
+    (nearly) the same times and cpu cost, so summing every report would
+    massively over-count. Only the first report of each job is used.
+    Reports without a task_id are not Celery tasks and are not included.
     """
     TaskReport = apps.get_model("reporting", "TaskReport")
     first, end = report_date_range(start, report_type, timezone.localdate())
 
+    # Keep the first report (lowest pk) of each job. This is done before the date
+    # filters so each job falls in a single period, based on its first report.
+    #
+    # This has to be done in two passes: Django does not allow annotate() (used
+    # below for the per-user aggregates) together with distinct("task_id"), so
+    # the de-duplication is a subquery and the aggregation is the outer query.
+    # Django inlines it as SQL (`id IN (SELECT DISTINCT ON ...)`), so the ids
+    # are never loaded into Python.
+    first_report_ids = Subquery(
+        TaskReport.objects.exclude(task_id__isnull=True)
+        .exclude(task_id="")
+        .order_by("task_id", "pk")
+        .distinct("task_id")
+        .values("pk")
+    )
+    reports = TaskReport.objects.filter(pk__in=first_report_ids)
+
     # filter on the date part of started_at, in the site's configured timezone
-    reports = TaskReport.objects.filter(started_at__date__gte=first)
+    reports = reports.filter(started_at__date__gte=first)
     if end is not None:
         reports = reports.filter(started_at__date__lt=end)
 
@@ -125,12 +146,8 @@ def get_usage_report(start: date, report_type: str):
             cpu_usage=Sum("cpu_cost"),
             vm_segment_tasks=Count("pk", filter=Q(method=VM_SEGMENT_METHOD)),
             vm_transcribe_tasks=Count("pk", filter=Q(method=VM_TRANSCRIBE_METHOD)),
-            hpc_segtrain_tasks=Count(
-                "task_id", filter=Q(method=HPC_SEGTRAIN_METHOD), distinct=True
-            ),
-            hpc_train_tasks=Count(
-                "task_id", filter=Q(method=HPC_TRAIN_METHOD), distinct=True
-            ),
+            hpc_segtrain_tasks=Count("pk", filter=Q(method=HPC_SEGTRAIN_METHOD)),
+            hpc_train_tasks=Count("pk", filter=Q(method=HPC_TRAIN_METHOD)),
         )
         .order_by("user__username", "report_start")
     )

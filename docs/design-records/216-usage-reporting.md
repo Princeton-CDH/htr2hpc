@@ -32,7 +32,7 @@ Each download is one CSV for one report type: total, monthly, or weekly.
   - `disk_usage_bytes` is a current snapshot, so it is filled in for totals only and left blank for months and weeks.
   - A user with no tasks in a period has no row for that period.
 
-- **HPC training is counted per job:** distinct `task_id`, not one count per page `TaskReport`.
+- **Tasks are counted per job:** eScriptorium creates one `TaskReport` per page for a single job, all with the same `task_id`, so summing every report would over-count. Only the first report of each `task_id` is used, before the date range is applied, so a job falls in one period. Reports without a `task_id` (not Celery tasks, e.g. ontology import) are not included.
 
 - **Task types left out:**
 

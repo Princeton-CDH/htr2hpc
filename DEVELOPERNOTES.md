@@ -55,6 +55,20 @@ If you prefer not to use devbox, you can set up the environment manually with `u
 
 Some eScriptorium dependencies require system libraries (e.g. libvips). See the [eScriptorium full install guide](https://gitlab.com/scripta/escriptorium/-/wikis/full-install) if you encounter errors installing requirements.
 
+### Pre-commit hooks
+
+We use [pre-commit](https://pre-commit.com/) to run linting and formatting checks before each commit. It is included in the `dev` dependency group, so `uv sync` installs it. Install the git hook once per checkout:
+
+```sh
+uv run pre-commit install
+```
+
+The hooks are configured in `.pre-commit-config.yaml` and include ruff (lint and format), mdformat, yamlfmt, codespell, a `uv.lock` check, and GitHub Actions workflow validation. Hooks that fix files (ruff, mdformat, yamlfmt) will modify them and fail the commit; review the changes, `git add` them, and commit again. To run all hooks manually on the whole codebase:
+
+```sh
+uv run pre-commit run --all-files
+```
+
 ### Git flow
 
 We recommend installing git-flow for a better development experience. On OSX, you can install with brew:
@@ -133,15 +147,11 @@ Release tags must use the `X.Y.Z` format without a `v` prefix (e.g. `0.9.0`, not
 
 ## Deploying a new release
 
-Once the new release has been merged to `main` and pushed to GitHub, deployment is handled via cdh-ansible. See the [cdh-ansible eScriptorium/htr2hpc application docs](https://github.com/Princeton-CDH/cdh-ansible/blob/main/docs/applications/escriptorium.md) for full deployment instructions, including how to use the `reinstall-htr2hpc` tag to deploy a new htr2hpc version.
+Once the new release has been merged to `main` and pushed to GitHub, deployment is handled via cdh-ansible. See the [cdh-ansible eScriptorium/htr2hpc application docs](https://github.com/Princeton-CDH/cdh-ansible/blob/main/docs/applications/escriptorium.md) for full deployment instructions. Every run of the playbook reinstalls htr2hpc from the git ref set with `-e htr2hpc_gitref=...` (release tag or branch), so there is no separate step for updating htr2hpc.
 
 Note: this deployment is specific to CDH's Princeton instance of eScriptorium.
 
-CDH's Princeton instance uses the Wagtail content management features. The Ansible playbook must install htr2hpc with the `all` optional dependency group, which includes Wagtail:
-
-```sh
-pip install htr2hpc[all]
-```
+CDH's Princeton instance uses the Wagtail content management features, so cdh-ansible installs htr2hpc with the `all` optional dependency group (`htr2hpc[all]`), which includes Wagtail.
 
 After deploying a new instance for the first time, load the content fixture to pre-populate the Wagtail admin with the default page snippets (the homepage heading and the profile page HPC instructions):
 

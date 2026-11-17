@@ -90,6 +90,9 @@ def sent_form(call):
 def sent_multipart(call):
     """Fields of a multipart/form-data request recorded by `responses`,
     as a dict of field name -> bytes."""
+    # The body of a multipart request is a MIME message, so parse it with the
+    # standard library's email parser. This lets tests assert on each field by
+    # name, instead of searching for strings in the raw bytes.
     header = f"Content-Type: {call.request.headers['Content-Type']}\r\n\r\n"
     message = message_from_bytes(
         header.encode() + call.request.body, policy=policy.default
@@ -397,6 +400,9 @@ def test_make_request_delete_with_expected_status(rsps, api_client_instance):
 
 
 def test_get_model_accuracy_extracts_last_value(mocker, tmp_path):
+    # Kraken stores [epoch, accuracy] pairs in the model metadata; the last
+    # one is the accuracy of the final training epoch. Loading a real model
+    # needs a trained kraken model, so fake the coremltools model instead.
     fake_model = tmp_path / "model.mlmodel"
     fake_model.write_bytes(b"fake")
 
@@ -464,6 +470,9 @@ def test_detail_endpoint_requests_item_and_parses_result(
 # paged list endpoints
 # ---------------------------------------------------------------------------
 
+# Every paged list endpoint works the same way, so the tests below run for each.
+# The lambdas make *which method to call* a test parameter; **kw passes on the
+# optional `page` argument.
 LIST_ENDPOINTS = pytest.mark.parametrize(
     ("call", "path", "result_type"),
     [
@@ -797,6 +806,8 @@ def test_download_file_chooses_filename(
 ):
     url = "https://escriptorium.example.com/media/file.zip"
     body = b"zip content"
+    # download_file reads content-length to log the size of the download (and
+    # fails without it), so set it like a real server does
     headers = {"content-length": str(len(body))}
     if disposition:
         headers["content-disposition"] = disposition

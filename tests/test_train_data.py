@@ -375,7 +375,10 @@ IMAGE_URI = "/media/documents/42/page1.jpg"
 
 
 def make_document_details():
-    """Document details with one custom line type and one custom block type."""
+    """Document details with two line types and one block type.
+    Ids used in the tests below: line types 1 (Default) and 2 (Heading), block
+    type 10 (Main). Any other id, such as 99, is a type the document does not
+    define, which eScriptorium reports for types that are not public."""
     return SimpleNamespace(
         pk=42,
         valid_line_types=[
@@ -619,6 +622,7 @@ def make_segmentation(tmp_path, name, n_lines=1, n_regions=1):
 
 @pytest.fixture
 def training_api():
+    """Fake API client that knows the document used by these tests."""
     api = make_api()
     api.document_details.return_value = make_document_details()
     return api

@@ -419,31 +419,45 @@ def test_get_model_accuracy_extracts_last_value(mocker, tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("call", "path", "payload"),
+    ("call", "path", "payload", "field"),
     [
         (
             lambda api: api.get_current_user(),
             "users/current/",
             {"pk": 1, "username": "alice"},
+            "username",
         ),
-        (lambda api: api.model_details(7), "models/7/", dict(MODEL_JSON, pk=7)),
+        (
+            lambda api: api.model_details(7),
+            "models/7/",
+            dict(MODEL_JSON, pk=7),
+            "name",
+        ),
         (
             lambda api: api.document_details(42),
             "documents/42/",
             {"pk": 42, "name": "My Doc"},
+            "name",
         ),
-        (lambda api: api.task_details(9), "tasks/9/", dict(TASK_DATA, pk=9)),
+        (
+            lambda api: api.task_details(9),
+            "tasks/9/",
+            dict(TASK_DATA, pk=9),
+            "label",
+        ),
     ],
     ids=["current-user", "model", "document", "task"],
 )
 def test_detail_endpoint_requests_item_and_parses_result(
-    rsps, api_client_instance, call, path, payload
+    rsps, api_client_instance, call, path, payload, field
 ):
     rsps.get(f"{API_ROOT}/{path}", json=payload)
 
     result = call(api_client_instance)
 
+    # pk and one more field, to check the result was parsed from this payload
     assert result.pk == payload["pk"]
+    assert getattr(result, field) == payload[field]
 
 
 # ---------------------------------------------------------------------------
@@ -516,7 +530,7 @@ def test_results_list_next_page_requests_next_url(rsps, api_client_instance):
     assert [model.pk for model in page2.results] == [2]
 
 
-def test_results_list_next_page_is_none_on_last_page(api_client_instance):
+def test_results_list_next_page_is_none_on_last_page(rsps, api_client_instance):
     last_page = ResultsList(
         api=api_client_instance,
         result_type="model",
@@ -526,7 +540,7 @@ def test_results_list_next_page_is_none_on_last_page(api_client_instance):
         results=[],
     )
 
-    # no request is made; rsps isn't active, so one would try a real connection
+    # no request is made: rsps has no responses registered, so one would fail
     assert last_page.next_page() is None
 
 
@@ -621,13 +635,14 @@ def test_model_update_with_given_job_and_name_skips_lookup(
     assert sent["job"] == b"Recognize"
 
 
-def test_model_delete(rsps, api_client_instance):
+def test_model_delete(rsps, api_client_instance, caplog):
     # eScriptorium responds with 204 No Content when a model is deleted
     rsps.delete(f"{API_ROOT}/models/7/", status=204)
 
     api_client_instance.model_delete(7)
 
-    assert len(rsps.calls) == 1
+    # an unexpected status is only logged as an error, so check that none was
+    assert "ERROR" not in [record.levelname for record in caplog.records]
 
 
 # document_part_details

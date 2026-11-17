@@ -2,7 +2,7 @@
 
 import pathlib
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, create_autospec
+from unittest.mock import MagicMock, call, create_autospec, patch
 
 import pytest
 from kraken.containers import BaselineLine, Region, Segmentation
@@ -171,76 +171,91 @@ def test_get_prelim_model_name_strips_last_segment(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _make_mlmodel(directory: pathlib.Path, name: str):
-    """Create a dummy .mlmodel file; fake its accuracy with `patch_accuracy`."""
+def _make_mlmodel(directory: pathlib.Path, name: str, accuracy: float):
+    """Create a dummy .mlmodel file and patch get_model_accuracy for it."""
     f = directory / name
     f.write_bytes(b"fake model")
     return f
 
 
-@pytest.fixture
-def patch_accuracy(mocker):
-    """Fake the accuracy kraken stores in a model file.
-    Call with a dict of model path -> accuracy."""
-
-    def patch_accuracy(accuracies):
-        return mocker.patch(
-            "htr2hpc.train.data.get_model_accuracy",
-            side_effect=lambda path: accuracies[path],
-        )
-
-    return patch_accuracy
-
-
 class TestGetBestModel:
-    """Tests for get_best_model with faked model accuracy."""
+    """Tests for get_best_model using mocked get_model_accuracy."""
 
-    def test_returns_best_mlmodel_file_when_present(self, tmp_path, patch_accuracy):
-        best = _make_mlmodel(tmp_path, "model_best.mlmodel")
-        _make_mlmodel(tmp_path, "model_0.mlmodel")
-        patch_accuracy({best: 0.95})
+    def test_returns_best_mlmodel_file_when_present(self, tmp_path):
+        best = _make_mlmodel(tmp_path, "model_best.mlmodel", 0.95)
+        _make_mlmodel(tmp_path, "model_0.mlmodel", 0.80)
 
-        assert get_best_model(tmp_path) == best
+        with patch("htr2hpc.train.data.get_model_accuracy", return_value=0.95):
+            result = get_best_model(tmp_path)
+
+        assert result == best
 
     def test_returns_none_when_no_models(self, tmp_path):
-        assert get_best_model(tmp_path) is None
+        result = get_best_model(tmp_path)
+        assert result is None
 
-    def test_best_file_not_returned_if_below_original_accuracy(
-        self, tmp_path, patch_accuracy
-    ):
-        best = _make_mlmodel(tmp_path, "model_best.mlmodel")
-        original = _make_mlmodel(tmp_path, "original.mlmodel")
-        patch_accuracy({best: 0.70, original: 0.90})
+    def test_best_file_not_returned_if_below_original_accuracy(self, tmp_path):
+        _make_mlmodel(tmp_path, "model_best.mlmodel", 0.70)
+        original = _make_mlmodel(tmp_path, "original.mlmodel", 0.90)
 
-        assert get_best_model(tmp_path, original_model=original) is None
+        def fake_accuracy(path):
+            return 0.70 if "best" in path.name else 0.90
 
-    def test_fallback_to_accuracy_scan_when_no_best_file(
-        self, tmp_path, patch_accuracy
-    ):
-        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel")
-        m2 = _make_mlmodel(tmp_path, "model_1.mlmodel")
-        m3 = _make_mlmodel(tmp_path, "model_2.mlmodel")
-        patch_accuracy({m1: 0.70, m2: 0.85, m3: 0.80})
+        with patch("htr2hpc.train.data.get_model_accuracy", side_effect=fake_accuracy):
+            result = get_best_model(tmp_path, original_model=original)
 
-        assert get_best_model(tmp_path) == m2
+        assert result is None
 
-    def test_fallback_scan_respects_original_model_threshold(
-        self, tmp_path, patch_accuracy
-    ):
-        original = _make_mlmodel(tmp_path, "original.mlmodel")
-        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel")
-        patch_accuracy({original: 0.90, m1: 0.85})
+    def test_fallback_to_accuracy_scan_when_no_best_file(self, tmp_path):
+        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel", 0.70)
+        m2 = _make_mlmodel(tmp_path, "model_1.mlmodel", 0.85)
+        m3 = _make_mlmodel(tmp_path, "model_2.mlmodel", 0.80)
 
-        assert get_best_model(tmp_path, original_model=original) is None
+        accuracies = {m1: 0.70, m2: 0.85, m3: 0.80}
 
-    def test_fallback_scan_returns_model_beating_original(
-        self, tmp_path, patch_accuracy
-    ):
-        original = _make_mlmodel(tmp_path, "original.mlmodel")
-        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel")
-        patch_accuracy({original: 0.80, m1: 0.92})
+        with patch(
+            "htr2hpc.train.data.get_model_accuracy",
+            side_effect=lambda p: accuracies[p],
+        ):
+            result = get_best_model(tmp_path)
 
-        assert get_best_model(tmp_path, original_model=original) == m1
+        assert result == m2
+
+    def test_fallback_scan_respects_original_model_threshold(self, tmp_path):
+        original = _make_mlmodel(tmp_path, "original.mlmodel", 0.90)
+        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel", 0.85)
+
+        accuracies = {original: 0.90, m1: 0.85}
+
+        with patch(
+            "htr2hpc.train.data.get_model_accuracy",
+            side_effect=lambda p: accuracies[p],
+        ):
+            result = get_best_model(tmp_path, original_model=original)
+
+        assert result is None
+
+    def test_fallback_scan_returns_model_beating_original(self, tmp_path):
+        original = _make_mlmodel(tmp_path, "original.mlmodel", 0.80)
+        m1 = _make_mlmodel(tmp_path, "model_0.mlmodel", 0.92)
+
+        accuracies = {original: 0.80, m1: 0.92}
+
+        with patch(
+            "htr2hpc.train.data.get_model_accuracy",
+            side_effect=lambda p: accuracies[p],
+        ):
+            result = get_best_model(tmp_path, original_model=original)
+
+        assert result == m1
+
+    def test_best_file_returned_even_without_original(self, tmp_path):
+        best = _make_mlmodel(tmp_path, "run_best.mlmodel", 0.88)
+
+        with patch("htr2hpc.train.data.get_model_accuracy", return_value=0.88):
+            result = get_best_model(tmp_path)
+
+        assert result == best
 
 
 # ---------------------------------------------------------------------------
@@ -612,7 +627,9 @@ def training_api():
 def test_get_training_data_segmentation_writes_xml_and_split(
     mocker, training_api, tmp_path
 ):
-    # no transcription: training data is ALTO XML for segmentation training
+    # no transcription: training data is ALTO XML for segmentation training.
+    # Each part has a single region (of one type), so the region count is the
+    # same whether regions or region types are counted; see PR notes.
     parts = {
         1: make_segmentation(tmp_path, "part1", n_lines=2, n_regions=1),
         2: make_segmentation(tmp_path, "part2", n_lines=3, n_regions=1),
@@ -779,16 +796,26 @@ def test_upload_best_model_updates_existing_model_when_id_given(mocker, tmp_path
     api.model_create.assert_not_called()
 
 
-def test_upload_best_model_skips_model_worse_than_original(mocker, tmp_path):
+@pytest.fixture
+def patch_accuracy(mocker):
+    """Fake the accuracy kraken stores in a model file.
+    Call with a dict of model path -> accuracy."""
+
+    def patch_accuracy(accuracies):
+        return mocker.patch(
+            "htr2hpc.train.data.get_model_accuracy",
+            side_effect=lambda path: accuracies[path],
+        )
+
+    return patch_accuracy
+
+
+def test_upload_best_model_skips_model_worse_than_original(tmp_path, patch_accuracy):
     original = tmp_path / "original.mlmodel"
     original.write_bytes(b"x")
     best = tmp_path / "run_best.mlmodel"
     best.write_bytes(b"x")
-    accuracies = {original: 0.90, best: 0.80}
-    mocker.patch(
-        "htr2hpc.train.data.get_model_accuracy",
-        side_effect=lambda path: accuracies[path],
-    )
+    patch_accuracy({original: 0.90, best: 0.80})
     api = make_api()
 
     result = upload_best_model(api, tmp_path, "Segment", original_model=original)

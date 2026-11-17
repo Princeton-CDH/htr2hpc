@@ -14,6 +14,7 @@ from django.db.models import (
     F,
     IntegerField,
     Max,
+    Min,
     OuterRef,
     Q,
     Subquery,
@@ -94,7 +95,9 @@ def get_usage_report(start: date, report_type: str):
     Grouping by month or week is done in the database. Only users with
     activity in a period get a row for that period. ``report_end`` is the
     last date with activity in the period, for every report type.
-    HPC task counts use distinct task_id to count jobs, not per-page TaskReports.
+    Counts, runtime and cpu usage are per job: eScriptorium creates one
+    TaskReport per page for a single job, all sharing the same task_id, so only
+    one report per task_id is used. Reports without a task_id are each counted.
     """
     TaskReport = apps.get_model("reporting", "TaskReport")
     first, end = report_date_range(start, report_type, timezone.localdate())
@@ -103,6 +106,19 @@ def get_usage_report(start: date, report_type: str):
     reports = TaskReport.objects.filter(started_at__date__gte=first)
     if end is not None:
         reports = reports.filter(started_at__date__lt=end)
+
+    # keep one report per task_id, so multi-page jobs are not counted (and their
+    # runtime and cpu cost not summed) once per page
+    one_per_job = (
+        reports.exclude(Q(task_id__isnull=True) | Q(task_id=""))
+        .order_by()
+        .values("task_id")
+        .annotate(first_report=Min("pk"))
+        .values("first_report")
+    )
+    reports = reports.filter(
+        Q(task_id__isnull=True) | Q(task_id="") | Q(pk__in=one_per_job)
+    )
 
     if report_type == REPORT_MONTH:
         report_start = TruncMonth("started_at", output_field=DateField())

@@ -220,6 +220,41 @@ def test_hpc_jobs_counted_by_task_id(today, alice):
 
 
 @pytest.mark.django_db
+def test_multi_page_job_counted_once(today, alice):
+    # one training job on 10 pages: 10 task reports sharing a task_id,
+    # each with the same runtime and cpu cost
+    for _ in range(10):
+        add_report(
+            alice, at(2026, 9, 10), HPC_TRAIN_METHOD, task_id="t1", minutes=30, cpu=4.0
+        )
+    # a separate job
+    add_report(alice, at(2026, 9, 11), VM_SEGMENT_METHOD, task_id="s1", minutes=10)
+
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert row["task_count"] == 2
+    assert row["runtime_seconds"] == 40 * 60
+    assert row["cpu_usage"] == 5.0
+    assert row["hpc_train_tasks"] == 1
+
+
+@pytest.mark.django_db
+def test_reports_without_task_id_each_counted(today, alice):
+    add_report(alice, at(2026, 9, 10), task_id=None)
+    add_report(alice, at(2026, 9, 11), task_id="")
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert row["task_count"] == 2
+
+
+@pytest.mark.django_db
+def test_monthly_multi_page_job_counted_once(today, alice):
+    for _ in range(3):
+        add_report(alice, at(2026, 9, 10), HPC_TRAIN_METHOD, task_id="t1", minutes=5)
+    [row] = rows_for(date(2026, 9, 1), REPORT_MONTH)
+    assert row["task_count"] == 1
+    assert row["runtime_seconds"] == 5 * 60
+
+
+@pytest.mark.django_db
 def test_users_without_activity_have_no_rows(today, alice, bob, django_user_model):
     # carol has an account but no tasks at all
     django_user_model.objects.create_user(username="carol", email="carol@example.com")

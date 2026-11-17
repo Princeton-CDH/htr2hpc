@@ -14,7 +14,6 @@ from django.db.models import (
     F,
     IntegerField,
     Max,
-    Min,
     OuterRef,
     Q,
     Subquery,
@@ -95,33 +94,29 @@ def get_usage_report(start: date, report_type: str):
     Grouping by month or week is done in the database. Only users with
     activity in a period get a row for that period. ``report_end`` is the
     last date with activity in the period, for every report type.
-    Counts, runtime and cpu usage are per job: eScriptorium creates one
-    TaskReport per page for a single job, all sharing the same task_id, so only
-    one report per task_id is used. Reports without a task_id are each counted.
+    Counts, runtime and cpu usage are per job. eScriptorium creates one
+    TaskReport per page for a single job, all with the same task_id and
+    (nearly) the same times and cpu cost, so summing every report would
+    massively over-count. Only the first report of each job is used.
+    Reports without a task_id are not Celery tasks and are not included.
     """
     TaskReport = apps.get_model("reporting", "TaskReport")
     first, end = report_date_range(start, report_type, timezone.localdate())
 
+    # keep the first report (lowest pk) of each job; this is done before the date
+    # filters so each job falls in a single period, based on its first report
+    first_reports = (
+        TaskReport.objects.exclude(Q(task_id__isnull=True) | Q(task_id=""))
+        .order_by("task_id", "pk")
+        .distinct("task_id")
+        .values("pk")
+    )
+    reports = TaskReport.objects.filter(pk__in=first_reports)
+
     # filter on the date part of started_at, in the site's configured timezone
-    reports = TaskReport.objects.filter(started_at__date__gte=first)
+    reports = reports.filter(started_at__date__gte=first)
     if end is not None:
         reports = reports.filter(started_at__date__lt=end)
-
-    # keep one report per task_id, so multi-page jobs are not counted (and their
-    # runtime and cpu cost not summed) once per page.
-    # We use the first report (lowest pk) of each job, which is representative
-    # because all reports of a job share the same started_at, done_at and
-    # cpu_cost (eScriptorium updates every report with that task_id).
-    one_per_job = (
-        reports.exclude(Q(task_id__isnull=True) | Q(task_id=""))
-        .order_by()
-        .values("task_id")
-        .annotate(first_report=Min("pk"))
-        .values("first_report")
-    )
-    reports = reports.filter(
-        Q(task_id__isnull=True) | Q(task_id="") | Q(pk__in=one_per_job)
-    )
 
     if report_type == REPORT_MONTH:
         report_start = TruncMonth("started_at", output_field=DateField())
@@ -144,12 +139,8 @@ def get_usage_report(start: date, report_type: str):
             cpu_usage=Sum("cpu_cost"),
             vm_segment_tasks=Count("pk", filter=Q(method=VM_SEGMENT_METHOD)),
             vm_transcribe_tasks=Count("pk", filter=Q(method=VM_TRANSCRIBE_METHOD)),
-            hpc_segtrain_tasks=Count(
-                "task_id", filter=Q(method=HPC_SEGTRAIN_METHOD), distinct=True
-            ),
-            hpc_train_tasks=Count(
-                "task_id", filter=Q(method=HPC_TRAIN_METHOD), distinct=True
-            ),
+            hpc_segtrain_tasks=Count("pk", filter=Q(method=HPC_SEGTRAIN_METHOD)),
+            hpc_train_tasks=Count("pk", filter=Q(method=HPC_TRAIN_METHOD)),
         )
         .order_by("user__username", "report_start")
     )

@@ -406,13 +406,13 @@ class eScriptoriumAPIClient:
             resp_json["lines"] = valid_lines
             logger.warning(
                 f"Skipping {len(broken_lines)} lines due to missing mask or baseline:"
-                f" {','.join([line['pk'] for line in broken_lines])}"
+                f" {','.join([str(line['pk']) for line in broken_lines])}"
                 f" (document {document_id}, part {part_id})"
             )
 
         try:
             return to_namedtuple("part", resp_json)
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             print(f"Error in part {part_id}: '{e}'. Skipping...")
             return None
 
@@ -437,7 +437,7 @@ class eScriptoriumAPIClient:
         # export form requires a region_types list, which
         # is a based on block type ids for this document
         # and may also include "Undefined" and "Orphan"
-        document_info = self.document(document_id)
+        document_info = self.document_details(document_id)
         block_types = [block.pk for block in document_info.valid_block_types]
         block_types.extend(["Undefined", "Orphan"])
 

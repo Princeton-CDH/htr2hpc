@@ -661,18 +661,9 @@ def part_json(lines):
     return {"pk": 5, "regions": [], "lines": lines}
 
 
-# NOTE on the xfail tests below: they document source bugs and stop at the bug,
-# so the rest of each test body can't run yet. Those lines are excluded from the
-# tests' own coverage (codecov requires 100%). When a bug is fixed, remove the
-# xfail marker and the `pragma: no cover` together.
-@pytest.mark.xfail(
-    raises=TypeError,
-    strict=True,
-    reason="bug: line pk (int) is joined as str in the warning message; see PR notes",
-)
 def test_document_part_details_skips_lines_without_geometry(
     rsps, api_client_instance, caplog
-):  # pragma: no cover
+):
     # eScriptorium can return lines with no baseline or mask;
     # kraken can't use these, so they must be dropped before training.
     # Line pks are integers in the real API.
@@ -740,17 +731,7 @@ def test_document_part_transcription_list_filters_by_transcription(
 # document_export
 
 
-@pytest.mark.xfail(
-    raises=AttributeError,
-    strict=True,
-    reason="bug: document_export calls nonexistent self.document(); see PR notes",
-)
-def test_document_export_requests_alto_with_all_region_types(
-    rsps, api_client_instance
-):  # pragma: no cover
-    # remove with the xfail marker: the bug stops the test before the
-    # registered responses are requested
-    rsps.assert_all_requests_are_fired = False
+def test_document_export_requests_alto_with_all_region_types(rsps, api_client_instance):
     # region types come from the document's own block types, plus the two
     # pseudo-types eScriptorium uses for untyped and unattached regions
     rsps.get(
@@ -838,17 +819,9 @@ def task_json(**overrides):
     return dict(TASK_DATA, **overrides)
 
 
-@pytest.mark.xfail(
-    raises=AttributeError,
-    strict=True,
-    reason="bug: document_export calls nonexistent self.document(); see PR notes",
-)
 def test_download_document_export_waits_for_task_then_downloads(
     rsps, mocker, api_client_instance, tmp_path, monkeypatch
-):  # pragma: no cover
-    # remove with the xfail marker: the bug stops the test before the
-    # registered responses are requested
-    rsps.assert_all_requests_are_fired = False
+):
     monkeypatch.chdir(tmp_path)  # the export is saved in the working directory
     rsps.get(
         f"{API_ROOT}/documents/42/",

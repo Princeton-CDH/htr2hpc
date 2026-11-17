@@ -103,16 +103,22 @@ def get_usage_report(start: date, report_type: str):
     TaskReport = apps.get_model("reporting", "TaskReport")
     first, end = report_date_range(start, report_type, timezone.localdate())
 
-    # keep the first report (lowest pk) of each job; this is done before the date
-    # filters so each job falls in a single period, based on its first report
-    first_reports = (
+    # Keep the first report (lowest pk) of each job. This is done before the date
+    # filters so each job falls in a single period, based on its first report.
+    #
+    # This has to be done in two passes: Django does not allow annotate() (used
+    # below for the per-user aggregates) together with distinct("task_id"), so
+    # the de-duplication is a subquery and the aggregation is the outer query.
+    # Django inlines it as SQL (`id IN (SELECT DISTINCT ON ...)`), so the ids
+    # are never loaded into Python.
+    first_report_ids = Subquery(
         TaskReport.objects.exclude(task_id__isnull=True)
         .exclude(task_id="")
         .order_by("task_id", "pk")
         .distinct("task_id")
         .values("pk")
     )
-    reports = TaskReport.objects.filter(pk__in=first_reports)
+    reports = TaskReport.objects.filter(pk__in=first_report_ids)
 
     # filter on the date part of started_at, in the site's configured timezone
     reports = reports.filter(started_at__date__gte=first)

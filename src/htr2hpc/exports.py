@@ -109,9 +109,9 @@ def get_usage_report(start: date, report_type: str):
 
     # keep one report per task_id, so multi-page jobs are not counted (and their
     # runtime and cpu cost not summed) once per page.
-    # Assumption: we use the first report (lowest pk) of each job, which is
-    # representative because all reports of a job share the same started_at,
-    # done_at and cpu_cost (eScriptorium updates every report with that task_id).
+    # We use the first report (lowest pk) of each job, which is representative
+    # because all reports of a job share the same started_at, done_at and
+    # cpu_cost (eScriptorium updates every report with that task_id).
     one_per_job = (
         reports.exclude(Q(task_id__isnull=True) | Q(task_id=""))
         .order_by()

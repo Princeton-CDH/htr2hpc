@@ -106,7 +106,8 @@ def get_usage_report(start: date, report_type: str):
     # keep the first report (lowest pk) of each job; this is done before the date
     # filters so each job falls in a single period, based on its first report
     first_reports = (
-        TaskReport.objects.exclude(Q(task_id__isnull=True) | Q(task_id=""))
+        TaskReport.objects.exclude(task_id__isnull=True)
+        .exclude(task_id="")
         .order_by("task_id", "pk")
         .distinct("task_id")
         .values("pk")

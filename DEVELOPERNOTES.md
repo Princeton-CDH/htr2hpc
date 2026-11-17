@@ -139,13 +139,7 @@ Once the new release has been merged to `main` and pushed to GitHub, deployment 
 
 Note: this deployment is specific to CDH's Princeton instance of eScriptorium.
 
-CDH's Princeton instance uses the Wagtail content management features, so cdh-ansible installs htr2hpc with the `all` optional dependency group (`htr2hpc[all]`), which includes Wagtail.
-
-After deploying a new instance for the first time, load the content fixture to pre-populate the Wagtail admin with the default page snippets (the homepage heading and the profile page HPC instructions):
-
-```sh
-manage.py loaddata cdh_snippets
-```
+CDH's Princeton instance uses the Wagtail content management features, and cdh-ansible installs htr2hpc with the `all` optional dependency group (`htr2hpc[all]`), which includes Wagtail. For the Wagtail setup and the steps to run after deploying a new instance for the first time (loading the `cdh_snippets` content fixture), see the [Wagtail content management](https://github.com/Princeton-CDH/cdh-ansible/blob/main/docs/applications/escriptorium.md#wagtail-content-management) and [first deploy](https://github.com/Princeton-CDH/cdh-ansible/blob/main/docs/applications/escriptorium.md#first-deploy-of-a-new-instance) sections of the same docs.
 
 ### Base template copy
 

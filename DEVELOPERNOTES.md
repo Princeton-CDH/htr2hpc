@@ -59,8 +59,6 @@ To run the hooks on the files you have staged without committing:
 uv run pre-commit run
 ```
 
-Avoid `pre-commit run --all-files` unless you are doing a formatting cleanup: parts of the existing codebase are not yet formatted to match the hooks, so it will modify files you didn't change.
-
 ### Git flow
 
 We recommend installing git-flow for a better development experience. On OSX, you can install with brew:

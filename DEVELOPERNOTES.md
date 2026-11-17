@@ -4,12 +4,6 @@ We use the [git-flow branching pattern](https://www.gitkraken.com/learn/git/git-
 
 ## Development Setup
 
-### Prerequisites
-
-- [git](https://git-scm.com/)
-- [Docker](https://docs.docker.com/get-docker/), or any PostgreSQL 15 server — the tests run on PostgreSQL, like eScriptorium
-- [devbox](https://www.jetify.com/devbox) (recommended) or [uv](https://docs.astral.sh/uv/getting-started/installation/); see the install options below. You don't need to install Python yourself, since uv installs the version listed in `.python-version`.
-
 ### Check out code
 
 Clone htr2hpc and switch to the `develop` branch, where development happens (`main` is the most recent release). Then clone the [eScriptorium](https://gitlab.com/scripta/escriptorium) version we test against (listed in `.escriptorium-version`) into an `escriptorium` directory inside the htr2hpc checkout; it is gitignored.
@@ -75,13 +69,11 @@ Start from `develop`: create a branch with `git flow feature start <name>` (or `
 
 ## Running Tests
 
-Start a PostgreSQL server. Tests connect to `localhost:5432` as user `postgres` with password `postgres` by default. One way to run a local server is with Docker:
+Tests run on PostgreSQL, like eScriptorium. They connect to `localhost:5432` as user `postgres` with password `postgres` by default; set the `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_PASSWORD` environment variables to use a different server. One way to run a local server is with Docker:
 
 ```sh
 docker run -d --name htr2hpc-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:15
 ```
-
-If port 5432 is already in use on your machine, map a different port (for example `-p 5433:5432`) and set `POSTGRES_PORT=5433` when running the tests. The `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_PASSWORD` environment variables let you use any other server.
 
 Then install htr2hpc with its dependencies (`uv sync` includes the dev dependencies by default, including Wagtail) and run the tests:
 

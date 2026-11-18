@@ -15,7 +15,7 @@ git checkout develop
 git clone --depth 1 --branch "$(cat .escriptorium-version)" https://gitlab.com/scripta/escriptorium.git escriptorium
 ```
 
-The tests load eScriptorium's real models from this checkout, but they don't need eScriptorium's full dependencies. The tests add the checkout to `sys.path` themselves (see `tests/test_escriptorium_stubs.py`), so you don't need to set `PYTHONPATH`. If you already have an eScriptorium checkout and don't want to move it or create a symbolic link, set the `ESCRIPTORIUM_PATH` environment variable to its location.
+The tests load eScriptorium's real models from this checkout, but they don't need eScriptorium's full dependencies. The tests add the checkout to `sys.path` themselves (see `tests/test_escriptorium_stubs.py`), so you don't need to set `PYTHONPATH`. If you already have an eScriptorium checkout and don't want to move it or create a symbolic link, set the `ESCRIPTORIUM_PATH` environment variable to its location. It must be checked out at the version in `.escriptorium-version`; other versions may fail to load.
 
 ### Install dependencies and setup
 

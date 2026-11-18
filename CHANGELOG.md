@@ -8,7 +8,7 @@
 - Staff edit content snippets in the Wagtail admin at `/cms/`
 - Override `wagtail_config` Wagtail template tag to allow loading without the Wagtail documents and images apps installed; can be removed after upgrade to Wagtail 8.1.
 - Use Python 3.12 for development, CI, and documentation builds, to match the deployed environment
-- Disable the TigerData mount point on htr VMs until we are ready to use it
+- Draft a design plan before developing new features, and keep it in `docs/design-records/` for review and future reference
 
 ## 0.8
 

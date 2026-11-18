@@ -155,16 +155,26 @@ def get_usage_report(start: date, report_type: str):
     # disk usage is a current snapshot, so it is only reported for totals
     if report_type == REPORT_TOTAL:
         OcrModel = apps.get_model("core", "OcrModel")
-        disk_usage = (
+        DocumentPart = apps.get_model("core", "DocumentPart")
+        # sum model files and document images in separate subqueries so neither
+        # source multiplies the other; this matches the Leaderboard's disk usage
+        models_size = (
             OcrModel.objects.filter(owner=OuterRef("user"))
             .values("owner")
             .annotate(total=Sum("file_size"))
             .values("total")
         )
+        images_size = (
+            DocumentPart.objects.filter(document__owner=OuterRef("user"))
+            .values("document__owner")
+            .annotate(total=Sum("image_file_size"))
+            .values("total")
+        )
         rows = rows.annotate(
             disk_usage_bytes=Coalesce(
-                Subquery(disk_usage, output_field=IntegerField()), 0
+                Subquery(models_size, output_field=IntegerField()), 0
             )
+            + Coalesce(Subquery(images_size, output_field=IntegerField()), 0)
         )
     return rows
 

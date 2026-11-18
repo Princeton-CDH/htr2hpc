@@ -29,7 +29,7 @@ Each download is one CSV for one report type: total, monthly, or weekly.
   - `report_start` and `report_end` make each row's period explicit.
   - `report_end` is the last date with activity in the period covered (`Max("started_at")`), for every report type. It comes straight from the query, and the same logic works for totals, months and weeks.
   - The export date is kept in the filename. This preserves when a totals report was downloaded, which can't be inferred from the data.
-  - `disk_usage_bytes` is a current snapshot, so it is filled in for totals only and left blank for months and weeks.
+  - `disk_usage_bytes` is a current snapshot, so it is filled in for totals only and left blank for months and weeks. It is the size of the user's OCR model files plus their document images, the same as the Leaderboard.
   - A user with no tasks in a period has no row for that period.
 
 - **Tasks are counted per job:** eScriptorium creates one `TaskReport` per page for a single job, all with the same `task_id`, so summing every report would over-count. Only the first report of each `task_id` is used, before the date range is applied, so a job falls in one period. Reports without a `task_id` (not Celery tasks, e.g. ontology import) are not included.
@@ -44,7 +44,7 @@ Each download is one CSV for one report type: total, monthly, or weekly.
 ### Implementation
 
 - The query logic lives in `htr2hpc/exports.py`, separate from the view, so it can be tested on its own or run from a script later.
-- Monthly and weekly periods are grouped in the database with queryset aggregation (`TruncMonth` / `TruncWeek`). Disk usage comes from a `Subquery` to avoid row multiplication.
+- Monthly and weekly periods are grouped in the database with queryset aggregation (`TruncMonth` / `TruncWeek`). Disk usage comes from two `Subquery` sums (models and images), added together, to avoid row multiplication.
 - Dates use Django's timezone utilities and follow the site's `TIME_ZONE`.
 - The CSV is streamed with Django's `Echo` + `StreamingHttpResponse` pattern over a GET request.
 - Access is restricted in the view with `staff_member_required`.

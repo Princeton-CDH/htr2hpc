@@ -36,7 +36,7 @@ Each download is one CSV for one report type: total, monthly, or weekly.
 
 - **Task types left out:**
 
-  - VM training (`core.tasks.train`, `core.tasks.segtrain`): htr2hpc replaces these with the HPC tasks. These reports are excluded from every column, including `task_count`, `runtime_seconds`, `cpu_usage` and `report_end`.
+  - VM training (`vm_train`, `vm_segtrain`): htr2hpc replaces these with the HPC tasks. These reports are excluded from every column, including `task_count`, `runtime_seconds`, `cpu_usage` and `report_end`.
   - GPU usage: the VMs have no GPU, and eScriptorium's `gpu_cost` is a calculated cost unit, not real usage.
 
 - **Filename:** `htr-usage-{total|monthly|weekly}-{start}-{export_date}.csv`

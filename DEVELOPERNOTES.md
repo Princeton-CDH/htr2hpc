@@ -72,7 +72,7 @@ Start from `develop`: create a branch with `git flow feature start <name>` (or `
 Tests run on PostgreSQL, like eScriptorium. They connect to `localhost:5432` as user `postgres` with password `postgres` by default; set the `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_PASSWORD` environment variables to use a different server. One way to run a local server is with Docker:
 
 ```sh
-docker run -d --name htr2hpc-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:15
+docker run -d --name htr2hpc-postgres -e POSTGRES_PASSWORD=postgres -p 127.0.0.1:5432:5432 postgres:15
 ```
 
 Then install htr2hpc with its dependencies (`uv sync` includes the dev dependencies by default, including Wagtail) and run the tests:

@@ -1,106 +1,66 @@
 """Management command to export per-job HPC resource stats from sacct."""
 
 import sys
+from datetime import date
 from pathlib import Path
 
-from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 
-from htr2hpc.train.jobstats import (
-    job_stats_to_csv,
-    sacct_to_job_stats,
-)
-
-User = get_user_model()
+from htr2hpc.exports import hpc_task_usernames
+from htr2hpc.train.jobstats import get_job_stats, job_stats_to_csv
 
 
 class Command(BaseCommand):
     help = (
-        "Export per-job HPC resource stats for a date range. "
-        "Queries sacct and decodes Jobstats data from the admincomment field. "
-        "Output is written to stdout or --output file."
+        "Export per-job HPC resource stats for a date range. Runs sacct, so it "
+        "must be run where sacct is available. Defaults to users who ran HPC "
+        "training tasks in the period."
     )
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--start",
-            required=True,
-            metavar="YYYY-MM-DD",
-            help="Start date (inclusive) for sacct query.",
+            "--start", required=True, metavar="YYYY-MM-DD", help="Start date."
         )
         parser.add_argument(
-            "--end",
-            required=True,
-            metavar="YYYY-MM-DD",
-            help="End date (inclusive) for sacct query.",
-        )
-        parser.add_argument(
-            "--account",
-            metavar="SLURM_ACCOUNT",
-            help="Slurm account to filter by (e.g. pustaff). "
-            "At least one of --account or --users is required.",
+            "--end", metavar="YYYY-MM-DD", help="End date. Defaults to today."
         )
         parser.add_argument(
             "--users",
             metavar="NETID[,NETID,...]",
-            help="Comma-separated list of NetIDs to filter by. "
-            "At least one of --account or --users is required.",
+            help="Comma-separated NetIDs to report on, instead of users who ran "
+            "HPC training tasks in the period.",
         )
         parser.add_argument(
-            "--active-users-only",
-            action="store_true",
-            default=False,
-            help="Restrict --account query to NetIDs of currently active htr2hpc users.",
-        )
-        parser.add_argument(
-            "--output",
-            metavar="FILE",
-            help="Path to write CSV output. Defaults to stdout.",
+            "--output", metavar="FILE", help="File to write CSV to. Defaults to stdout."
         )
 
-    def handle(self, *args, **kwargs):
-        start = kwargs["start"]
-        end = kwargs["end"]
-        account = kwargs["account"]
-        users_arg = kwargs["users"]
-        active_users_only = kwargs["active_users_only"]
-        output_path = kwargs["output"]
-
-        if not account and not users_arg:
-            raise CommandError("Provide at least one of --account or --users.")
-
-        usernames: list[str] | None = None
-        if users_arg:
-            usernames = [u.strip() for u in users_arg.split(",") if u.strip()]
-
-        if active_users_only:
-            if not account:
-                raise CommandError("--active-users-only requires --account.")
-            active_netids = list(
-                User.objects.filter(is_active=True).values_list("username", flat=True)
+    def handle(self, *args, **options):
+        try:
+            start = date.fromisoformat(options["start"])
+            end = (
+                date.fromisoformat(options["end"])
+                if options["end"]
+                else timezone.localdate()
             )
-            if not active_netids:
-                self.stderr.write("No active users found; nothing to query.")
-                return
-            usernames = active_netids
-            self.stderr.write(f"Filtering to {len(active_netids)} active user(s).")
+        except ValueError as err:
+            raise CommandError(f"Invalid date: {err}") from err
 
-        self.stderr.write(
-            f"Querying sacct: start={start} end={end}"
-            + (f" account={account}" if account else "")
-            + (f" users={','.join(usernames)}" if usernames else "")
-        )
+        if options["users"]:
+            usernames = [u.strip() for u in options["users"].split(",") if u.strip()]
+        else:
+            usernames = hpc_task_usernames(start, end)
+        if not usernames:
+            raise CommandError("No users to report on.")
 
         try:
-            rows = sacct_to_job_stats(start, end, usernames=usernames, account=account)
-        except Exception as exc:
-            raise CommandError(f"sacct query failed: {exc}") from exc
+            rows = get_job_stats(start.isoformat(), end.isoformat(), usernames)
+        except Exception as err:
+            raise CommandError(f"sacct query failed: {err}") from err
+        self.stderr.write(f"Found {len(rows)} job(s) for {len(usernames)} user(s).")
 
-        self.stderr.write(f"Found {len(rows)} job(s).")
-
-        if output_path:
-            with Path(output_path).open("w", newline="") as f:
-                job_stats_to_csv(rows, f)
-            self.stderr.write(f"Written to {output_path}")
+        if options["output"]:
+            with Path(options["output"]).open("w", newline="") as outfile:
+                job_stats_to_csv(rows, outfile)
         else:
             job_stats_to_csv(rows, sys.stdout)

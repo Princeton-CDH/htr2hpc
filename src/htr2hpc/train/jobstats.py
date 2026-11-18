@@ -1,311 +1,239 @@
-"""Per-job HPC resource stats via sacct and Jobstats.
+"""Per-job HPC resource stats from ``sacct --json`` and Jobstats.
 
-Decoding logic adapted from Princeton Research Computing's job_defense_shield:
-https://github.com/PrincetonUniversity/job_defense_shield/blob/main/src/job_defense_shield/efficiency.py
-(GPL-2.0; this file is an independent implementation for Apache-2.0 compatibility)
+Slurm reports allocation, timing and state for each job.  Memory actually
+used comes from Jobstats, Princeton Research Computing's job statistics tool,
+which stores a summary in each job's administrator comment as
+``JS1:`` + base64(gzip(JSON)).  The decoding follows the format used by RC's
+job_defense_shield project (``efficiency.py``); this is an independent
+implementation.
+
+The core functions have no Django dependency, so they can be reused outside
+the web app (e.g. by a management command or a scheduled job).
+See docs/design-records/242-hpc-usage-stats.md.
 """
 
 import base64
+import contextlib
 import csv
 import gzip
 import json
 import logging
-import os
 import re
+import shlex
 import subprocess
-from io import StringIO
-from typing import IO
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import IO, Any
 
 logger = logging.getLogger(__name__)
 
-# sacct fields we request, in order
-_SACCT_FIELDS = (
-    "jobid",
-    "user",
-    "account",
-    "partition",
-    "state",
-    "start",
-    "end",
-    "elapsedraw",
-    "nnodes",
-    "ncpus",
-    "alloctres",
-    "admincomment",
+# htr2hpc slurm job names: [calibrate_]segtrain:<model> or [calibrate_]train:<model>
+JOB_NAME_PATTERN = re.compile(
+    r"^(?P<calibrate>calibrate_)?(?P<train_type>segtrain|train):"
 )
 
 JOB_STATS_FIELDS = [
-    "job_id",
     "username",
-    "account",
-    "partition",
-    "state",
-    "start",
-    "end",
-    "elapsed_seconds",
-    "nnodes",
-    "ncpus",
-    "ngpus",
+    "job_id",
+    "train_type",
+    "phase",
+    "cluster",
+    "job_start",
+    "time_alloc",
+    "time_used",
+    "exit_code",
     "cpu_hours",
     "gpu_hours",
-    "cpu_memory_used_gb",
-    "cpu_memory_alloc_gb",
-    "gpu_memory_used_gb_max",
-    "gpu_memory_used_gb_sum",
-    "gpu_memory_alloc_gb_max",
-    "gpu_memory_alloc_gb_sum",
-    "cpu_efficiency_pct",
-    "gpu_utilization_pct",
+    "cpu_cores",
+    "cpu_mem_alloc_gb",
+    "cpu_mem_used_gb",
+    "gpu_mem_alloc_gb",
+    "gpu_mem_used_gb",
 ]
 
+GB = 1024**3
+MB_PER_GB = 1024
 
-def decode_admincomment(s: str | None) -> dict | None:
-    """Decode a Jobstats admincomment value to a dict.
 
-    The format is ``JS1:`` + base64(gzip(JSON)).  Returns None for
-    JS1:Short, JS1:None, empty strings, missing values, or malformed data.
+def sacct_command(start: str, end: str, usernames: Iterable[str]) -> list[str]:
+    """Build the ``sacct`` command line.
+
+    ``start`` and ``end`` are YYYY-MM-DD strings.  Results are limited to the
+    given users; querying all users is never done.
     """
-    if not s or s in ("JS1:Short", "JS1:None"):
-        return None
-    if not s.startswith("JS1:"):
-        return None
-    try:
-        return json.loads(gzip.decompress(base64.b64decode(s[4:])))
-    except (ValueError, OSError):
-        logger.debug("Failed to decode admincomment: %r", s)
-        return None
-
-
-def gpus_from_alloctres(tres: str) -> int:
-    """Return the number of allocated GPUs from an alloctres string.
-
-    Returns 0 if no GPU entry is present.
-    """
-    match = re.search(r"gres/gpu=(\d+)", tres)
-    return int(match.group(1)) if match else 0
-
-
-def _sum_cpu_memory(nodes: dict) -> tuple[float | None, float | None]:
-    """Return (used_gb, alloc_gb) summed across all nodes.
-
-    Returns (None, None) if data is unavailable or malformed.
-    """
-    used_total = 0.0
-    alloc_total = 0.0
-    try:
-        for node_data in nodes.values():
-            used_total += node_data["used_memory"]
-            alloc_total += node_data["total_memory"]
-    except (KeyError, TypeError):
-        return None, None
-    # Jobstats reports memory in bytes; convert to GB
-    return used_total / 1024**3, alloc_total / 1024**3
-
-
-def _aggregate_gpu_memory(
-    nodes: dict,
-) -> tuple[float | None, float | None, float | None, float | None]:
-    """Return (used_max, used_sum, alloc_max, alloc_sum) in GB across all GPUs.
-
-    Returns (None, None, None, None) if no GPU data is available.
-    """
-    used_values: list[float] = []
-    alloc_values: list[float] = []
-    try:
-        for node_data in nodes.values():
-            # gpu_utilization is a dict keyed by GPU index; gpu_used_memory
-            # and gpu_total_memory are parallel dicts at the same level
-            gpu_used = node_data.get("gpu_used_memory", {})
-            gpu_alloc = node_data.get("gpu_total_memory", {})
-            if not gpu_used and not gpu_alloc:
-                continue
-            used_values.extend(gpu_used.values())
-            alloc_values.extend(gpu_alloc.values())
-    except (AttributeError, TypeError):
-        return None, None, None, None
-
-    if not used_values or not alloc_values:
-        return None, None, None, None
-
-    # Jobstats reports GPU memory in bytes; convert to GB
-    used_max = max(used_values) / 1024**3
-    used_sum = sum(used_values) / 1024**3
-    alloc_max = max(alloc_values) / 1024**3
-    alloc_sum = sum(alloc_values) / 1024**3
-    return used_max, used_sum, alloc_max, alloc_sum
-
-
-def _cpu_efficiency(nodes: dict, elapsed: int, ncpus: int) -> float | None:
-    """Return CPU efficiency as a percentage (0-100).
-
-    Calculated as total CPU time used / (elapsed * ncpus).
-    """
-    if elapsed <= 0 or ncpus <= 0:
-        return None
-    try:
-        total_used = sum(n["total_time"] for n in nodes.values())
-    except (KeyError, TypeError):
-        return None
-    denom = elapsed * ncpus
-    return round(100.0 * total_used / denom, 2) if denom else None
-
-
-def _gpu_utilization(nodes: dict) -> float | None:
-    """Return mean GPU utilization as a percentage (0-100) across all GPUs."""
-    values: list[float] = []
-    try:
-        for node_data in nodes.values():
-            gpu_util = node_data.get("gpu_utilization", {})
-            values.extend(gpu_util.values())
-    except (AttributeError, TypeError):
-        return None
-    if not values:
-        return None
-    return round(sum(values) / len(values), 2)
-
-
-def parse_job_stats(row: dict) -> dict:
-    """Parse one sacct pipe-delimited row dict into a typed JobStats dict.
-
-    All Jobstats-derived fields are None when stats are unavailable.
-    GPU-specific fields are None for CPU-only jobs (ngpus == 0).
-    """
-    elapsed = int(row["elapsedraw"]) if row.get("elapsedraw", "").isdigit() else 0
-    ncpus = int(row["ncpus"]) if row.get("ncpus", "").isdigit() else 0
-    nnodes = int(row["nnodes"]) if row.get("nnodes", "").isdigit() else 0
-    ngpus = gpus_from_alloctres(row.get("alloctres", ""))
-
-    cpu_hours = round(elapsed * ncpus / 3600, 4) if elapsed and ncpus else None
-    gpu_hours = round(elapsed * ngpus / 3600, 4) if (elapsed and ngpus) else None
-
-    stats = decode_admincomment(row.get("admincomment"))
-    nodes = stats.get("nodes", {}) if stats else {}
-
-    cpu_used_gb, cpu_alloc_gb = _sum_cpu_memory(nodes) if nodes else (None, None)
-    cpu_eff = _cpu_efficiency(nodes, elapsed, ncpus) if nodes else None
-
-    if ngpus:
-        gpu_used_max, gpu_used_sum, gpu_alloc_max, gpu_alloc_sum = (
-            _aggregate_gpu_memory(nodes) if nodes else (None, None, None, None)
-        )
-        gpu_util = _gpu_utilization(nodes) if nodes else None
-    else:
-        gpu_used_max = gpu_used_sum = gpu_alloc_max = gpu_alloc_sum = None
-        gpu_util = None
-
-    return {
-        "job_id": row.get("jobid", ""),
-        "username": row.get("user", ""),
-        "account": row.get("account", ""),
-        "partition": row.get("partition", ""),
-        "state": row.get("state", ""),
-        "start": row.get("start", ""),
-        "end": row.get("end", ""),
-        "elapsed_seconds": elapsed,
-        "nnodes": nnodes,
-        "ncpus": ncpus,
-        "ngpus": ngpus,
-        "cpu_hours": cpu_hours,
-        "gpu_hours": gpu_hours,
-        "cpu_memory_used_gb": round(cpu_used_gb, 4)
-        if cpu_used_gb is not None
-        else None,
-        "cpu_memory_alloc_gb": round(cpu_alloc_gb, 4)
-        if cpu_alloc_gb is not None
-        else None,
-        "gpu_memory_used_gb_max": round(gpu_used_max, 4)
-        if gpu_used_max is not None
-        else None,
-        "gpu_memory_used_gb_sum": round(gpu_used_sum, 4)
-        if gpu_used_sum is not None
-        else None,
-        "gpu_memory_alloc_gb_max": round(gpu_alloc_max, 4)
-        if gpu_alloc_max is not None
-        else None,
-        "gpu_memory_alloc_gb_sum": round(gpu_alloc_sum, 4)
-        if gpu_alloc_sum is not None
-        else None,
-        "cpu_efficiency_pct": cpu_eff,
-        "gpu_utilization_pct": gpu_util,
-    }
-
-
-def get_sacct_output(
-    start: str,
-    end: str,
-    usernames: list[str] | None = None,
-    account: str | None = None,
-) -> str:
-    """Run sacct and return raw pipe-delimited output as a string.
-
-    Exactly one of ``usernames`` or ``account`` must be provided.
-    ``start`` and ``end`` should be YYYY-MM-DD strings.
-
-    This function is intentionally isolated so tests can patch it.
-    """
-    if not usernames and not account:
-        raise ValueError("Provide at least one of usernames or account")
-
-    fields = ",".join(_SACCT_FIELDS)
-    cmd = [
+    usernames = sorted(set(usernames))
+    if not usernames:
+        raise ValueError("At least one username is required")
+    return [
         "sacct",
-        "-X",  # one row per job (not per step)
-        "-P",  # pipe-delimited output
-        "-n",  # no header
+        "--json",
+        "-X",  # one entry per job, not per job step
         "-S",
         start,
         "-E",
         end,
-        "-o",
-        fields,
+        "-u",
+        ",".join(usernames),
     ]
-    if account:
-        cmd += ["-A", account]
-    if usernames:
-        cmd += ["-u", ",".join(usernames)]
-
-    env_extra = {"SLURM_TIME_FORMAT": "standard"}
-    env = {**os.environ, **env_extra}
-
-    logger.debug("Running sacct: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env, check=True)
-    return result.stdout
 
 
-def sacct_to_job_stats(
-    start: str,
-    end: str,
-    usernames: list[str] | None = None,
-    account: str | None = None,
-) -> list[dict]:
-    """Return a list of parsed job-stat dicts for the given date range and scope.
+def run_sacct(command: list[str], connection=None) -> str:
+    """Run a ``sacct`` command and return its output.
 
-    Jobs with no Jobstats data are included; their stats fields will be None.
+    If a fabric ``connection`` is given, the command runs on the remote host;
+    otherwise it runs locally.  Tests replace this function with recorded output.
     """
-    raw = get_sacct_output(start, end, usernames=usernames, account=account)
-    rows = []
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split("|")
-        if len(parts) != len(_SACCT_FIELDS):
-            logger.warning("Unexpected sacct row (got %d fields): %r", len(parts), line)
-            continue
-        row = dict(zip(_SACCT_FIELDS, parts, strict=True))
-        rows.append(parse_job_stats(row))
-    return rows
+    logger.debug("Running sacct: %s", shlex.join(command))
+    if connection is not None:
+        return connection.run(shlex.join(command), hide=True).stdout
+    return subprocess.run(command, capture_output=True, text=True, check=True).stdout
 
 
-def job_stats_to_csv(rows: list[dict], dest: IO) -> None:
-    """Write job stats rows as CSV to dest (any writable file-like object)."""
+def decode_admincomment(value: str | None) -> dict | None:
+    """Decode a Jobstats value (``JS1:`` + base64(gzip(JSON))) to a dict.
+
+    Returns None for ``JS1:Short``, ``JS1:None``, empty or missing values,
+    and values that can't be decoded.
+    """
+    if not value or value in ("JS1:Short", "JS1:None") or not value.startswith("JS1:"):
+        return None
+    try:
+        return json.loads(gzip.decompress(base64.b64decode(value[4:])))
+    except (ValueError, OSError):
+        logger.debug("Failed to decode Jobstats value: %r", value)
+        return None
+
+
+def _number(value: Any) -> int | float | None:
+    """Return the value of a Slurm JSON number, which is either a plain number
+    or an object like ``{"set": true, "infinite": false, "number": 15}``."""
+    if isinstance(value, dict):
+        if not value.get("set") or value.get("infinite"):
+            return None
+        value = value.get("number")
+    return value if isinstance(value, int | float) else None
+
+
+def parse_job_name(name: str) -> tuple[str, str] | None:
+    """Return (train_type, phase) for an htr2hpc job name, or None if the job
+    was not started by htr2hpc."""
+    match = JOB_NAME_PATTERN.match(name or "")
+    if not match:
+        return None
+    phase = "calibration" if match["calibrate"] else "training"
+    return match["train_type"], phase
+
+
+def _allocated_tres(job: dict) -> dict:
+    """Return allocated cpu count, memory in GB and gpu count from a job's tres."""
+    cpus = mem_mb = gpus = 0
+    for item in job.get("tres", {}).get("allocated", []):
+        count = item.get("count") or 0
+        if item.get("type") == "cpu":
+            cpus = count
+        elif item.get("type") == "mem":
+            mem_mb = count
+        elif item.get("type") == "gres" and item.get("name") == "gpu":
+            gpus = count
+    return {"cpus": cpus, "mem_gb": mem_mb / MB_PER_GB, "gpus": gpus}
+
+
+def _jobstats_memory(stats: dict | None) -> dict:
+    """Return CPU and GPU memory (GB) from decoded Jobstats, summed over all
+    nodes and GPUs; values are None when unavailable."""
+    result = {"cpu_used": None, "gpu_alloc": None, "gpu_used": None}
+    nodes = (stats or {}).get("nodes")
+    if not isinstance(nodes, dict) or not nodes:
+        return result
+    with contextlib.suppress(KeyError, TypeError):
+        result["cpu_used"] = sum(n["used_memory"] for n in nodes.values()) / GB
+    try:
+        gpu_used = [v for n in nodes.values() for v in n["gpu_used_memory"].values()]
+        gpu_alloc = [v for n in nodes.values() for v in n["gpu_total_memory"].values()]
+        if gpu_used and gpu_alloc:
+            result["gpu_used"] = sum(gpu_used) / GB
+            result["gpu_alloc"] = sum(gpu_alloc) / GB
+    except (KeyError, TypeError, AttributeError):
+        pass
+    return result
+
+
+def _rounded(value: float | None, digits: int = 4) -> float | None:
+    return None if value is None else round(value, digits)
+
+
+def parse_job(job: dict) -> dict | None:
+    """Convert one job from ``sacct --json`` to a report row dict.
+
+    Returns None for jobs that were not started by htr2hpc and for jobs that
+    have not started yet.  Fields that are not available are None; GPU fields
+    are None when the job has no GPU or Jobstats has no GPU data.
+    """
+    parsed_name = parse_job_name(job.get("name", ""))
+    if parsed_name is None:
+        return None
+    train_type, phase = parsed_name
+
+    time = job.get("time", {})
+    start = _number(time.get("start"))
+    if not start:  # pending jobs have no start time
+        return None
+    elapsed = _number(time.get("elapsed")) or 0
+    limit_minutes = _number(time.get("limit"))
+
+    tres = _allocated_tres(job)
+    memory = _jobstats_memory(
+        decode_admincomment(job.get("comment", {}).get("administrator"))
+    )
+    has_gpu = tres["gpus"] > 0
+
+    state = job.get("state", {}).get("current") or []
+    return {
+        "username": job.get("user", ""),
+        "job_id": job.get("job_id"),
+        "train_type": train_type,
+        "phase": phase,
+        "cluster": job.get("cluster", ""),
+        "job_start": datetime.fromtimestamp(start, tz=UTC).isoformat(),
+        # slurm time limits are in minutes
+        "time_alloc": limit_minutes * 60 if limit_minutes is not None else None,
+        "time_used": elapsed,
+        "exit_code": state[0] if state else "",
+        "cpu_hours": _rounded(elapsed * tres["cpus"] / 3600),
+        "gpu_hours": _rounded(elapsed * tres["gpus"] / 3600) if has_gpu else None,
+        "cpu_cores": tres["cpus"],
+        "cpu_mem_alloc_gb": _rounded(tres["mem_gb"]),
+        "cpu_mem_used_gb": _rounded(memory["cpu_used"]),
+        "gpu_mem_alloc_gb": _rounded(memory["gpu_alloc"]) if has_gpu else None,
+        "gpu_mem_used_gb": _rounded(memory["gpu_used"]) if has_gpu else None,
+    }
+
+
+def parse_sacct_json(output: str) -> list[dict]:
+    """Parse ``sacct --json`` output into report rows for htr2hpc jobs,
+    ordered by job start."""
+    data = json.loads(output)
+    rows = [row for job in data.get("jobs", []) if (row := parse_job(job))]
+    return sorted(rows, key=lambda row: (row["job_start"], row["job_id"]))
+
+
+def get_job_stats(
+    start: str, end: str, usernames: Iterable[str], connection=None
+) -> list[dict]:
+    """Return report rows for htr2hpc jobs run by the given users in a date range."""
+    command = sacct_command(start, end, usernames)
+    return parse_sacct_json(run_sacct(command, connection=connection))
+
+
+def job_stats_csv_rows(rows: Iterable[dict]) -> Iterable[dict]:
+    """Yield the header row and then each report row, as dicts for a
+    :class:`csv.DictWriter` with :data:`JOB_STATS_FIELDS`."""
+    yield dict(zip(JOB_STATS_FIELDS, JOB_STATS_FIELDS, strict=True))
+    yield from rows
+
+
+def job_stats_to_csv(rows: Iterable[dict], dest: IO) -> None:
+    """Write report rows as CSV to a writable file-like object."""
     writer = csv.DictWriter(dest, fieldnames=JOB_STATS_FIELDS)
     writer.writeheader()
     writer.writerows(rows)
-
-
-def job_stats_to_csv_string(rows: list[dict]) -> str:
-    """Return job stats rows formatted as a CSV string."""
-    buf = StringIO()
-    job_stats_to_csv(rows, buf)
-    return buf.getvalue()

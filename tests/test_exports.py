@@ -18,6 +18,7 @@ from htr2hpc.exports import (
     VM_SEGMENT_METHOD,
     VM_TRANSCRIBE_METHOD,
     get_usage_report,
+    hpc_task_usernames,
     report_date_range,
     report_row,
 )
@@ -254,3 +255,17 @@ def test_report_rows_have_all_fields(today, alice, report_type):
     add_report(alice, at(2026, 10, 6))
     [row] = rows_for(date(2026, 9, 1), report_type)
     assert list(row) == USAGE_REPORT_FIELDS
+
+
+@pytest.mark.django_db
+def test_hpc_task_usernames(alice, bob):
+    add_report(alice, at(2026, 10, 5), method=HPC_TRAIN_METHOD, task_id="a1")
+    add_report(alice, at(2026, 10, 6), method=HPC_SEGTRAIN_METHOD, task_id="a2")
+    # not HPC tasks, or outside the period
+    add_report(bob, at(2026, 10, 5), method=VM_SEGMENT_METHOD)
+    add_report(bob, at(2026, 9, 30), method=HPC_TRAIN_METHOD, task_id="b1")
+    add_report(bob, at(2026, 11, 2), method=HPC_TRAIN_METHOD, task_id="b2")
+
+    assert hpc_task_usernames(date(2026, 10, 1), date(2026, 10, 31)) == ["alice"]
+    # end date is inclusive
+    assert hpc_task_usernames(date(2026, 10, 1), date(2026, 11, 2)) == ["alice", "bob"]

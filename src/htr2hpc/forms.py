@@ -31,3 +31,29 @@ class UsageReportForm(forms.Form):
         default_start = getattr(settings, "USAGE_REPORT_DEFAULT_START", None)
         if default_start:
             self.fields["start"].initial = default_start
+
+
+class HPCJobStatsForm(forms.Form):
+    """Date range for downloading the staff HPC job stats CSV."""
+
+    start = forms.DateField(
+        widget=forms.DateInput(
+            attrs={"type": "date", "class": "form-control form-control-sm"},
+            format="%Y-%m-%d",
+        ),
+    )
+    end = forms.DateField(
+        required=False,
+        widget=forms.DateInput(
+            attrs={"type": "date", "class": "form-control form-control-sm"},
+            format="%Y-%m-%d",
+        ),
+        help_text="Defaults to today.",
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("start"), cleaned.get("end")
+        if start and end and end < start:
+            self.add_error("end", "End date must not be before the start date.")
+        return cleaned

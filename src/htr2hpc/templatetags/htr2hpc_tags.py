@@ -5,7 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.timesince import timeuntil
 
-from htr2hpc.forms import UsageReportForm
+from htr2hpc.forms import HPCJobStatsForm, UsageReportForm
 
 register = template.Library()
 
@@ -47,3 +47,9 @@ def export_retention_display():
 def usage_report_form():
     """Render the usage report download form."""
     return {"form": UsageReportForm()}
+
+
+@register.inclusion_tag("htr2hpc/hpc_job_stats_form.html")
+def hpc_job_stats_form():
+    """Render the HPC job stats download form."""
+    return {"form": HPCJobStatsForm()}

@@ -13,8 +13,9 @@ from django.utils import timezone
 from reporting.models import TaskReport
 
 from htr2hpc import htr2hpc_urls
-from htr2hpc.exports import USAGE_REPORT_FIELDS, VM_SEGMENT_METHOD
-from htr2hpc.views import UsageReportView, remote_user_setup
+from htr2hpc.exports import HPC_TRAIN_METHOD, USAGE_REPORT_FIELDS, VM_SEGMENT_METHOD
+from htr2hpc.train.jobstats import JOB_STATS_FIELDS
+from htr2hpc.views import HPCJobStatsView, UsageReportView, remote_user_setup
 
 TODAY = date(2026, 11, 9)
 
@@ -156,3 +157,97 @@ def test_cms_url_only_added_with_content_app():
     finally:
         # restore the URL patterns for the real installed apps
         importlib.reload(htr2hpc_urls)
+
+
+# HPC job stats view
+
+JOB_ROW = dict.fromkeys(JOB_STATS_FIELDS, "")
+
+
+def post_job_stats(rf, user, **params):
+    request = rf.post("/hpc-job-stats/", params)
+    request.user = user
+    return HPCJobStatsView.as_view()(request)
+
+
+@pytest.fixture
+def hpc_task(staff_user):
+    TaskReport.objects.create(
+        user=staff_user,
+        method=HPC_TRAIN_METHOD,
+        task_id="t1",
+        started_at=datetime(2026, 10, 5, 12, tzinfo=timezone.get_current_timezone()),
+    )
+
+
+@pytest.mark.django_db
+@patch("htr2hpc.views.get_job_stats")
+@patch("htr2hpc.views.Connection")
+def test_hpc_job_stats_csv(mock_conn, mock_stats, rf, today, staff_user, hpc_task):
+    mock_stats.return_value = [{**JOB_ROW, "username": "staff", "job_id": 1}]
+    response = post_job_stats(rf, staff_user, start="2026-10-01")
+
+    assert response.status_code == 200
+    assert response["Content-Type"] == "text/csv"
+    assert response["Content-Disposition"] == (
+        'attachment; filename="htr-hpc-jobs-2026-10-01-2026-11-09.csv"'
+    )
+    rows = read_csv(response)
+    assert [r["job_id"] for r in rows] == ["1"]
+    # connects as the staff user, and queries only users with HPC tasks
+    assert mock_conn.call_args.kwargs["user"] == "staff"
+    assert mock_stats.call_args.args == ("2026-10-01", "2026-11-09", ["staff"])
+
+
+@pytest.mark.django_db
+@patch("htr2hpc.views.get_job_stats")
+@patch("htr2hpc.views.Connection")
+def test_hpc_job_stats_no_hpc_users(mock_conn, mock_stats, rf, today, staff_user):
+    response = post_job_stats(rf, staff_user, start="2026-10-01")
+    # header only, and no connection to the HPC
+    assert response.status_code == 200
+    assert read_csv(response) == []
+    mock_conn.assert_not_called()
+    mock_stats.assert_not_called()
+
+
+@pytest.mark.django_db
+@patch("htr2hpc.views.get_job_stats", side_effect=OSError("connection refused"))
+@patch("htr2hpc.views.Connection")
+def test_hpc_job_stats_hpc_error(
+    mock_conn, mock_stats, rf, today, staff_user, hpc_task
+):
+    response = post_job_stats(rf, staff_user, start="2026-10-01")
+    assert response.status_code == 502
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "params",
+    [{}, {"start": "bogus"}, {"start": "2026-10-05", "end": "2026-10-01"}],
+)
+def test_hpc_job_stats_invalid_params(rf, staff_user, params):
+    assert post_job_stats(rf, staff_user, **params).status_code == 400
+
+
+@pytest.mark.django_db
+def test_hpc_job_stats_post_only(rf, staff_user):
+    request = rf.get("/hpc-job-stats/")
+    request.user = staff_user
+    assert HPCJobStatsView.as_view()(request).status_code == 405
+
+
+@pytest.mark.django_db
+def test_hpc_job_stats_requires_staff(rf, django_user_model):
+    user = django_user_model.objects.create_user(username="n", email="n@example.com")
+    for request_user in (user, AnonymousUser()):
+        response = post_job_stats(rf, request_user, start="2026-10-01")
+        assert response.status_code == 302
+
+
+def test_hpc_job_stats_form_tag():
+    html = Template("{% load htr2hpc_tags %}{% hpc_job_stats_form %}").render(
+        Context({"csrf_token": "x"})
+    )
+    assert 'method="post"' in html
+    assert 'action="/hpc-job-stats/"' in html

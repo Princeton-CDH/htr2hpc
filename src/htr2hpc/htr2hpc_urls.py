@@ -10,11 +10,12 @@ and includes these via include().
 from django.apps import apps
 from django.urls import include, path
 
-from htr2hpc.views import UsageReportView, remote_user_setup
+from htr2hpc.views import HPCJobStatsView, UsageReportView, remote_user_setup
 
 urlpatterns = [
     path("profile/hpc-setup/", remote_user_setup, name="hpc-setup"),
     path("usage-report/", UsageReportView.as_view(), name="usage-report"),
+    path("hpc-job-stats/", HPCJobStatsView.as_view(), name="hpc-job-stats"),
 ]
 
 # Wagtail is an optional dependency; when it's installed, settings add the

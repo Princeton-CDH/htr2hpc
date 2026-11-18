@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 0.9
+
+- Staff usage report CSV download from the Leaderboard page, with per-user stats for disk usage (OCR models and document images, as on the Leaderboard), VM tasks (broken down by type), and HPC training jobs; choose a start date and a total, monthly or weekly report (completed months and weeks only)
+- Support lightweight content management via Wagtail Snippets; staff can edit page content (homepage intro, contact info, model descriptions, HPC setup instructions, announcements) through the Wagtail admin without a code change or deployment
+- Wagtail is an optional dependency (`pip install htr2hpc[all]`); instances that don't need content management are unaffected
+- Staff edit content snippets in the Wagtail admin at `/cms/`
+- Override `wagtail_config` Wagtail template tag to allow loading without the Wagtail documents and images apps installed; can be removed after upgrade to Wagtail 8.1.
+- Use Python 3.12 for development, CI, and documentation builds, to match the deployed environment
+- We are now drafting and reviewing implementation design plans as part of the process for developing new features. These are saved as markdown files in `docs/design-records/` for review and future reference.
+
 ## 0.8
 
 - Update to eScriptorium v1.0.1, with the following changes to match the new version:

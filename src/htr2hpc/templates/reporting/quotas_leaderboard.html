@@ -1,0 +1,8 @@
+{% extends "reporting/quotas_leaderboard.html" %}
+{# extends eScriptorium's Leaderboard page to add the usage report download form at the top #}
+{% load htr2hpc_tags %}
+
+{% block body %}
+{% usage_report_form %}
+{{ block.super }}
+{% endblock %}

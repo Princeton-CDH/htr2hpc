@@ -1,0 +1,17 @@
+{% extends "users/profile.html" %}
+{# The HPC setup instruction text is a /profile/ after_main content snippet. #}
+{# The ssh command and setup button need request context, so they stay in the template. #}
+
+{# remove the hard-coded HPC section from the fallback template #}
+{% block hpc_setup %}{% endblock hpc_setup %}
+
+{% block post_body %}
+{{ block.super }}
+<div class="container pb-5">
+    <p><code>ssh {{ request.user.username }}@adroit.princeton.edu 'mkdir -p ~/.ssh &amp;&amp; echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzoR8jstrofzFKVoiXSFP5jGw/WbXHxFyIaS5b4vSWC {{ current_site.domain }}" >> ~/.ssh/authorized_keys'</code></p>
+    <form method="post" action="{% url 'hpc-setup' %}">
+        {% csrf_token %}
+        <input type="submit" value="HPC setup" class="btn btn-success">
+    </form>
+</div>
+{% endblock post_body %}

@@ -1,0 +1,22 @@
+[
+  {
+    "model": "content.contentsnippet",
+    "pk": 1,
+    "fields": {
+      "url_path": "/",
+      "slot": "homepage_heading",
+      "body": "<p class=\"lead text-muted\">A project providing digital recognition of handwritten documents using machine learning techniques.</p><p>This is a limited-access eScriptorium instance managed by Princeton\u2019s Center for Digital Humanities to support affiliated research.</p>",
+      "live": true
+    }
+  },
+  {
+    "model": "content.contentsnippet",
+    "pk": 2,
+    "fields": {
+      "url_path": "/profile/",
+      "slot": "after_main",
+      "body": "<h2>HPC account management</h2><h3>First time setup</h3><p>To enable key-based ssh access to your account from the eScriptorium server, follow the below three steps. (This is a one-time process.)</p><ol><li>Ensure that you are either on-campus connected to the University wifi or that you are connected to the Princeton network through the VPN <a href=\"https://informationsecurity.princeton.edu/connecting-to-princeton-n\">like so</a>.</li><li>Open Terminal or Command Line on your computer, paste in the code below, and press enter. You will be prompted for your NetID password.</li><li>Click the \"HPC setup\" button below for initial environment setup. This step may take a few minutes to complete -- a notification should appear when it has finished. After this, your account will be prepared to run training tasks on Princeton\u2019s HPC.</li></ol><h3>HPC account updates</h3><p>This instance of eScriptorium will receive occasional upgrades where updates to your HPC account may be necessary. When prompted to update your HPC account, click the \"HPC setup\" button below to run the update process.</p>",
+      "live": true
+    }
+  }
+]

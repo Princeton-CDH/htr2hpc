@@ -3,6 +3,8 @@
 {% block body %}
 {{ block.super }}
 
+{# replaced by the content snippet version when Wagtail is installed #}
+{% block hpc_setup %}
 <div class="container pt-5">
     <h2>HPC account management</h2>
         <h3>First time setup</h3>
@@ -28,9 +30,10 @@
             </li>
         </ol>
     <h3>HPC account updates</h3>
-    <p>This instance of eScriptorium will receive occasional upgrades where updates to your HPC account may be necessary. 
-        When prompted to update your HPC account, simply click the "HPC setup" button above to automatically 
+    <p>This instance of eScriptorium will receive occasional upgrades where updates to your HPC account may be necessary.
+        When prompted to update your HPC account, simply click the "HPC setup" button above to automatically
         run the update process.</p>
 </div>
+{% endblock hpc_setup %}
 
 {% endblock %}

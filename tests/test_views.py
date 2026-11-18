@@ -39,9 +39,13 @@ def get_report(rf, user, **params):
     return UsageReportView.as_view()(request)
 
 
-def read_csv(response):
+def csv_reader(response):
     content = b"".join(response.streaming_content).decode()
-    return list(csv.DictReader(StringIO(content)))
+    return csv.DictReader(StringIO(content))
+
+
+def read_csv(response):
+    return list(csv_reader(response))
 
 
 @pytest.mark.django_db
@@ -73,7 +77,10 @@ def test_usage_report_no_data(rf, today, staff_user):
     assert (
         "htr-usage-total-2026-09-01-2026-11-09.csv" in response["Content-Disposition"]
     )
-    assert read_csv(response) == []
+    # header is still written when there are no rows
+    reader = csv_reader(response)
+    assert reader.fieldnames == USAGE_REPORT_FIELDS
+    assert list(reader) == []
 
 
 @pytest.mark.django_db

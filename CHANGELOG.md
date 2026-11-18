@@ -8,6 +8,7 @@
 - Staff edit content snippets in the Wagtail admin at `/cms/`
 - Override `wagtail_config` Wagtail template tag to allow loading without the Wagtail documents and images apps installed; can be removed after upgrade to Wagtail 8.1.
 - Use Python 3.12 for development, CI, and documentation builds, to match the deployed environment
+- We are now drafting and reviewing implementation design plans as part of the process for developing new features. These are saved as markdown files in `docs/design-records/` for review and future reference.
 
 ## 0.8
 

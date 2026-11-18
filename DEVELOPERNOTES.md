@@ -15,27 +15,11 @@ git checkout develop
 git clone --depth 1 --branch "$(cat .escriptorium-version)" https://gitlab.com/scripta/escriptorium.git escriptorium
 ```
 
-The tests load eScriptorium's real models from this checkout, but they don't need eScriptorium's full dependencies. The tests add the checkout to `sys.path` themselves (see `tests/test_escriptorium_stubs.py`), so you don't need to set `PYTHONPATH`. If you already have an eScriptorium checkout and don't want to move it or create a symbolic link, set the `ESCRIPTORIUM_PATH` environment variable to its location. It must be checked out at the version in `.escriptorium-version`; other versions may fail to load.
+The tests load eScriptorium's real models from this checkout, but don't need its full dependencies. If you already have an eScriptorium checkout and don't want to move it or create a symbolic link, set the `ESCRIPTORIUM_PATH` environment variable to its location (see [Running Tests](#running-tests)). It must be checked out at the version in `.escriptorium-version`; other versions may fail to load.
 
 ### Install dependencies and setup
 
-#### Method A: Using `devbox` (recommended)
-
-This project uses [devbox](https://www.jetify.com/devbox) to simplify local development setup. Devbox installs the required tools (Python, uv) in an isolated environment without affecting your system, so you can get started with a single command and be confident your setup matches other contributors. If you prefer not to use devbox, you can set up the environment manually — see below.
-
-Install devbox if you don't have it:
-
-```sh
-curl -fsSL https://get.jetify.com/devbox | bash
-```
-
-Then run `devbox shell` to enter the environment. This installs uv via Nix; uv then installs the Python version listed in `.python-version`. Run `uv sync` to install Python dependencies into a local `.venv`; the `dev` group is installed by default and includes everything for development, including the optional Wagtail dependency. You only need to run `devbox shell` once per terminal session.
-
-Use `devbox run test` to run the test suite from your regular terminal without entering the devbox shell. To verify the environment works without any system dependencies, use `devbox shell --pure`. If you run into unexpected errors, `rm -rf .devbox` usually clears them up.
-
-#### Method B: Without `devbox`
-
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run `uv sync` to install Python (the version in `.python-version`) and the dependencies into a local `.venv`.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run `uv sync` to install Python (the version in `.python-version`) and the dependencies into a local `.venv`. The `dev` group is installed by default and includes everything for development, including the optional Wagtail dependency.
 
 ### Pre-commit hooks
 
@@ -55,45 +39,64 @@ uv run pre-commit run
 
 ### Git flow
 
-We recommend installing git-flow for a better development experience. On OSX, you can install with brew:
+We recommend installing [git-flow-next](https://git-flow.sh/) for a better development experience. On OSX, you can install with brew:
 
 ```sh
-brew install git-flow
+brew install git-flow-next
 ```
 
 In your local checkout of htr2hpc code, run `git flow init` to initialize the repository with git-flow and accept all the defaults. (This is a one-time step.)
 
 ### Making changes
 
-Start from `develop`: create a branch with `git flow feature start <name>` (or `git checkout -b <name> develop`), and open pull requests against `develop`. For user-visible changes, add an entry to `CHANGELOG.md`; CI fails a pull request that doesn't change it. For changes that aren't user-visible, ask a maintainer to add the `no changelog` label to the pull request.
+Start from `develop`: create a branch with `git flow feature start <name>` (or `git checkout -b <name> develop`), and open pull requests against `develop`. For user-visible changes, add an entry to `CHANGELOG.md`; the GitHub Actions changelog check fails a pull request that doesn't change it. For changes that aren't user-visible, ask a maintainer to add the `no changelog` label to the pull request.
 
 ## Running Tests
 
-Tests run on PostgreSQL, like eScriptorium. They connect to `localhost:5432` as user `postgres` with password `postgres` by default; set the `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_PASSWORD` environment variables to use a different server. One way to run a local server is with Docker:
+Tests run on PostgreSQL, like eScriptorium. By default they connect to `localhost:5432` as user `postgres` with password `postgres`. The Django settings used for the tests are in `tests/test_settings.py`. One way to run a local server is with Docker:
 
 ```sh
 docker run -d --name htr2hpc-postgres -e POSTGRES_PASSWORD=postgres -p 127.0.0.1:5432:5432 postgres:15
 ```
 
-Then install htr2hpc with its dependencies (`uv sync` includes the dev dependencies by default, including Wagtail) and run the tests:
+If port 5432 is already in use on your machine, publish a different local port (for example `-p 127.0.0.1:5433:5432`) and set `POSTGRES_PORT` to match.
+
+The connection and the eScriptorium location are configured with environment variables. If you use [direnv](https://direnv.net/), you can put them in a `.envrc` file in the root of your checkout; the values below are the defaults, so you only need the ones you want to change:
 
 ```sh
-uv sync
+# PostgreSQL connection for the tests
+# export POSTGRES_HOST=localhost
+# export POSTGRES_PORT=5432
+# export POSTGRES_USER=postgres
+# export POSTGRES_PASSWORD=postgres
+# export POSTGRES_DB=htr2hpc
+
+# existing eScriptorium checkout (default: ./escriptorium)
+# export ESCRIPTORIUM_PATH=/path/to/escriptorium
+```
+
+Run the tests with `uv`, which installs htr2hpc and its dependencies first if needed (the `dev` group includes Wagtail):
+
+```sh
 uv run pytest
 ```
 
-Inside a devbox shell, or from your regular terminal, `devbox run test` runs the same test suite.
-
-CI runs the tests twice, with and without Wagtail, to make sure it stays optional; the content management tests are skipped when Wagtail isn't installed. To run the tests without Wagtail locally, install only the `test` group:
+The GitHub Actions unit test workflow runs the tests twice, with and without Wagtail, to make sure it stays optional; the content management tests are skipped when Wagtail isn't installed. To run the tests without Wagtail locally, install only the `test` group:
 
 ```sh
 uv sync --no-dev --group test
 uv run --no-sync pytest
 ```
 
+### Local settings and migrations
+
+The tests use `tests/test_settings.py` and create their own test database, so they don't need local settings or migrations.
+
+htr2hpc is a Django app that runs inside eScriptorium, and has no `manage.py` of its own. To run it locally you need a full eScriptorium environment with htr2hpc installed. Create `escriptorium/local_settings.py` that imports `from escriptorium.settings import *` followed by `from htr2hpc.settings import *`, set `DJANGO_SETTINGS_MODULE=escriptorium.local_settings`, and run management commands (including `migrate`) with the `manage.py` in the eScriptorium checkout, from `escriptorium/app`. A documented docker compose setup for this is tracked in [#259](https://github.com/Princeton-CDH/htr2hpc/issues/259).
+
 ### Upgrading eScriptorium
 
-The eScriptorium version htr2hpc is tested against is set in one place, `.escriptorium-version`; CI reads it from there. When eScriptorium is upgraded:
+The eScriptorium version htr2hpc is tested against is set in one place, `.escriptorium-version`; the GitHub Actions workflows read it from there. When eScriptorium is upgraded:
 
 1. Update `.escriptorium-version`, and re-clone your local `escriptorium` checkout at the new version.
 2. Compare the `escriptorium` dependency group in `pyproject.toml` with the new eScriptorium `requirements.txt`, update the versions, and run `uv lock`.
@@ -102,7 +105,7 @@ The eScriptorium version htr2hpc is tested against is set in one place, `.escrip
 
 ### Changing the Python version
 
-The Python version used for development and CI is set in `.python-version`; `uv` (including in devbox and CI) reads it from there. It should match the version eScriptorium runs on the servers. Read the Docs doesn't read `.python-version`, so when you change it, also update `build.tools.python` in `.readthedocs.yaml`.
+The Python version used for development and in the GitHub Actions workflows is set in `.python-version`; `uv` reads it from there. It should match the version eScriptorium runs on the servers. Read the Docs doesn't read `.python-version`, so when you change it, also update `build.tools.python` in `.readthedocs.yaml`.
 
 `requires-python` in `pyproject.toml` is the minimum supported version, not the version we test on, so it only changes when we drop support for an older version. The HPC environment (`src/htr2hpc/train/user_setup.sh`) uses its own Python version, set by kraken's requirements.
 

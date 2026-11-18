@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.9.1
+
+- Update developer notes with pre-commit, git-flow-next and testing instructions, and remove devbox in favor of `uv`
+
 ## 0.9
 
 - Staff usage report CSV download from the Leaderboard page, with per-user stats for disk usage (OCR models and document images, as on the Leaderboard), VM tasks (broken down by type), and HPC training jobs; choose a start date and a total, monthly or weekly report (completed months and weeks only)

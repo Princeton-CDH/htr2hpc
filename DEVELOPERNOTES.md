@@ -88,11 +88,11 @@ uv sync --no-dev --group test
 uv run --no-sync pytest
 ```
 
-### Local settings and migrations
+### Running a local instance
 
 The tests use `tests/test_settings.py` and create their own test database, so they don't need local settings or migrations.
 
-htr2hpc is a Django app that runs inside eScriptorium, and has no `manage.py` of its own. To run it locally you need a full eScriptorium environment with htr2hpc installed; see the eScriptorium documentation on [installing with Docker](https://gitlab.com/scripta/escriptorium/-/wikis/docker-install) or a [full local install](https://gitlab.com/scripta/escriptorium/-/wikis/full-install). Create `escriptorium/local_settings.py` that imports `from escriptorium.settings import *` followed by `from htr2hpc.settings import *`, set `DJANGO_SETTINGS_MODULE=escriptorium.local_settings`, and run management commands (including `migrate`) with the `manage.py` in the eScriptorium checkout, from `escriptorium/app`.
+htr2hpc is a Django app that runs inside eScriptorium, and has no `manage.py` of its own. To run a full local instance, follow the eScriptorium documentation on [installing with Docker](https://gitlab.com/scripta/escriptorium/-/wikis/docker-install) or a [full local install](https://gitlab.com/scripta/escriptorium/-/wikis/full-install), then add htr2hpc as described in [Installation and usage](README.md#installation-and-usage) in the README.
 
 ### Upgrading eScriptorium
 

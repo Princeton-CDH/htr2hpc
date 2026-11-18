@@ -27,6 +27,8 @@ HPC_SEGTRAIN_METHOD = "htr2hpc.tasks.segtrain"
 HPC_TRAIN_METHOD = "htr2hpc.tasks.train"
 VM_SEGMENT_METHOD = "core.tasks.segment"
 VM_TRANSCRIBE_METHOD = "core.tasks.transcribe"
+# VM training is replaced by the HPC tasks, so it is not reported
+VM_TRAIN_METHODS = ["core.tasks.train", "core.tasks.segtrain"]
 
 REPORT_TOTAL = "total"
 REPORT_MONTH = "month"
@@ -99,6 +101,7 @@ def get_usage_report(start: date, report_type: str):
     (nearly) the same times and cpu cost, so summing every report would
     massively over-count. Only the first report of each job is used.
     Reports without a task_id are not Celery tasks and are not included.
+    VM training tasks are not included in any column.
     """
     TaskReport = apps.get_model("reporting", "TaskReport")
     first, end = report_date_range(start, report_type, timezone.localdate())
@@ -118,7 +121,9 @@ def get_usage_report(start: date, report_type: str):
         .distinct("task_id")
         .values("pk")
     )
-    reports = TaskReport.objects.filter(pk__in=first_report_ids)
+    reports = TaskReport.objects.filter(pk__in=first_report_ids).exclude(
+        method__in=VM_TRAIN_METHODS
+    )
 
     # filter on the date part of started_at, in the site's configured timezone
     reports = reports.filter(started_at__date__gte=first)

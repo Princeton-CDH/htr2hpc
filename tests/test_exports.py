@@ -17,6 +17,7 @@ from htr2hpc.exports import (
     REPORT_WEEK,
     USAGE_REPORT_FIELDS,
     VM_SEGMENT_METHOD,
+    VM_TRAIN_METHODS,
     VM_TRANSCRIBE_METHOD,
     get_usage_report,
     report_date_range,
@@ -323,6 +324,26 @@ def test_monthly_multi_page_job_counted_once(today, alice):
     [row] = rows_for(date(2026, 9, 1), REPORT_MONTH)
     assert row["task_count"] == 1
     assert row["runtime_seconds"] == 5 * 60
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("method", VM_TRAIN_METHODS)
+def test_vm_training_excluded(today, alice, method):
+    add_report(alice, at(2026, 9, 10), VM_SEGMENT_METHOD, minutes=10, cpu=1.0)
+    # VM training (replaced by HPC training) is not reported at all
+    add_report(alice, at(2026, 10, 20), method, minutes=60, cpu=5.0)
+
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert row["task_count"] == 1
+    assert row["runtime_seconds"] == 10 * 60
+    assert row["cpu_usage"] == 1.0
+    assert row["report_end"] == date(2026, 9, 10)
+
+
+@pytest.mark.django_db
+def test_user_with_only_vm_training_has_no_rows(today, alice):
+    add_report(alice, at(2026, 9, 10), VM_TRAIN_METHODS[0])
+    assert rows_for(date(2026, 9, 1), REPORT_TOTAL) == []
 
 
 @pytest.mark.django_db

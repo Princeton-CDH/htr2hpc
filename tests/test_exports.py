@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
-from core.models import OcrModel
+from core.models import Document, DocumentPart, OcrModel, Project
 from django.utils import timezone
 from reporting.models import TaskReport
 
@@ -147,6 +147,47 @@ def test_total_report(today, alice):
         "hpc_segtrain_tasks": 0,
         "hpc_train_tasks": 0,
     }
+
+
+def add_document_images(owner, sizes, name="doc"):
+    """Create a document with one part per image size, owned by owner."""
+    project = Project.objects.create(name=name, owner=owner)
+    document = Document.objects.create(name=name, owner=owner, project=project)
+    for i, size in enumerate(sizes):
+        DocumentPart.objects.create(
+            document=document, order=i, image=f"{name}-{i}.png", image_file_size=size
+        )
+    return document
+
+
+@pytest.mark.django_db
+def test_total_report_disk_usage_includes_images(today, alice):
+    add_report(alice, at(2026, 9, 3))
+    OcrModel.objects.create(
+        name="model 1", owner=alice, file_size=1000, job=OcrModel.MODEL_JOB_RECOGNIZE
+    )
+    OcrModel.objects.create(
+        name="model 2", owner=alice, file_size=24, job=OcrModel.MODEL_JOB_SEGMENT
+    )
+    # several documents and parts; neither source should multiply the other
+    add_document_images(alice, [100, 200, 300], name="doc1")
+    add_document_images(alice, [4000], name="doc2")
+
+    [row] = rows_for(date(2026, 9, 1), REPORT_TOTAL)
+    assert row["disk_usage_bytes"] == 1024 + 4600
+
+
+@pytest.mark.django_db
+def test_total_report_disk_usage_images_only(today, alice, bob):
+    add_report(alice, at(2026, 9, 3))
+    add_report(bob, at(2026, 9, 3))
+    add_document_images(alice, [500, 250])
+    # another user's images are not counted
+    add_document_images(bob, [9999], name="bobdoc")
+
+    rows = {r["username"]: r for r in rows_for(date(2026, 9, 1), REPORT_TOTAL)}
+    assert rows["alice"]["disk_usage_bytes"] == 750
+    assert rows["bob"]["disk_usage_bytes"] == 9999
 
 
 @pytest.mark.django_db

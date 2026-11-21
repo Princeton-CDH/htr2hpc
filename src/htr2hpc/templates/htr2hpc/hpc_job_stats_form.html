@@ -1,0 +1,10 @@
+{% load i18n %}
+<form method="post" action="{% url 'hpc-job-stats' %}" class="form-inline mb-3">
+  {% csrf_token %}
+  <label class="mr-2" for="{{ form.start.id_for_label }}">{% trans "HPC job stats from" %}</label>
+  <span class="mr-2">{{ form.start }}</span>
+  <label class="mr-2" for="{{ form.end.id_for_label }}">{% trans "to" %}</label>
+  <span class="mr-2">{{ form.end }}</span>
+  <button type="submit" class="btn btn-sm btn-secondary">{% trans "Download CSV" %}</button>
+  <small class="form-text text-muted w-100">{% trans "One row per Slurm job for users who ran HPC training in this period. Queries the HPC, so it may take a moment." %}</small>
+</form>

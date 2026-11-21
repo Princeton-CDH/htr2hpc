@@ -179,6 +179,22 @@ def get_usage_report(start: date, report_type: str):
     return rows
 
 
+def hpc_task_usernames(start: date, end: date) -> list[str]:
+    """Return usernames of users who ran HPC training tasks between two dates
+    (inclusive), based on task reports.  Used to select which users' Slurm
+    jobs to report on."""
+    TaskReport = apps.get_model("reporting", "TaskReport")
+    return sorted(
+        TaskReport.objects.filter(
+            method__in=[HPC_SEGTRAIN_METHOD, HPC_TRAIN_METHOD],
+            started_at__date__gte=start,
+            started_at__date__lte=end,
+        )
+        .values_list("user__username", flat=True)
+        .distinct()
+    )
+
+
 def report_row(row: dict, report_type: str) -> dict:
     """Convert one row from :func:`get_usage_report` to a CSV row dict."""
     runtime = row["runtime"]
